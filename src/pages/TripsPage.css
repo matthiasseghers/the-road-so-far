@@ -1,0 +1,45 @@
+.trips-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-6) 28px;
+  /* Reason: fills the full main panel — no max-width cap per design spec */
+}
+
+.trips-page__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Section label: small caps with a trailing horizontal rule (matches mockup) */
+.trips-page__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.trips-page__section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.trips-page__loading,
+.trips-page__error {
+  padding: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.trips-page__error {
+  color: #c05050;
+}

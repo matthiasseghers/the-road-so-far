@@ -1,0 +1,276 @@
+/* ============================================================
+   The Road So Far — Design Tokens
+   Light mode: .lt root class  |  Dark mode: .dk root class
+   ============================================================ */
+
+/* ── Fonts loaded via @fontsource in global.css ──────────── */
+
+/* ── Base (shared) ────────────────────────────────────────── */
+:root {
+  /* Fonts */
+  --font-display: 'Merriweather', Georgia, serif;
+  --font-body:    'Geist Variable', system-ui, sans-serif;
+
+  /* Font sizes */
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.875rem;   /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-md:   1.125rem;   /* 18px */
+  --text-lg:   1.25rem;    /* 20px */
+  --text-xl:   1.5rem;     /* 24px */
+  --text-2xl:  1.875rem;   /* 30px */
+  --text-3xl:  2.25rem;    /* 36px */
+
+  /* Font weights */
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* Line heights */
+  --lh-tight:  1.2;
+  --lh-snug:   1.375;
+  --lh-normal: 1.5;
+  --lh-relaxed:1.625;
+
+  /* Spacing scale — 4px base */
+  --space-1:  0.25rem;   /* 4px  */
+  --space-2:  0.5rem;    /* 8px  */
+  --space-3:  0.75rem;   /* 12px */
+  --space-4:  1rem;      /* 16px */
+  --space-5:  1.25rem;   /* 20px */
+  --space-6:  1.5rem;    /* 24px */
+  --space-8:  2rem;      /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+
+  /* Border radii */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  24px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast:   120ms ease;
+  --transition-base:   200ms ease;
+  --transition-slow:   350ms ease;
+
+  /* Z-index layers */
+  --z-base:    0;
+  --z-raised:  10;
+  --z-overlay: 100;
+  --z-modal:   200;
+  --z-toast:   300;
+
+  /* Sidebar width */
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+}
+
+/* ── Light mode (.lt) ─────────────────────────────────────── */
+.lt {
+  color-scheme: light;
+
+  /* Background layers */
+  --bg-app:        #f5f2ee;
+  --bg-surface:    #ffffff;
+  --bg-raised:     #faf9f7;
+  --bg-sunken:     #efe9e1;
+  --bg-overlay:    rgba(0, 0, 0, 0.4);
+
+  /* Sidebar */
+  --bg-sidebar:    #2c2825;
+  --bg-sidebar-hover: #3d3835;
+  --bg-sidebar-active: #4a4440;
+
+  /* Text */
+  --text-primary:   #1a1614;
+  --text-secondary: #5a524e;
+  --text-muted:     #8c837e;
+  --text-disabled:  #b8b0ab;
+  --text-inverse:   #ffffff;
+  --text-on-sidebar:#e8e2db;
+  --text-on-sidebar-muted: #9d9591;
+
+  /* Border */
+  --border-subtle:  #e5ddd5;
+  --border-default: #cfc6bc;
+  --border-strong:  #a89e97;
+  --border-focus:   #c9814a;
+
+  /* Brand / accent */
+  --accent-primary:   #c9814a;   /* warm terracotta */
+  --accent-secondary: #7a9e87;   /* sage green */
+  --accent-tertiary:  #5b7fa6;   /* dusty blue */
+  --accent-primary-hover:   #b5703b;
+  --accent-primary-subtle:  #f5ede4;
+
+  /* Status */
+  --status-draft:     #9d9591;
+  --status-planning:  #5b7fa6;
+  --status-confirmed: #7a9e87;
+  --status-ready:     #c9814a;
+  --status-completed: #5a524e;
+  --status-archived:  #b8b0ab;
+
+  /* Status backgrounds */
+  --status-draft-bg:      #f0eeec;
+  --status-planning-bg:   #e8eef5;
+  --status-confirmed-bg:  #e8f2ec;
+  --status-ready-bg:      #f5ede4;
+  --status-completed-bg:  #ece9e6;
+  --status-archived-bg:   #f0eeec;
+
+  /* Activity type colours */
+  --activity-reservation: #5b7fa6;
+  --activity-transport:   #7a9e87;
+  --activity-food:        #c9814a;
+  --activity-attraction:  #a07bc4;
+  --activity-note:        #9d9591;
+  --activity-other:       #9d9591;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-xl:   0 16px 48px rgba(0, 0, 0, 0.14);
+  --shadow-modal:0 20px 60px rgba(0, 0, 0, 0.18);
+
+  /* Map */
+  --map-pin:     #c9814a;
+  --map-route:   #5b7fa6;
+
+  /* Reservation / activity type colours */
+  --res-lodging:    #9B91D4;
+  --res-flight:     #6A9CC5;
+  --res-transit:    #5AA8B8;
+  --res-car:        #8AAD7A;
+  --res-restaurant: #D4825A;
+  --res-other:      #A09890;
+  --act-default:    #A09890;
+
+  /* Cover gradients for trip cards */
+  --gradient-warm-brown: linear-gradient(135deg, #c9814a 0%, #8b5a2b 100%);
+  --gradient-cool-blue:  linear-gradient(135deg, #5b7fa6 0%, #2c4f72 100%);
+  --gradient-sage:       linear-gradient(135deg, #7a9e87 0%, #3d6649 100%);
+  --gradient-dusk:       linear-gradient(135deg, #a07bc4 0%, #5a3580 100%);
+  --gradient-sand:       linear-gradient(135deg, #d4a654 0%, #8b6914 100%);
+  --gradient-slate:      linear-gradient(135deg, #6b8a9e 0%, #334f62 100%);
+
+  /* Toast semantic colours */
+  --toast-success-bg:     #e8f2ec;
+  --toast-success-border: #7a9e87;
+  --toast-success-text:   #2e5c3a;
+  --toast-error-bg:       #fde8e8;
+  --toast-error-border:   #c9614a;
+  --toast-error-text:     #7a2010;
+  --toast-warning-bg:     #fef3e2;
+  --toast-warning-border: #c9814a;
+  --toast-warning-text:   #6a4010;
+}
+
+/* ── Dark mode (.dk) ──────────────────────────────────────── */
+.dk {
+  color-scheme: dark;
+
+  /* Background layers */
+  --bg-app:        #1a1714;
+  --bg-surface:    #231f1c;
+  --bg-raised:     #2b2724;
+  --bg-sunken:     #141210;
+  --bg-overlay:    rgba(0, 0, 0, 0.6);
+
+  /* Sidebar */
+  --bg-sidebar:    #141210;
+  --bg-sidebar-hover: #1e1b18;
+  --bg-sidebar-active: #2b2724;
+
+  /* Text */
+  --text-primary:   #e8e2db;
+  --text-secondary: #b8b0ab;
+  --text-muted:     #7d7570;
+  --text-disabled:  #4a4440;
+  --text-inverse:   #1a1714;
+  --text-on-sidebar:#e8e2db;
+  --text-on-sidebar-muted: #7d7570;
+
+  /* Border */
+  --border-subtle:  #2e2a27;
+  --border-default: #3d3835;
+  --border-strong:  #5a524e;
+  --border-focus:   #c9814a;
+
+  /* Brand / accent */
+  --accent-primary:   #d4935e;
+  --accent-secondary: #8aae97;
+  --accent-tertiary:  #6b8fb8;
+  --accent-primary-hover:   #e0a872;
+  --accent-primary-subtle:  #2e1e0f;
+
+  /* Status */
+  --status-draft:     #7d7570;
+  --status-planning:  #6b8fb8;
+  --status-confirmed: #8aae97;
+  --status-ready:     #d4935e;
+  --status-completed: #b8b0ab;
+  --status-archived:  #5a524e;
+
+  /* Status backgrounds */
+  --status-draft-bg:      #252220;
+  --status-planning-bg:   #1a2535;
+  --status-confirmed-bg:  #192820;
+  --status-ready-bg:      #2e1e0f;
+  --status-completed-bg:  #2b2724;
+  --status-archived-bg:   #252220;
+
+  /* Activity type colours */
+  --activity-reservation: #6b8fb8;
+  --activity-transport:   #8aae97;
+  --activity-food:        #d4935e;
+  --activity-attraction:  #b48fd4;
+  --activity-note:        #7d7570;
+  --activity-other:       #7d7570;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-xl:   0 16px 48px rgba(0, 0, 0, 0.5);
+  --shadow-modal:0 20px 60px rgba(0, 0, 0, 0.6);
+
+  /* Map */
+  --map-pin:     #d4935e;
+  --map-route:   #6b8fb8;
+
+  /* Reservation / activity type colours */
+  --res-lodging:    #B8AFDF;
+  --res-flight:     #8AB8D8;
+  --res-transit:    #7DC0CE;
+  --res-car:        #A3C49A;
+  --res-restaurant: #E09A78;
+  --res-other:      #B8B0AB;
+  --act-default:    #B8B0AB;
+
+  /* Cover gradients — slightly darker for dark mode */
+  --gradient-warm-brown: linear-gradient(135deg, #a86838 0%, #5c3a1a 100%);
+  --gradient-cool-blue:  linear-gradient(135deg, #3f5f82 0%, #1a3050 100%);
+  --gradient-sage:       linear-gradient(135deg, #5a7d68 0%, #28472f 100%);
+  --gradient-dusk:       linear-gradient(135deg, #7e5c9a 0%, #3d2060 100%);
+  --gradient-sand:       linear-gradient(135deg, #b08a3a 0%, #6b5010 100%);
+  --gradient-slate:      linear-gradient(135deg, #4a6878 0%, #1e3244 100%);
+
+  /* Toast semantic colours */
+  --toast-success-bg:     #172218;
+  --toast-success-border: #4a8560;
+  --toast-success-text:   #8aae97;
+  --toast-error-bg:       #271818;
+  --toast-error-border:   #8a4040;
+  --toast-error-text:     #d48a8a;
+  --toast-warning-bg:     #261d10;
+  --toast-warning-border: #8a6030;
+  --toast-warning-text:   #d4935e;
+}

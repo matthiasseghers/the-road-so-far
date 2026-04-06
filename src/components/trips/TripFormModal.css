@@ -1,0 +1,95 @@
+.trip-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.trip-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trip-form__label {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+}
+
+.trip-form__input {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.trip-form__select {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  width: 100%;
+  cursor: pointer;
+}
+
+.trip-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.trip-form__title-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.trip-form__emoji-input {
+  width: 52px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: var(--text-lg);
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: text;
+}
+
+.trip-form__gradients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.trip-form__gradient-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.trip-form__gradient-swatch:hover {
+  transform: scale(1.1);
+}
+
+.trip-form__gradient-swatch--active {
+  border-color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+/* ── Validation ──────────────────────────────────────────────── */
+
+.trip-form__warning {
+  font-size: var(--text-xs);
+  /* Reason: amber distinguishes a non-blocking notice from the red error — CSS tokens
+     don't define a warning colour so a literal is used here. */
+  color: #b08540;
+  margin-top: calc(var(--space-1) * -1);
+}

@@ -1,0 +1,314 @@
+/* ============================================================
+   The Road So Far — Global Reset & Base Styles
+   ============================================================ */
+
+@import './tokens.css';
+@import './typography.css';
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource/merriweather";
+@import "@fontsource/merriweather/700.css";
+
+@custom-variant dark (&:is(.dk *));
+
+/* ── Box sizing / reset (in @layer base so Tailwind utilities win) ── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* ── Root ─────────────────────────────────────────────────── */
+html {
+  height: 100%;
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  height: 100%;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-normal);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Typography reset ─────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--text-primary);
+}
+
+p {
+  line-height: var(--lh-relaxed);
+}
+
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* ── Lists ────────────────────────────────────────────────── */
+ul, ol {
+  list-style: none;
+}
+
+/* ── Images + media ───────────────────────────────────────── */
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ── Form element resets (in @layer base so Tailwind/shadcn utilities win) ── */
+@layer base {
+  button {
+    font-family: var(--font-body);
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  input,
+  textarea,
+  select {
+    font-family: var(--font-body);
+    font-size: inherit;
+    color: var(--text-primary);
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    outline: none;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px var(--accent-primary-subtle);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted);
+  }
+}
+
+/* ── Form field error message ─────────────────────────────── */
+/* Reason: single canonical class for all inline field errors across every form modal.
+   Uses var(--destructive) so it automatically tracks shadcn's token instead of a hardcoded hex. */
+.form-field-error {
+  font-size: var(--text-xs);
+  color: var(--destructive);
+  margin-top: 2px;
+}
+
+/* ── Form field label states (mirrors shadcn Field component behaviour) ─────── */
+/* Reason: shadcn's Field component achieves label colouring by setting
+   data-[invalid=true]:text-destructive on the wrapper. We replicate this with
+   :has([aria-invalid="true"]) so the label turns red without needing to refactor
+   every form to use Field wrappers — the wrapper already sets aria-invalid on
+   the input, which is enough signal. */
+.rfm__field:has([aria-invalid="true"]) > label,
+.trip-form__field:has([aria-invalid="true"]) > label,
+.activity-form__field:has([aria-invalid="true"]) > label {
+  color: var(--destructive);
+}
+
+/* Required asterisk — appended after the label text on required fields.
+   Reason: matches the shadcn Input "Required" example (required attr → * mark). */
+.rfm__field--required > label::after,
+.trip-form__field--required > label::after,
+.activity-form__field--required > label::after {
+  content: " *";
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* ── Focus visible ────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* ── Selection ────────────────────────────────────────────── */
+::selection {
+  background: var(--accent-primary-subtle);
+  color: var(--text-primary);
+}
+
+@theme inline {
+  --font-heading: 'Merriweather', Georgia, serif;
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ── shadcn token bridge — light mode (.lt) ────────────────── */
+:root,
+.lt {
+  --background:           oklch(0.961 0.006 53);   /* #f5f2ee bg-app */
+  --foreground:           oklch(0.122 0.008 53);   /* #1a1614 text-primary */
+  --card:                 oklch(1 0 0);             /* #ffffff bg-surface */
+  --card-foreground:      oklch(0.122 0.008 53);
+  --popover:              oklch(0.984 0.004 53);   /* #faf9f7 bg-raised */
+  --popover-foreground:   oklch(0.122 0.008 53);
+  --primary:              oklch(0.621 0.108 47);   /* #c9814a accent-primary */
+  --primary-foreground:   oklch(1 0 0);
+  --secondary:            oklch(0.937 0.010 53);   /* #efe9e1 bg-sunken */
+  --secondary-foreground: oklch(0.392 0.010 53);   /* #5a524e text-secondary */
+  --muted:                oklch(0.937 0.010 53);
+  --muted-foreground:     oklch(0.572 0.009 53);   /* #8c837e text-muted */
+  --accent:               oklch(0.961 0.006 53);
+  --accent-foreground:    oklch(0.621 0.108 47);
+  --destructive:          oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(1 0 0);
+  --border:               oklch(0.831 0.014 53);   /* #cfc6bc border-default */
+  --input:                oklch(0.831 0.014 53);
+  --ring:                 oklch(0.621 0.108 47);   /* #c9814a border-focus */
+  --radius:               0.5rem;
+  --chart-1:              oklch(0.621 0.108 47);   /* accent */
+  --chart-2:              oklch(0.532 0.082 240);  /* flight */
+  --chart-3:              oklch(0.631 0.072 195);  /* transit */
+  --chart-4:              oklch(0.638 0.088 140);  /* car/sage */
+  --chart-5:              oklch(0.601 0.068 290);  /* lodging */
+  --sidebar:              oklch(0.211 0.010 53);   /* #2c2825 bg-sidebar */
+  --sidebar-foreground:   oklch(0.918 0.009 53);   /* #e8e2db */
+  --sidebar-primary:      oklch(0.621 0.108 47);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent:       oklch(0.268 0.010 53);   /* bg-sidebar-hover */
+  --sidebar-accent-foreground: oklch(0.918 0.009 53);
+  --sidebar-border:       oklch(0.268 0.010 53);
+  --sidebar-ring:         oklch(0.621 0.108 47);
+}
+
+/* ── shadcn token bridge — dark mode (.dk) ─────────────────── */
+.dk {
+  --background:           oklch(0.141 0.010 53);   /* #1a1714 bg-app */
+  --foreground:           oklch(0.918 0.009 53);   /* #e8e2db text-primary */
+  --card:                 oklch(0.171 0.010 53);   /* #231f1c bg-surface */
+  --card-foreground:      oklch(0.918 0.009 53);
+  --popover:              oklch(0.201 0.010 53);   /* #2b2724 bg-raised */
+  --popover-foreground:   oklch(0.918 0.009 53);
+  --primary:              oklch(0.651 0.118 47);   /* #d4935e accent-primary */
+  --primary-foreground:   oklch(0.141 0.010 53);
+  --secondary:            oklch(0.171 0.010 53);   /* #231f1c bg-surface — chips need contrast vs popover/bg-raised */
+  --secondary-foreground: oklch(0.738 0.009 53);   /* #b8b0ab text-secondary */
+  --muted:                oklch(0.201 0.010 53);
+  --muted-foreground:     oklch(0.511 0.009 53);   /* #7d7570 text-muted */
+  --accent:               oklch(0.201 0.010 53);
+  --accent-foreground:    oklch(0.651 0.118 47);
+  --destructive:          oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.141 0.010 53);
+  --border:               oklch(0.261 0.010 53);   /* #3d3835 border-default */
+  --input:                oklch(0.171 0.010 53);
+  --ring:                 oklch(0.651 0.118 47);
+  --radius:               0.5rem;
+  --chart-1:              oklch(0.651 0.118 47);
+  --chart-2:              oklch(0.621 0.082 240);
+  --chart-3:              oklch(0.648 0.072 195);
+  --chart-4:              oklch(0.648 0.078 140);
+  --chart-5:              oklch(0.681 0.068 290);
+  --sidebar:              oklch(0.111 0.009 53);   /* #141210 bg-sidebar */
+  --sidebar-foreground:   oklch(0.918 0.009 53);
+  --sidebar-primary:      oklch(0.651 0.118 47);
+  --sidebar-primary-foreground: oklch(0.141 0.010 53);
+  --sidebar-accent:       oklch(0.151 0.009 53);   /* bg-sidebar-hover */
+  --sidebar-accent-foreground: oklch(0.918 0.009 53);
+  --sidebar-border:       oklch(0.201 0.009 53);
+  --sidebar-ring:         oklch(0.651 0.118 47);
+}
+
+@layer base {
+  * {
+    /* Reason: outline-ring/50 removed — it set outline-color on every element, causing
+       any <input> or <button> that receives browser focus to show an accent-colored outline
+       even when the component explicitly applies outline-none. All shadcn components manage
+       their own focus rings via focus-visible:ring-* so the global override is not needed. */
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

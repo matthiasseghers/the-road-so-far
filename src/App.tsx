@@ -1,0 +1,129 @@
+// App.tsx — Root component. Holds theme state, screen router, and app shell.
+// Phase 3+: Sidebar + Topbar layout with swappable screen content.
+// Phase 4: screen state replaced with a back-stack for trip detail navigation.
+
+import { useState, useEffect } from 'react';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AppSidebar } from '@/components/layout/AppSidebar';
+import Topbar from '@/components/layout/Topbar';
+import TripsPage from '@/pages/TripsPage';
+import TripDetailPage from '@/pages/TripDetailPage';
+import type { Screen, Theme } from '@/types/domain';
+import { Toaster } from '@/components/ui/sonner';
+import './App.css';
+
+const THEME_STORAGE_KEY = 'rsf-theme';
+
+// ScreenEntry pairs a screen name with optional context data.
+interface ScreenEntry {
+  screen: Screen;
+  tripId?: number;
+}
+
+function getInitialTheme(): Theme {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === 'light' || stored === 'dark') return stored;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme: Theme): void {
+  const root = document.documentElement;
+  root.classList.toggle('dk', theme === 'dark');
+  root.classList.toggle('lt', theme === 'light');
+}
+
+export default function App(): JSX.Element {
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [stack, setStack] = useState<ScreenEntry[]>([{ screen: 'trips' }]);
+  const [newTripOpen, setNewTripOpen] = useState(false);
+
+  const current = stack[stack.length - 1];
+
+  useEffect(() => {
+    applyTheme(theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  function handleThemeToggle(): void {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  }
+
+  function handleNavigate(screen: Screen, tripId?: number): void {
+    setStack(prev => [...prev, { screen, tripId }]);
+  }
+
+  function handleGoBack(): void {
+    setStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
+  }
+
+  function renderScreen(): JSX.Element {
+    switch (current.screen) {
+      case 'trips':
+        return (
+          <TripsPage
+            onNavigate={handleNavigate}
+            newTripOpen={newTripOpen}
+            onNewTripOpenChange={setNewTripOpen}
+          />
+        );
+      case 'calendar':
+        return <Placeholder title="Calendar" subtitle="Phase 7" />;
+      case 'map':
+        return <Placeholder title="Map" subtitle="Phase 5" />;
+      case 'settings':
+        return <Placeholder title="Settings" subtitle="Phase 6" />;
+      case 'trip':
+        return (
+          <TripDetailPage
+            tripId={current.tripId!}
+            onBack={handleGoBack}
+            onDelete={handleGoBack}
+          />
+        );
+    }
+  }
+
+  return (
+    <TooltipProvider>
+    {/* Reason: --sidebar-width overrides sidebar.tsx default (16rem) to match our 240px design token. */}
+    <SidebarProvider
+      style={{ '--sidebar-width': '240px' } as React.CSSProperties}
+      className="h-full overflow-hidden"
+    >
+      <AppSidebar
+        activeScreen={current.screen}
+        onNavigate={screen => setStack([{ screen }])}
+        theme={theme}
+        onThemeToggle={handleThemeToggle}
+      />
+
+      <SidebarInset className="overflow-hidden">
+        {/* Reason: TripDetailPage owns its own Topbar with breadcrumb navigation;
+            rendering a second one here would show two topbars stacked. */}
+        {current.screen !== 'trip' && (
+          <Topbar
+            activeScreen={current.screen}
+            onNewTrip={current.screen === 'trips' ? () => setNewTripOpen(true) : undefined}
+          />
+        )}
+        <div className="app-shell__content">
+          {renderScreen()}
+        </div>
+      </SidebarInset>
+
+      <Toaster />
+    </SidebarProvider>
+    </TooltipProvider>
+  );
+}
+
+function Placeholder({ title, subtitle }: { title: string; subtitle: string }): JSX.Element {
+  return (
+    <div className="app-placeholder">
+      <h2 className="app-placeholder__title">{title}</h2>
+      <p className="app-placeholder__sub">{subtitle}</p>
+    </div>
+  );
+}
+

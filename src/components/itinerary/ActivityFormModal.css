@@ -1,0 +1,97 @@
+.activity-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.activity-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.activity-form__label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.activity-form__input,
+.activity-form__select,
+.activity-form__textarea {
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+  outline: none;
+}
+
+.activity-form__input:focus,
+.activity-form__select:focus,
+.activity-form__textarea:focus {
+  border-color: var(--accent-primary);
+}
+
+.activity-form__input--time {
+  max-width: 140px;
+}
+
+.activity-form__select {
+  cursor: pointer;
+}
+
+.activity-form__textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+/* Row layout for paired fields */
+.activity-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.activity-form__field--grow { flex: 1; }
+.activity-form__field--shrink { flex: 0 0 80px; }
+
+/* Time type segmented control */
+.activity-form__time-type-group {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.activity-form__time-type-btn {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-raised);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.activity-form__time-type-btn:hover {
+  background-color: var(--bg-sunken);
+  color: var(--text-primary);
+}
+
+.activity-form__time-type-btn--active {
+  background-color: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}

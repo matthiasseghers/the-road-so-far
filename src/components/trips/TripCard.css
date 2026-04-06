@@ -1,0 +1,140 @@
+/* ── Card shell ──────────────────────────────────────────────── */
+.trip-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base), transform var(--transition-base);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+}
+
+.trip-card:hover {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+/* ── Banner ─────────────────────────────────────────────────── */
+.trip-card__banner {
+  position: relative;
+  height: 88px;
+  display: flex;
+  align-items: flex-end;
+  padding: 10px 14px;
+}
+
+/* Darkens the bottom of the banner so the badge is always legible */
+.trip-card__banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, rgba(0, 0, 0, 0.4));
+  pointer-events: none;
+}
+
+.trip-card__emoji {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 26px;
+  line-height: 1;
+  opacity: 0.9;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+}
+
+/* Badge sits bottom-left of the banner, above the gradient overlay */
+.trip-card__status {
+  position: relative;
+  z-index: 1;
+}
+
+.trip-card__status span {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* ── Status badge variants (trip status colours) ────────────── */
+.trip-card__badge--draft     { background-color: var(--status-draft-bg);     color: var(--status-draft);     border-color: transparent; }
+.trip-card__badge--planning  { background-color: var(--status-planning-bg);  color: var(--status-planning);  border-color: transparent; }
+.trip-card__badge--confirmed { background-color: var(--status-confirmed-bg); color: var(--status-confirmed); border-color: transparent; }
+.trip-card__badge--ready     { background-color: var(--status-ready-bg);     color: var(--status-ready);     border-color: transparent; }
+.trip-card__badge--completed { background-color: var(--status-completed-bg); color: var(--status-completed); border-color: transparent; }
+.trip-card__badge--archived  { background-color: var(--status-archived-bg);  color: var(--status-archived);  border-color: transparent; }
+
+/* ── Body ─────────────────────────────────────────────────────── */
+.trip-card__body {
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+}
+
+.trip-card__title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  line-height: var(--lh-snug);
+  margin: 0;
+}
+
+.trip-card__meta {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+.trip-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* ── Progress ────────────────────────────────────────────────── */
+.trip-card__progress {
+  margin-top: var(--space-1);
+}
+
+.trip-card__progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+}
+
+.trip-card__progress-bar {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-raised);
+  overflow: hidden;
+}
+
+/* ── Footer ───────────────────────────────────────────────────── */
+.trip-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border-subtle);
+  gap: var(--space-2);
+}
+
+.trip-card__footer-meta {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trip-card__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}

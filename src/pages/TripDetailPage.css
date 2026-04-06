@@ -1,0 +1,1034 @@
+/* TripDetailPage — redesigned Phase 3.5 styles */
+
+/* ── Shell ───────────────────────────────────────────────────── */
+
+.tdp {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.tdp--loading,
+.tdp--error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* ── Status badge (shared across hero, day cards) ────────────── */
+
+.tdp__status-badge {
+  font-size: 10.5px;
+  font-weight: var(--fw-medium);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tdp__status-badge--draft      { background: var(--status-draft-bg);     color: var(--status-draft); }
+.tdp__status-badge--planning   { background: var(--status-planning-bg);   color: var(--status-planning); }
+.tdp__status-badge--confirmed  { background: var(--status-confirmed-bg);  color: var(--status-confirmed); }
+.tdp__status-badge--ready      { background: var(--status-ready-bg);      color: var(--status-ready); }
+.tdp__status-badge--completed  { background: var(--status-completed-bg);  color: var(--status-completed); }
+.tdp__status-badge--archived   { background: var(--status-archived-bg);   color: var(--status-archived); }
+
+/* ── Hero ────────────────────────────────────────────────────── */
+
+.tdp__hero {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 16px 20px;
+  flex-shrink: 0;
+}
+
+.tdp__hero-banner {
+  height: 72px;
+  border-radius: var(--radius-md);
+  position: relative;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: flex-end;
+  padding: 10px 14px;
+  overflow: hidden;
+}
+
+.tdp__hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 40%, rgba(0, 0, 0, 0.35));
+}
+
+.tdp__hero-emoji {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 24px;
+  opacity: 0.9;
+  /* Reason: above overlay */
+  z-index: 1;
+}
+
+/* The status badge sits in the bottom-left of the banner */
+.tdp__hero-badge {
+  position: relative;
+  z-index: 1;
+  font-size: 10.5px;
+  font-weight: var(--fw-medium);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  backdrop-filter: blur(4px);
+  /* Override status-badge colour when inside the banner */
+}
+
+.tdp__hero-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tdp__hero-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.tdp__hero-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  margin: 0 0 3px;
+}
+
+.tdp__hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.tdp__hero-meta-sep {
+  color: var(--border-default);
+}
+
+.tdp__hero-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tdp__hero-tag {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ── Hero stats ──────────────────────────────────────────────── */
+
+.tdp__hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.tdp__stat {
+  text-align: center;
+}
+
+.tdp__stat-val {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.tdp__stat-val--warning {
+  color: var(--status-ready);
+}
+
+.tdp__stat-lbl {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+}
+
+.tdp__stat-div {
+  width: 1px;
+  height: 32px;
+  background: var(--border-subtle);
+}
+
+/* ── Tab bar (pill style) ─────────────────────────────────────── */
+
+.tdp__tab-wrap {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 20px;
+  flex-shrink: 0;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-raised);
+  border-radius: 9px;
+  padding: 3px;
+  width: fit-content;
+}
+
+.view-tab {
+  padding: 6px 14px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.view-tab:hover {
+  color: var(--text-primary);
+}
+
+.view-tab.act,
+.view-tab--active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+}
+
+/* ── Scrollable content ──────────────────────────────────────── */
+
+.tdp__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Overview sections ───────────────────────────────────────── */
+
+.tdp__section-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: visible;
+}
+
+.tdp__section-head {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tdp__section-title {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tdp__section-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tdp__section-empty {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.tdp__overview-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.tdp__ov-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.tdp__ov-icon--lodging    { background: color-mix(in srgb, var(--res-lodging) 15%, transparent); }
+.tdp__ov-icon--attraction { background: #e1f5ee; }
+
+.tdp__ov-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.tdp__ov-name {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+}
+
+.tdp__ov-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.tdp__notes-area {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 10px;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  min-height: 60px;
+  border: 1px dashed var(--border-subtle);
+}
+
+.tdp__notes-placeholder {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* ── Day cards ───────────────────────────────────────────────── */
+
+.tdp__day-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.tdp__day-header {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-raised);
+}
+
+.tdp__day-card--gap .tdp__day-header {
+  background: var(--status-ready-bg);
+}
+
+.tdp__day-card--no-stop .tdp__day-header {
+  background: var(--bg-sunken);
+}
+
+.tdp__day-label {
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tdp__day-loc {
+  font-size: 14px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+.tdp__day-loc--muted {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.tdp__day-icon {
+  font-size: 15px;
+  opacity: 0.7;
+}
+
+.tdp__gap-badge {
+  font-size: 10.5px;
+  color: var(--status-ready);
+  font-weight: var(--fw-medium);
+}
+
+/* ── Lodging bar ─────────────────────────────────────────────── */
+
+.tdp__lodging-bar {
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--res-lodging) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--res-lodging) 40%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dk .tdp__lodging-bar {
+  background: color-mix(in srgb, var(--res-lodging) 10%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--res-lodging) 30%, transparent);
+}
+
+.tdp__lodging-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--res-lodging);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tdp__lodging-name {
+  font-size: 12.5px;
+  font-weight: var(--fw-medium);
+  color: var(--res-lodging);
+  flex: 1;
+}
+
+.tdp__lodging-times {
+  font-size: 11px;
+  color: var(--res-lodging);
+  opacity: 0.8;
+}
+
+/* ── Activity list inside day cards ──────────────────────────── */
+
+.tdp__day-acts {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tdp__no-day-msg {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Activity item ───────────────────────────────────────────── */
+
+.tdp__act-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  border-left-width: 3px;
+  background: var(--bg-surface);
+  position: relative;
+  transition: background var(--transition-fast);
+}
+
+.tdp__act-item:hover {
+  background: var(--bg-raised);
+}
+
+.tdp__act-item--reservation { border-left-color: var(--res-other); }
+.tdp__act-item--transport   { border-left-color: var(--activity-transport); }
+.tdp__act-item--food        { border-left-color: var(--activity-food); }
+.tdp__act-item--attraction  { border-left-color: var(--activity-attraction); }
+.tdp__act-item--note        { border-left-color: var(--border-default); }
+.tdp__act-item--other       { border-left-color: var(--border-default); }
+
+/* Per-type reservation left border colours */
+.tdp__act-item--res-lodging     { border-left-color: var(--res-lodging); }
+.tdp__act-item--res-flight      { border-left-color: var(--res-flight); }
+.tdp__act-item--res-train,
+.tdp__act-item--res-bus,
+.tdp__act-item--res-ferry       { border-left-color: var(--res-transit); }
+.tdp__act-item--res-rental_car  { border-left-color: var(--res-car); }
+.tdp__act-item--res-restaurant  { border-left-color: var(--res-restaurant); }
+.tdp__act-item--res-other       { border-left-color: var(--res-other); }
+
+.tdp__act-drag {
+  color: var(--border-default);
+  cursor: grab;
+  flex-shrink: 0;
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+}
+
+.tdp__act-num {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tdp__act-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.tdp__act-title {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.tdp__act-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tdp__act-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+
+.tdp__act-note {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* ── Activity type badges ─────────────────────────────────────── */
+
+.tdp__type-badge {
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.tdp__type-badge--reservation { background: rgba(91, 127, 166, 0.12); color: var(--activity-reservation); }
+.tdp__type-badge--transport   { background: rgba(122, 158, 135, 0.12); color: var(--activity-transport); }
+.tdp__type-badge--food        { background: rgba(201, 129, 74, 0.12);  color: var(--activity-food); }
+.tdp__type-badge--attraction  { background: rgba(160, 123, 196, 0.12); color: var(--activity-attraction); }
+.tdp__type-badge--note        { background: var(--bg-raised);          color: var(--text-secondary); }
+.tdp__type-badge--other       { background: var(--bg-raised);          color: var(--text-secondary); }
+
+.tdp__type-badge--status-pending,
+.tdp__type-badge--res-status-pending   { background: rgba(91, 127, 166, 0.08); color: var(--activity-reservation); border: 1px dashed var(--activity-reservation); }
+.tdp__type-badge--status-confirmed,
+.tdp__type-badge--res-status-confirmed { background: rgba(91, 127, 166, 0.08); color: var(--activity-reservation); border: 1px solid var(--activity-reservation); }
+.tdp__type-badge--status-cancelled,
+.tdp__type-badge--res-status-cancelled { background: var(--bg-raised); color: var(--text-muted); text-decoration: line-through; }
+
+/* ── Activity hover actions ───────────────────────────────────── */
+
+.tdp__act-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  align-items: flex-start;
+  padding-top: 1px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.tdp__act-item:hover .tdp__act-actions {
+  opacity: 1;
+}
+
+/* Always show on touch devices */
+@media (hover: none) {
+  .tdp__act-actions {
+    opacity: 1;
+  }
+}
+
+
+/* ── Add activity / stop button ──────────────────────────────── */
+
+.tdp__add-btn {
+  width: 100%;
+  padding: 7px;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-size: 12px;
+  font-family: var(--font-body);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--transition-fast), color var(--transition-fast),
+              background var(--transition-fast);
+}
+
+.tdp__add-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--accent-primary-subtle);
+}
+
+/* ── Stub tab placeholder ────────────────────────────────────── */
+
+.tdp__stub {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ── Header card (.tdh) ──────────────────────────────────────── */
+
+.tdh {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 14px 20px 12px;
+  flex-shrink: 0;
+}
+
+.tdh-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.tdh-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tdh-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tdh-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.tdh-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.tdh-meta-sep {
+  color: var(--border-default);
+}
+
+.tdh-tag {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.tdh-stats {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+}
+
+.stat {
+  flex: 1;
+  text-align: center;
+  padding: 0 8px;
+}
+
+.stat:not(:last-child) {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.stat-val {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.stat-val.sage { color: var(--accent-secondary); }
+.stat-val.amb  { color: #D4A84A; }
+.stat-val.acc  { color: var(--accent-primary); }
+
+.stat-lbl {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 3px;
+}
+
+/* ── Timeline column ─────────────────────────────────────────── */
+
+.tdp__day-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.tl-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+  flex-shrink: 0;
+  padding-top: 22px;
+}
+
+.tl-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.tl-dot--no-stop {
+  background: var(--border-default);
+}
+
+.tl-line {
+  flex: 1;
+  width: 2px;
+  background: var(--border-subtle);
+  margin-top: 4px;
+  margin-bottom: -12px;
+}
+
+.tdp__day-row .tdp__day-card {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── No-lodging warning ──────────────────────────────────────── */
+
+.tdp__no-lodging-warn {
+  padding: 5px 14px;
+  font-size: 11px;
+  color: var(--amb, #D4A84A);
+  background: rgba(212, 168, 74, 0.06);
+  border-bottom: 1px solid rgba(212, 168, 74, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ── Day card title / subtitle ───────────────────────────────── */
+
+.tdp__day-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+.tdp__day-title--empty {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: var(--fw-regular);
+}
+
+.tdp__day-subtitle {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: var(--fw-regular);
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+/* ── Drag drop indicators ────────────────────────────────────── */
+
+.act--drop-above {
+  box-shadow: 0 -2px 0 var(--accent-primary);
+}
+
+.act--drop-below {
+  box-shadow: 0 2px 0 var(--accent-primary);
+}
+
+/* ── Reservation type badges ─────────────────────────────────── */
+
+.tdp__res-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.tdp__res-badge--lodging    { background: color-mix(in srgb, var(--res-lodging)    12%, transparent); color: var(--res-lodging); }
+.tdp__res-badge--flight     { background: color-mix(in srgb, var(--res-flight)     12%, transparent); color: var(--res-flight); }
+.tdp__res-badge--transit    { background: color-mix(in srgb, var(--res-transit)    12%, transparent); color: var(--res-transit); }
+.tdp__res-badge--car        { background: color-mix(in srgb, var(--res-car)        12%, transparent); color: var(--res-car); }
+.tdp__res-badge--restaurant { background: color-mix(in srgb, var(--res-restaurant) 12%, transparent); color: var(--res-restaurant); }
+.tdp__res-badge--other      { background: color-mix(in srgb, var(--res-other)      12%, transparent); color: var(--res-other); }
+
+/* ── Two add-buttons row (legacy — replaced by tdp__day-footer) ── */
+
+.tdp__add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tdp__add-row .tdp__add-btn {
+  flex: 1;
+}
+
+/* ── Day card empty state ─────────────────────────────────────── */
+
+.tdp__day-card--empty {
+  opacity: 0.85;
+}
+
+.tdp__day-card--empty .tdp__day-header {
+  background: var(--bg-app);
+}
+
+.tl-dot--empty {
+  background: var(--border-strong);
+}
+
+/* ── DayInfoBanner ────────────────────────────────────────────── */
+
+.tdp__day-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+}
+
+.tdp__day-banner-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tdp__day-banner-text {
+  font-size: 11px;
+}
+
+/* ── Day edit button ──────────────────────────────────────────── */
+
+.tdp__day-edit-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tdp__day-edit-btn:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+/* ── Day footer (add activity / add reservation buttons) ───────── */
+
+.tdp__day-footer {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tdp__day-footer .tdp__add-btn {
+  flex: 1;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* ── Lodging item in itinerary (purple left border) ───────────── */
+
+.tdp__act-item--lodging {
+  border-left-color: var(--res-lodging);
+}
+
+/* ── Lodging detail card in overview ────────────────────────── */
+
+.tdp__lodging-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  position: relative;
+}
+
+.tdp__lc-header {
+  padding: 10px 12px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.tdp__lc-name {
+  font-size: 13.5px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.tdp__lc-loc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.tdp__lc-dates {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tdp__lc-date-col {
+  flex: 1;
+}
+
+.tdp__lc-date-col--right {
+  text-align: right;
+}
+
+.tdp__lc-date-lbl {
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.tdp__lc-date-val {
+  font-size: 13px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  margin-top: 1px;
+}
+
+.tdp__lc-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.tdp__lc-nights {
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.tdp__lc-nights-num {
+  font-size: 18px;
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.tdp__lc-nights-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.tdp__lc-meta {
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.tdp__lc-ref { }
+.tdp__lc-cost { font-weight: var(--fw-medium); }
+
+.tdp__lc-actions {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.tdp__lodging-card:hover .tdp__lc-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .tdp__lc-actions { opacity: 1; }
+}
+

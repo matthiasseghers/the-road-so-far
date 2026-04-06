@@ -1,0 +1,195 @@
+.day-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* Today indicator: accent border + filled circle on the day number */
+.day-card--today {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary);
+}
+
+/* Remove the grey rectangular block for today — the circle replaces it */
+.day-card__date-block--today {
+  background-color: transparent;
+}
+
+/* Weekday label "Today" in accent colour */
+.day-card--today .day-card__weekday {
+  color: var(--accent-primary);
+}
+
+/* Day number inside a filled accent circle */
+.day-card__date-block--today .day-card__day-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent-primary);
+  color: #fff;
+  line-height: 1;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.day-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--bg-raised);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.day-card__date-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  background-color: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) 0;
+}
+
+.day-card__weekday {
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.day-card__day-num {
+  font-size: var(--text-xl);
+  font-weight: var(--fw-bold);
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.day-card__title-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.day-card__date-full {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+}
+
+.day-card__notes {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-card__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  font-family: var(--font-body);
+  background-color: var(--bg-sunken);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.day-card__add-btn:hover {
+  background-color: var(--accent-primary);
+  color: #fff;
+  border-color: var(--accent-primary);
+}
+
+/* ── Body ────────────────────────────────────────────────────── */
+
+.day-card__body {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Sections ────────────────────────────────────────────────── */
+
+.day-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.day-card__section-label {
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.day-card__activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ── Maybe (unscheduled) section ─────────────────────────────── */
+
+.day-card__section--maybe {
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: var(--space-3);
+}
+
+.day-card__maybe-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--text-secondary);
+  width: 100%;
+  text-align: left;
+}
+
+.day-card__maybe-toggle:hover .day-card__section-label {
+  color: var(--text-primary);
+}
+
+/* Reason: Collapsible trigger exposes data-[state=open]; rotate chevron to point up when open */
+.day-card__maybe-toggle[data-state="open"] .day-card__maybe-chevron {
+  transform: rotate(180deg);
+}
+
+.day-card__maybe-chevron {
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.day-card__activity-list--maybe {
+  opacity: 0.8;
+}

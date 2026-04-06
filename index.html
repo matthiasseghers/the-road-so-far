@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Road So Far</title>
+    <!--
+      Blocking theme script — must run before any CSS is painted to prevent FOUC.
+      Reads localStorage for a saved preference, falls back to prefers-color-scheme.
+      Applies .dk or .lt to <html> synchronously so the first paint uses the right tokens.
+    -->
+    <script>
+      (function () {
+        var stored = localStorage.getItem('rsf-theme');
+        var dark =
+          stored === 'dark' ||
+          (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.add(dark ? 'dk' : 'lt');
+      })();
+    </script>
+    <!-- Google Fonts preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

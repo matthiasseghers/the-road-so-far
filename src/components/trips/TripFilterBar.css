@@ -1,0 +1,84 @@
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.filter-bar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filter-bar__search-icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.filter-bar__search-input {
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--space-3) + 15px + var(--space-2));
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  width: 240px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.filter-bar__search-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-primary-subtle);
+}
+
+.filter-bar__search-clear {
+  position: absolute;
+  right: var(--space-2);
+  /* Reason: override btn--sm size to fit tightly inside the search input. */
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  padding: 0;
+}
+
+.filter-bar__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  /* Reason: override ToggleGroup's w-fit so the tag row spans full available width when wrapping */
+  width: auto;
+}
+
+.filter-bar__tag {
+  padding: var(--space-1) var(--space-3);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  cursor: pointer;
+  /* Reason: override ToggleGroupItem's h-8/min-w-8 — height is determined by padding + line-height */
+  height: auto;
+  min-width: 0;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.filter-bar__tag:hover,
+/* Reason: toggleVariants applies hover:bg-muted; override with our token to keep consistent */
+.filter-bar__tag:is(:hover) {
+  background-color: var(--bg-raised);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* Reason: Radix ToggleGroupItem sets data-state=on when active; replaces old --active modifier */
+.filter-bar__tag[data-state="on"] {
+  background-color: var(--accent-primary-subtle);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}

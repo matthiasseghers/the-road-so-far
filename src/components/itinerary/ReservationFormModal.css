@@ -1,0 +1,364 @@
+/* ── ReservationFormModal styles ────────────────────────────────────────────── */
+
+/* ── Step 1: pick cards ── */
+
+.rfm__pick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.rfm__pick-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  background: var(--bg-raised);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.rfm__pick-card:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-sunken);
+}
+
+.rfm__pick-card--active {
+  border-color: var(--accent-primary);
+  background: var(--bg-sunken);
+}
+
+.rfm__pick-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.rfm__pick-title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+}
+
+.rfm__pick-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ── Step indicator ── */
+
+.rfm__steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: var(--space-1);
+}
+
+.rfm__step-group {
+  display: contents;
+}
+
+.rfm__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.rfm__step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  border: 1.5px solid var(--border-default);
+  color: var(--text-muted);
+  background: var(--bg-base);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.rfm__step-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: var(--fw-medium);
+}
+
+.rfm__step--active .rfm__step-num {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--bg-base);
+}
+
+.rfm__step--active .rfm__step-label {
+  color: var(--text-primary);
+}
+
+.rfm__step--done .rfm__step-num {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.rfm__step--done .rfm__step-label {
+  color: var(--text-secondary);
+}
+
+.rfm__step-sep {
+  flex: 1;
+  min-width: var(--space-3);
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0 var(--space-2);
+}
+
+/* ── Step 2b: type chips ── */
+
+.rfm__type-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.rfm__type-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  background: var(--bg-raised);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.rfm__type-chip:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-sunken);
+}
+
+/* Reason: plain button — selected state set via --active modifier class */
+.rfm__type-chip--active {
+  border-color: var(--accent-primary);
+  background: var(--bg-sunken);
+}
+
+.rfm__tc-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.rfm__tc-label {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+}
+
+.rfm__tc-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* ── API error banner ── */
+
+.rfm__api-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: #b91c1c;
+}
+
+/* ── Booking details dashed section ── */
+
+.rfm__booking-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  margin-top: var(--space-2);
+  border-top: 1.5px dashed var(--border-subtle);
+}
+
+.rfm__booking-details-label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Form ── */
+
+.rfm__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rfm__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rfm__field--narrow {
+  max-width: 6rem;
+}
+
+.rfm__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.rfm__row--3 {
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* ── Transit segmented control ── */
+
+.rfm__segment {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-raised);
+  border-radius: 7px;
+  padding: 3px;
+  width: fit-content;
+}
+
+.rfm__segment-btn {
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.rfm__segment-btn:hover {
+  color: var(--text-primary);
+}
+
+/* Reason: ToggleGroupItem sets data-state=on when selected; replaces --active modifier */
+.rfm__segment-btn[data-state="on"] {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+}
+
+.rfm__label {
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rfm__input,
+.rfm__select {
+  height: 2.25rem;
+  padding: 0 var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+}
+
+.rfm__input:focus,
+.rfm__select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.rfm__textarea {
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  resize: vertical;
+  min-height: 5rem;
+  transition: border-color var(--transition-fast);
+}
+
+.rfm__textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+
+
+
+/* ── Scroll area ── */
+
+/* Reason: cap the inner content div, not DialogContent — matches the shadcn
+   scrollable-content pattern. DialogContent keeps its default grid layout.
+   overflow-y:auto also forces overflow-x to auto (not visible), which would clip
+   focus rings at the left/right edge; -mx-4 px-4 on the element extends the div
+   to the dialog edges so rings stay visible. */
+.rfm__scroll-area {
+  max-height: min(60svh, 520px);
+  overflow-y: auto;
+}
+
+/* ── Date + time row ── */
+
+.rfm__datetime-row {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  gap: var(--space-2);
+}
+
+/* ── Clearable time input ── */
+
+.rfm__time-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rfm__time-wrap > input {
+  padding-right: 28px;
+}
+
+.rfm__time-clear {
+  position: absolute;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: var(--radius-sm);
+}
+
+.rfm__time-clear:hover {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
