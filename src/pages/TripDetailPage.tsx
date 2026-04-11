@@ -10,6 +10,9 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { useTrip } from '@/hooks/useTrip';
 import { useReservations } from '@/hooks/useReservations';
+import { useMapData } from '@/hooks/useMapData';
+import { Activity as ActivityClass } from '@/domain/Activity';
+import TripMap from '@/components/map/TripMap';
 import type { CreateReservationInput } from '@/hooks/useReservations';
 import ActivityFormModal from '@/components/itinerary/ActivityFormModal';
 import ReservationFormModal from '@/components/itinerary/ReservationFormModal';
@@ -26,6 +29,7 @@ import { formatDateRange } from '@/utils/format';
 import type { Activity, Trip as TripType, TripWithDays, DayWithActivities } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 import type { LodgingDetails } from '@/schemas/reservation.schema';
+import type { ActivityRow } from '@/types/db';
 import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories/activities.repo';
 import type { CreateTripInput, UpdateTripInput } from '@/db/repositories/trips.repo';
 import { api } from '@/db/api-client';
@@ -76,8 +80,16 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
     updateReservation,
     deleteReservation,
   } = useReservations(tripId);
+  const { pins, mapDays, lodgingRoute, missingCount, refetch: refetchMapData } = useMapData(tripId);
 
   const [activeTab, setActiveTab] = useState<TripTab>('overview');
+
+  // Reason: refetch map data each time the user navigates to the tab so geocoded
+  // pins appear without a full page reload.
+  useEffect(() => {
+    if (activeTab === 'map') refetchMapData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // ── Trip edit / delete modals ─────────────────────────────────────────────
   const [tripEditOpen,       setTripEditOpen]       = useState(false);
@@ -152,22 +164,18 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   }
 
   const handleSaveActivity = useCallback(
-    async (input: CreateActivityInput | UpdateActivityInput, id?: number): Promise<void> => {
-      try {
-        if (id !== undefined) {
-          await api.patch(`/activities/${id}`, input);
-          toast.success('Activity updated');
-        } else {
-          await api.post('/activities', input);
-          toast.success('Activity added');
-        }
-        refetch();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to save activity');
-        throw err;
+    async (input: CreateActivityInput | UpdateActivityInput, id?: number): Promise<ActivityRow> => {
+      let row: ActivityRow;
+      if (id !== undefined) {
+        row = await api.patch<ActivityRow>(`/activities/${id}`, input);
+      } else {
+        row = await api.post<ActivityRow>('/activities', input);
       }
+      // Reason: refetch is called in the modal's onClose so the itinerary only
+      // updates after the modal is fully closed (avoids visible flash during geocoding).
+      return row;
     },
-    [refetch],
+    [],
   );
 
   const handleDeleteActivity = useCallback(
@@ -331,7 +339,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
       </div>
 
       {/* ── Tab content ──────────────────────────────── */}
-      <div className="tdp__content">
+      <div className={`tdp__content${activeTab === 'map' ? ' tdp__content--map' : ''}`}>
         {activeTab === 'overview' && (
           <OverviewTab trip={trip} reservations={reservations} onAddEntry={() => openAddEntry(null)} onAddLodging={openAddLodging} onEditReservation={openEditReservation} onDeleteReservation={(id, title) => handleDeleteReservation(id, title)} />
         )}
@@ -352,7 +360,14 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
         )}
         {activeTab === 'calendar'  && <StubTab label="Trip calendar — Phase 7" />}
         {activeTab === 'checklist' && <StubTab label="Checklist — Phase 6" />}
-        {activeTab === 'map'       && <StubTab label="Map view — Phase 5" />}
+        {activeTab === 'map'       && (
+          <TripMap
+            pins={pins}
+            mapDays={mapDays}
+            lodgingRoute={lodgingRoute}
+            missingCount={missingCount}
+          />
+        )}
       </div>
 
       {/* ── Modals ───────────────────────────────────── */}
@@ -373,16 +388,17 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
 
       <ActivityFormModal
         open={activityModalOpen}
-        onClose={() => setActivityModalOpen(false)}
+        onClose={() => { setActivityModalOpen(false); refetch(); }}
         activity={editingActivity}
         dayId={pendingDayId ?? undefined}
         tripId={tripId}
         onSave={handleSaveActivity}
+        onGeocodeDone={refetchMapData}
       />
 
       <ReservationFormModal
         open={entryModalOpen}
-        onClose={() => { setEntryModalOpen(false); setEntryInitialType(null); setEntryDefaultCategory(null); }}
+        onClose={() => { setEntryModalOpen(false); setEntryInitialType(null); setEntryDefaultCategory(null); refetch(); }}
         tripId={tripId}
         dayId={entryDayId}
         days={trip.days}
@@ -392,8 +408,17 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
         initialType={entryInitialType}
         onCreateReservation={createReservation}
         onUpdateReservation={handleUpdateReservation}
-        onCreateActivity={async (input) => { await api.post('/activities', input); refetch(); }}
-        onUpdateActivity={async (id, input) => { await api.patch(`/activities/${id}`, input); refetch(); }}
+        onCreateActivity={async (input) => {
+          const row = await api.post<ActivityRow>('/activities', input);
+          // Reason: refetch is deferred to onClose to avoid flash while modal+geocoding are still active.
+          return new ActivityClass(row);
+        }}
+        onUpdateActivity={async (id, input) => {
+          const row = await api.patch<ActivityRow>(`/activities/${id}`, input);
+          // Reason: refetch is deferred to onClose to avoid flash while modal+geocoding are still active.
+          return new ActivityClass(row);
+        }}
+        onGeocodeDone={refetchMapData}
       />
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={o => { if (!o) setDeleteConfirmOpen(false); }}>
@@ -942,9 +967,9 @@ function ItineraryDayCard({
           {day.subtitle && <div className="tdp__day-subtitle">{day.subtitle}</div>}
         </div>
         <div className="tdp__day-header-actions">
-          <button className="tdp__day-edit-btn" onClick={onEditDay} type="button" aria-label="Edit day">
+          <Button variant="ghost" size="icon-xs" onClick={onEditDay} type="button" aria-label="Edit day">
             <Pencil size={12} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1032,12 +1057,12 @@ function ItineraryDayCard({
 
       {/* ── Footer with add buttons ─────────────────── */}
       <div className="tdp__day-footer">
-        <button className="tdp__add-btn" onClick={onAddActivity} type="button">
+        <Button variant="ghost" className="tdp__add-btn" onClick={onAddActivity} type="button">
           <Plus size={12} /> Add activity
-        </button>
-        <button className="tdp__add-btn" onClick={onAddReservation} type="button">
+        </Button>
+        <Button variant="ghost" className="tdp__add-btn" onClick={onAddReservation} type="button">
           <Plus size={12} /> Add reservation
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1238,6 +1263,7 @@ function DayEditModal({
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
+    if (!day) return;
     setSaving(true);
     try {
       await onSave({
@@ -1245,6 +1271,7 @@ function DayEditModal({
         subtitle: subtitle.trim() || null,
         notes:    notes.trim() || null,
       });
+      onClose();
     } finally {
       setSaving(false);
     }
@@ -1256,7 +1283,7 @@ function DayEditModal({
         <DialogHeader>
           <DialogTitle>Edit day</DialogTitle>
         </DialogHeader>
-        <form id="day-edit-form" className="trip-form" onSubmit={(e) => { void handleSubmit(e); }}>
+        <form id="day-edit-form" className="trip-form pb-1" onSubmit={(e) => { void handleSubmit(e); }}>
           <div className="trip-form__field">
             <Label htmlFor="day-title">Title</Label>
             <Input

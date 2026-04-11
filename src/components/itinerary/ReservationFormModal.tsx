@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import LocationField from '@/components/common/LocationField';
+import { useGeocode } from '@/hooks/useGeocode';
 import type { Reservation } from '@/domain/Reservation';
 import type { Activity } from '@/domain/Activity';
 import type { ReservationType, ActivityType } from '@/types/db';
@@ -54,6 +56,7 @@ interface ActivityFormState {
   start_time: string;
   end_time: string;
   notes: string;
+  location: string;
 }
 
 const BLANK_ACTIVITY: ActivityFormState = {
@@ -62,6 +65,7 @@ const BLANK_ACTIVITY: ActivityFormState = {
   start_time: '',
   end_time: '',
   notes: '',
+  location: '',
 };
 
 const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string; emoji: string }[] = [
@@ -86,6 +90,7 @@ interface ReservationFormState {
   cost_amount: string;
   cost_currency: string;
   details: DetailsState;
+  location: string;
 }
 
 const BLANK_RESERVATION: ReservationFormState = {
@@ -95,6 +100,7 @@ const BLANK_RESERVATION: ReservationFormState = {
   cost_amount: '',
   cost_currency: 'EUR',
   details: {},
+  location: '',
 };
 
 // ── Per-type detail field definitions ─────────────────────────────────────────
@@ -218,7 +224,10 @@ interface ReservationFormModalProps {
   onUpdateActivity?: (id: number, input: Partial<CreateActivityInput>) => Promise<Activity | void>;
   /** Trip days used to derive the correct day_id from reservation date fields. */
   days?: { id: number; date: string }[];
+  onGeocodeDone?: () => void;
 }
+
+// ── Step indicator ────────────────────────────────────────────────────────────
 
 // ── Activity sub-form ─────────────────────────────────────────────────────────
 
@@ -226,10 +235,12 @@ function ActivitySubForm({
   form,
   onChange,
   errors,
+  locationStatus,
 }: {
   form: ActivityFormState;
   onChange: (field: keyof ActivityFormState, value: string) => void;
   errors: Partial<Record<keyof ActivityFormState, string>>;
+  locationStatus: ReturnType<typeof useGeocode>['status'];
 }): JSX.Element {
   return (
     <div className="rfm__form">
@@ -292,6 +303,12 @@ function ActivitySubForm({
           rows={3}
         />
       </div>
+
+      <LocationField
+        value={form.location}
+        onChange={val => onChange('location', val)}
+        status={locationStatus}
+      />
     </div>
   );
 }
@@ -306,6 +323,7 @@ function ReservationSubForm({
   onTransitTypeChange,
   errors,
   apiError,
+  locationStatus,
 }: {
   resType: ReservationType;
   form: ReservationFormState;
@@ -314,6 +332,7 @@ function ReservationSubForm({
   onTransitTypeChange: (t: ReservationType) => void;
   errors: Record<string, string>;
   apiError: string | null;
+  locationStatus: ReturnType<typeof useGeocode>['status'];
 }): JSX.Element {
   const fields = RESERVATION_TYPE_FIELDS[resType] ?? [];
   const isTransit = TRANSIT_TYPES.includes(resType);
@@ -533,6 +552,13 @@ function ReservationSubForm({
             rows={2}
           />
         </div>
+
+        {/* Geocodable map location */}
+        <LocationField
+          value={form.location}
+          onChange={val => onShared('location', val)}
+          status={locationStatus}
+        />
       </div>
     </div>
   );
@@ -582,13 +608,14 @@ function ClearableTimeInput({
         onChange={e => onChange(e.target.value)}
       />
       {value && (
-        <button
+        <Button
+          variant="ghost"
           type="button"
           tabIndex={-1}
           className="rfm__time-clear"
           onClick={() => onChange('')}
           aria-label="Clear time"
-        >×</button>
+        >×</Button>
       )}
     </div>
   );
@@ -641,6 +668,7 @@ export default function ReservationFormModal({
   onUpdateReservation,
   onUpdateActivity,
   days,
+  onGeocodeDone,
 }: ReservationFormModalProps): JSX.Element {
   const [category, setCategory]     = useState<CategorySelection>('reservation');
   const [step2bChip, setStep2bChip] = useState<Step2bChip>('lodging');
@@ -655,12 +683,18 @@ export default function ReservationFormModal({
   const [resErrors, setResErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError]   = useState<string | null>(null);
 
+  // ── Geocoding ─────────────────────────────────────────────────────────────
+  const actGeocode = useGeocode('activities');
+  const resGeocode = useGeocode('reservations');
+
   // Seed form from editing props / reset on close
   useEffect(() => {
     if (!open) {
       setActErrors({});
       setResErrors({});
       setApiError(null);
+      actGeocode.reset();
+      resGeocode.reset();
       return;
     }
 
@@ -674,6 +708,7 @@ export default function ReservationFormModal({
           start_time:    editingActivity.start_time ?? '',
           end_time:      editingActivity.end_time   ?? '',
           notes:         editingActivity.notes      ?? '',
+          location:      editingActivity.data.location ?? '',
         },
       });
       return;
@@ -692,6 +727,7 @@ export default function ReservationFormModal({
         cost_amount:      editingReservation.cost_amount != null ? String(editingReservation.cost_amount) : '',
         cost_currency:    editingReservation.cost_currency,
         details:          Object.fromEntries(Object.entries(details).filter(([k]) => k !== 'type')),
+        location:         editingReservation.data.location ?? '',
       });
       return;
     }
@@ -730,7 +766,13 @@ export default function ReservationFormModal({
   }
 
   function handleResFieldChange(key: string, value: string): void {
-    setResForm(prev => ({ ...prev, details: { ...prev.details, [key]: value } }));
+    setResForm(prev => ({
+      ...prev,
+      details: { ...prev.details, [key]: value },
+      // Reason: lodging and restaurant both have a 'location' detail field. Mirror it to
+      // the geocodable location so the user doesn't have to fill in two separate fields.
+      ...(key === 'location' ? { location: value } : {}),
+    }));
   }
 
   function handleResSharedChange(field: keyof ReservationFormState, value: string): void {
@@ -741,6 +783,7 @@ export default function ReservationFormModal({
     setApiError(null);
 
     if (category === 'activity') {
+      const locationTrimmed = actForm.location.trim();
       const parsed = CreateActivitySchema.safeParse({
         day_id:        dayId ?? null,
         trip_id:       tripId,
@@ -749,6 +792,9 @@ export default function ReservationFormModal({
         start_time:    actForm.start_time || null,
         end_time:      actForm.end_time   || null,
         notes:         actForm.notes.trim() || null,
+        location:      locationTrimmed || null,
+        // Reason: clear stale coordinates when location is cleared.
+        ...(locationTrimmed ? {} : { lat: null, lng: null }),
       });
       if (!parsed.success) {
         const fe = parsed.error.flatten().fieldErrors;
@@ -759,10 +805,17 @@ export default function ReservationFormModal({
         return;
       }
       try {
+        let saved: Activity | void;
         if (editingActivity && onUpdateActivity) {
-          await onUpdateActivity(editingActivity.id, parsed.data);
+          saved = await onUpdateActivity(editingActivity.id, parsed.data);
         } else {
-          await onCreateActivity(parsed.data);
+          saved = await onCreateActivity(parsed.data);
+        }
+        const savedId = (saved as Activity | undefined)?.id ?? editingActivity?.id;
+        if (savedId && locationTrimmed) {
+          await actGeocode.geocode(savedId, locationTrimmed);
+          onGeocodeDone?.();
+          await new Promise<void>(resolve => { setTimeout(resolve, 800); });
         }
         onClose();
       } catch (err) {
@@ -783,6 +836,9 @@ export default function ReservationFormModal({
       cost_amount:      resForm.cost_amount !== '' ? parseFloat(resForm.cost_amount) : null,
       cost_currency:    resForm.cost_currency || 'EUR',
       details:          detailsObj,
+      location:         resForm.location.trim() || null,
+      // Reason: clear stale coordinates when location is cleared.
+      ...(resForm.location.trim() ? {} : { lat: null, lng: null }),
     };
     const parsed = CreateReservationSchema.safeParse(input);
     if (!parsed.success) {
@@ -800,10 +856,17 @@ export default function ReservationFormModal({
 
   async function doSaveReservation(input: Parameters<typeof onCreateReservation>[0]): Promise<void> {
     try {
+      let saved: Reservation;
       if (editingReservation && onUpdateReservation) {
-        await onUpdateReservation(editingReservation.id, input);
+        saved = await onUpdateReservation(editingReservation.id, input);
       } else {
-        await onCreateReservation(input);
+        saved = await onCreateReservation(input);
+      }
+      const locationTrimmed = resForm.location.trim();
+      if (locationTrimmed) {
+        await resGeocode.geocode(saved.id, locationTrimmed);
+        onGeocodeDone?.();
+        await new Promise<void>(resolve => { setTimeout(resolve, 800); });
       }
       onClose();
     } catch (err) {
@@ -865,6 +928,7 @@ export default function ReservationFormModal({
               form={actForm}
               onChange={(f, v) => dispatchAct({ type: 'SET', field: f, value: v })}
               errors={actErrors}
+              locationStatus={actGeocode.status}
             />
           ) : (
             <div className="rfm__form">
@@ -895,6 +959,7 @@ export default function ReservationFormModal({
                 onTransitTypeChange={t => setResType(t)}
                 errors={resErrors}
                 apiError={apiError}
+                locationStatus={resGeocode.status}
               />
             </div>
           )}

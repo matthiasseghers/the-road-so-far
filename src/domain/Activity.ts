@@ -13,6 +13,9 @@ export class Activity {
   get end_time(): string | null { return this.data.end_time; }
   get sort_order(): number { return this.data.sort_order; }
   get notes(): string | null { return this.data.notes; }
+  get location(): string | null { return this.data.location; }
+  get lat(): number | null { return this.data.lat; }
+  get lng(): number | null { return this.data.lng; }
   get created_at(): string { return this.data.created_at; }
   get updated_at(): string { return this.data.updated_at; }
 

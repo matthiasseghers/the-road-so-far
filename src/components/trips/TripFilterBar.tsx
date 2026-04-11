@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import './TripFilterBar.css';
 
@@ -22,7 +23,7 @@ export default function TripFilterBar({
     <div className="filter-bar">
       <div className="filter-bar__search">
         <Search size={15} className="filter-bar__search-icon" />
-        <input
+        <Input
           className="filter-bar__search-input"
           type="text"
           placeholder="Search trips…"

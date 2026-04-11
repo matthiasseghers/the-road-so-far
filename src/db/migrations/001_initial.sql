@@ -58,6 +58,11 @@ CREATE TABLE IF NOT EXISTS activities (
   -- Content
   notes               TEXT,   -- plain text or Tiptap JSON, nullable
 
+  -- Locatable mixin — geocodable place for the map tab
+  location            TEXT,   -- free-text place for geocoding, nullable
+  lat                 REAL,   -- geocoded latitude, nullable
+  lng                 REAL,   -- geocoded longitude, nullable
+
   created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -138,6 +143,10 @@ CREATE TABLE IF NOT EXISTS reservations (
   cost_currency    TEXT DEFAULT 'EUR',
   details          TEXT NOT NULL DEFAULT '{}',
   sort_order       INTEGER NOT NULL DEFAULT 0,
+  -- Locatable mixin — geocodable place for the map tab
+  location         TEXT,   -- free-text place for geocoding, nullable
+  lat              REAL,   -- geocoded latitude, nullable
+  lng              REAL,   -- geocoded longitude, nullable
   -- Reason: type-specific fields stored as JSON. Validated by Zod schemas before
   -- reaching the DB. May be normalised into dedicated columns in a future version
   -- if query performance on details fields becomes necessary.

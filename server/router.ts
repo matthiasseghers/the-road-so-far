@@ -6,6 +6,7 @@ import * as reservationsRepo from '../src/db/repositories/reservations.repo.js';
 import * as checklistRepo from '../src/db/repositories/checklist.repo.js';
 import * as settingsRepo from '../src/db/repositories/settings.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
+import { geocodePlace } from '../src/services/geocoding.service.js';
 import { CreateTripSchema, PatchTripSchema } from '../src/schemas/trip.schema.js';
 import { CreateActivitySchema, PatchActivitySchema } from '../src/schemas/activity.schema.js';
 import { CreateReservationSchema, UpdateReservationSchema } from '../src/schemas/reservation.schema.js';
@@ -138,6 +139,23 @@ router.patch('/activities/:id', (req: Request, res: Response) => {
   res.json(activity);
 });
 
+const GeocodeBodySchema = z.object({ location: z.string().trim().min(1) });
+
+router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
+  const id = Number(req.params['id']);
+  const activity = activitiesRepo.findActivityById(id);
+  if (!activity) { res.status(404).json({ error: 'Activity not found' }); return; }
+  const parsed = GeocodeBodySchema.safeParse(req.body);
+  if (!parsed.success) { res.status(422).json({ error: 'Location is required for geocoding' }); return; }
+  geocodePlace(parsed.data.location)
+    .then(coords => {
+      if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
+      activitiesRepo.updateActivityLatLng(id, coords.lat, coords.lng);
+      res.json(activitiesRepo.findActivityById(id));
+    })
+    .catch(() => res.status(503).json({ error: 'Geocoding failed' }));
+});
+
 router.delete('/activities/:id', (req: Request, res: Response) => {
   activitiesRepo.deleteActivity(Number(req.params['id']));
   res.status(204).send();
@@ -185,7 +203,20 @@ router.get('/reservations/:id', (req: Request, res: Response) => {
   if (!reservation) { res.status(404).json({ error: 'Reservation not found' }); return; }
   res.json(reservation);
 });
-
+router.patch('/reservations/:id/geocode', (req: Request, res: Response) => {
+  const id = Number(req.params['id']);
+  const reservation = reservationsRepo.findById(id);
+  if (!reservation) { res.status(404).json({ error: 'Reservation not found' }); return; }
+  const parsed = GeocodeBodySchema.safeParse(req.body);
+  if (!parsed.success) { res.status(422).json({ error: 'Location is required for geocoding' }); return; }
+  geocodePlace(parsed.data.location)
+    .then(coords => {
+      if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
+      reservationsRepo.updateReservationLatLng(id, coords.lat, coords.lng);
+      res.json(reservationsRepo.findById(id));
+    })
+    .catch(() => res.status(503).json({ error: 'Geocoding failed' }));
+});
 router.patch('/reservations/:id', (req: Request, res: Response) => {
   const parsed = UpdateReservationSchema.safeParse(req.body);
   if (!parsed.success) {

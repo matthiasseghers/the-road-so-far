@@ -29,11 +29,6 @@
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.filter-bar__search-input:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-primary-subtle);
-}
-
 .filter-bar__search-clear {
   position: absolute;
   right: var(--space-2);

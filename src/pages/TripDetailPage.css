@@ -233,6 +233,30 @@
   gap: 12px;
 }
 
+/* Reason: map must fill the full remaining height without scroll or padding. */
+.tdp__content--map {
+  overflow: hidden;
+  padding: 0;
+}
+
+/* ── Geocode indicator (DayEditModal) ────────────────────────── */
+
+.day-edit__geocode-ok {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: #4caf50;
+  font-weight: 500;
+}
+
+.day-edit__geocode-miss {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 /* ── Overview sections ───────────────────────────────────────── */
 
 .tdp__section-card {
@@ -870,27 +894,6 @@
 
 .tdp__day-banner-text {
   font-size: 11px;
-}
-
-/* ── Day edit button ──────────────────────────────────────────── */
-
-.tdp__day-edit-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.tdp__day-edit-btn:hover {
-  background: var(--bg-raised);
-  color: var(--text-primary);
 }
 
 /* ── Day footer (add activity / add reservation buttons) ───────── */

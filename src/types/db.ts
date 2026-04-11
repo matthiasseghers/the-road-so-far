@@ -55,6 +55,9 @@ export interface ActivityRow {
   end_time: string | null;   // HH:MM
   sort_order: number;
   notes: string | null;
+  location: string | null;
+  lat: number | null;
+  lng: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,6 +75,9 @@ export interface ReservationRow {
   cost_currency: string;
   details: string; // JSON string — parse with JSON.parse, validated by Zod
   sort_order: number;
+  location: string | null;
+  lat: number | null;
+  lng: number | null;
   created_at: string;
   updated_at: string;
 }

@@ -50,8 +50,8 @@ export function createActivity(input: CreateActivityInput): ActivityRow {
 
   const result = db
     .prepare(
-      `INSERT INTO activities (day_id, trip_id, title, activity_type, start_time, end_time, sort_order, notes)
-       VALUES (@day_id, @trip_id, @title, @activity_type, @start_time, @end_time, @sort_order, @notes)`,
+      `INSERT INTO activities (day_id, trip_id, title, activity_type, start_time, end_time, sort_order, notes, location, lat, lng)
+       VALUES (@day_id, @trip_id, @title, @activity_type, @start_time, @end_time, @sort_order, @notes, @location, @lat, @lng)`,
     )
     .run({
       day_id:        input.day_id ?? null,
@@ -62,6 +62,9 @@ export function createActivity(input: CreateActivityInput): ActivityRow {
       end_time:      input.end_time ?? null,
       sort_order:    sortOrder,
       notes:         input.notes ?? null,
+      location:      input.location ?? null,
+      lat:           input.lat ?? null,
+      lng:           input.lng ?? null,
     });
 
   return findActivityById(result.lastInsertRowid as number)!;
@@ -79,7 +82,8 @@ export function updateActivity(id: number, input: PatchActivityInput): ActivityR
     `UPDATE activities SET
        title = @title, activity_type = @activity_type,
        start_time = @start_time, end_time = @end_time,
-       sort_order = @sort_order, notes = @notes
+       sort_order = @sort_order, notes = @notes,
+       location = @location, lat = @lat, lng = @lng
      WHERE id = @id`,
   ).run({
     id,
@@ -89,9 +93,18 @@ export function updateActivity(id: number, input: PatchActivityInput): ActivityR
     end_time:      input.end_time      !== undefined ? input.end_time   : cur.end_time,
     sort_order:    input.sort_order    ?? cur.sort_order,
     notes:         input.notes         !== undefined ? input.notes      : cur.notes,
+    location:      input.location      !== undefined ? input.location   : cur.location,
+    lat:           input.lat           !== undefined ? input.lat        : cur.lat,
+    lng:           input.lng           !== undefined ? input.lng        : cur.lng,
   });
 
   return findActivityById(id);
+}
+
+export function updateActivityLatLng(id: number, lat: number, lng: number): void {
+  getDb()
+    .prepare('UPDATE activities SET lat = @lat, lng = @lng WHERE id = @id')
+    .run({ id, lat, lng });
 }
 
 export function deleteActivity(id: number): void {

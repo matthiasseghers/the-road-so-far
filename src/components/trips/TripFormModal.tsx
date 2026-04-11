@@ -193,7 +193,7 @@ export default function TripFormModal({
             <DialogTitle>{titleLabel}</DialogTitle>
           </DialogHeader>
 
-          <form className="trip-form" onSubmit={handleSubmit}>
+          <form className="trip-form pb-1" onSubmit={handleSubmit}>
 
             {/* Title */}
             <div className="trip-form__field trip-form__field--required">

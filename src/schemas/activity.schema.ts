@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { locatableMixin } from './mixins/locatable.js';
 
 const HH_MM = z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM');
 
@@ -17,7 +18,7 @@ const ActivityBaseSchema = z.object({
   end_time:      HH_MM.nullable().optional(),
   sort_order:    z.number().int().default(0),
   notes:         z.string().nullable().optional(),
-});
+}).merge(locatableMixin);
 
 export const CreateActivitySchema = ActivityBaseSchema
   .refine(

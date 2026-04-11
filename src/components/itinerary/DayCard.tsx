@@ -1,5 +1,6 @@
 import { Plus, ChevronDown, CalendarPlus } from 'lucide-react';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Button } from '@/components/ui/button';
 import { buildDayViewModel, formatDate, today } from '@/utils/dates';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import ActivityItem from './ActivityItem';
@@ -35,7 +36,8 @@ export default function DayCard({ day, onAddActivity, onEditActivity, onDeleteAc
           <span className="day-card__date-full">{formatDate(day.date, 'MMM d, yyyy')}</span>
           {day.notes && <p className="day-card__notes">{day.notes}</p>}
         </div>
-        <button
+        <Button
+          variant="ghost"
           className="day-card__add-btn"
           onClick={() => onAddActivity(day.id)}
           type="button"
@@ -43,7 +45,7 @@ export default function DayCard({ day, onAddActivity, onEditActivity, onDeleteAc
         >
           <Plus size={14} />
           Add
-        </button>
+        </Button>
       </header>
 
       <div className="day-card__body">

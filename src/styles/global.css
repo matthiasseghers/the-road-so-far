@@ -104,8 +104,8 @@ svg {
     outline: none;
   }
 
-  input:focus,
-  textarea:focus,
+  input:focus:not([data-slot="input"]),
+  textarea:focus:not([data-slot="textarea"]),
   select:focus {
     border-color: var(--border-focus);
     box-shadow: 0 0 0 3px var(--accent-primary-subtle);
@@ -167,8 +167,8 @@ svg {
   background: var(--border-strong);
 }
 
-/* ── Focus visible ────────────────────────────────────────── */
-:focus-visible {
+/* ── Focus visible (non-shadcn elements only) ────────────── */
+:focus-visible:not([data-slot]) {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }

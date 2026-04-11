@@ -5,8 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import LocationField from '@/components/common/LocationField';
+import { useGeocode } from '@/hooks/useGeocode';
 import type { Activity } from '@/types/domain';
-import type { ActivityType } from '@/types/db';
+import type { ActivityType, ActivityRow } from '@/types/db';
 import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories/activities.repo';
 import './ActivityFormModal.css';
 
@@ -18,6 +20,7 @@ interface FormState {
   start_time: string; // HH:MM or ''
   end_time: string;   // HH:MM or ''
   notes: string;
+  location: string;
 }
 
 type FormAction =
@@ -38,6 +41,7 @@ function makeBlankForm(): FormState {
     start_time:    '',
     end_time:      '',
     notes:         '',
+    location:      '',
   };
 }
 
@@ -48,6 +52,7 @@ function activityToForm(a: Activity): FormState {
     start_time:    a.start_time ?? '',
     end_time:      a.end_time   ?? '',
     notes:         a.notes      ?? '',
+    location:      a.data.location ?? '',
   };
 }
 
@@ -59,7 +64,8 @@ interface ActivityFormModalProps {
   activity?: Activity | null;
   dayId?: number;
   tripId: number;
-  onSave: (input: CreateActivityInput | UpdateActivityInput, id?: number) => Promise<void>;
+  onSave: (input: CreateActivityInput | UpdateActivityInput, id?: number) => Promise<ActivityRow>;
+  onGeocodeDone?: () => void;
 }
 
 const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
@@ -79,14 +85,18 @@ export default function ActivityFormModal({
   dayId,
   tripId,
   onSave,
+  onGeocodeDone,
 }: ActivityFormModalProps): JSX.Element {
   const isEditing = activity != null;
 
   const [form, dispatch] = useReducer(formReducer, makeBlankForm());
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const geoHook = useGeocode('activities');
 
   useEffect(() => {
-    if (!open) setSubmitAttempted(false);
+    if (!open) { setSubmitAttempted(false); geoHook.reset(); }
+  // Reason: reset geo status when modal closes; geoHook.reset is stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const titleError: string | null =
@@ -114,18 +124,30 @@ export default function ActivityFormModal({
     setSubmitAttempted(true);
     if (!isFormValid()) return;
 
+    const locationTrimmed = form.location.trim();
     const base = {
       title:         form.title.trim(),
       activity_type: form.activity_type,
       start_time:    form.start_time || null,
       end_time:      form.end_time   || null,
       notes:         form.notes.trim() || null,
+      location:      locationTrimmed || null,
+      // Reason: clear stale coordinates when location is cleared.
+      ...(locationTrimmed ? {} : { lat: null, lng: null }),
     };
 
+    let savedRow: ActivityRow;
     if (isEditing) {
-      await onSave(base as UpdateActivityInput, activity.id);
+      savedRow = await onSave(base as UpdateActivityInput, activity.id);
     } else {
-      await onSave({ ...base, day_id: dayId ?? null, trip_id: tripId } as CreateActivityInput);
+      savedRow = await onSave({ ...base, day_id: dayId ?? null, trip_id: tripId } as CreateActivityInput);
+    }
+
+    if (locationTrimmed) {
+      await geoHook.geocode(savedRow.id, locationTrimmed);
+      onGeocodeDone?.();
+      // Reason: brief pause so user sees geocode status before modal closes.
+      await new Promise<void>(resolve => { setTimeout(resolve, 800); });
     }
 
     onClose();
@@ -150,7 +172,7 @@ export default function ActivityFormModal({
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit activity' : 'New activity'}</DialogTitle>
         </DialogHeader>
-        <form className="activity-form" onSubmit={e => { void handleSubmit(e); }}>
+        <form className="activity-form pb-1" onSubmit={e => { void handleSubmit(e); }}>
           {/* Title */}
           <div className="activity-form__field activity-form__field--required">
             <Label htmlFor="af-title">Title</Label>
@@ -216,6 +238,12 @@ export default function ActivityFormModal({
               rows={3}
             />
           </div>
+          {/* Location (geocodable place for the map) */}
+          <LocationField
+            value={form.location}
+            onChange={val => set('location', val)}
+            status={geoHook.status}
+          />
         </form>
         <DialogFooter>{footer}</DialogFooter>
       </DialogContent>

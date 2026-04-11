@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { locatableMixin } from './mixins/locatable.js';
 
 const ISO_DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD');
 const HH_MM    = z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM');
@@ -168,7 +169,7 @@ const ReservationBaseSchema = z.object({
   details:          ReservationDetailsSchema,
   // Reason: details is the validated object; serialisation to JSON string is handled
   // by the repository layer so the schema stays type-safe end-to-end.
-});
+}).merge(locatableMixin);
 
 export const CreateReservationSchema = ReservationBaseSchema;
 

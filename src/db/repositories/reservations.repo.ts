@@ -97,10 +97,10 @@ export function createReservation(input: CreateReservationInput): ReservationRow
     .prepare(
       `INSERT INTO reservations
          (trip_id, day_id, type, title, status, confirmation_ref, notes,
-          cost_amount, cost_currency, details, sort_order)
+          cost_amount, cost_currency, details, sort_order, location, lat, lng)
        VALUES
          (@trip_id, @day_id, @type, @title, @status, @confirmation_ref, @notes,
-          @cost_amount, @cost_currency, @details, @sort_order)`,
+          @cost_amount, @cost_currency, @details, @sort_order, @location, @lat, @lng)`,
     )
     .run({
       trip_id:          input.trip_id,
@@ -116,6 +116,9 @@ export function createReservation(input: CreateReservationInput): ReservationRow
       // the DB stores a single text column and the hook/domain class parses it.
       details:          JSON.stringify(input.details),
       sort_order:       sortOrder,
+      location:         input.location ?? null,
+      lat:              input.lat ?? null,
+      lng:              input.lng ?? null,
     });
   return findById(result.lastInsertRowid as number)!;
 }
@@ -138,7 +141,8 @@ export function updateReservation(id: number, input: UpdateReservationInput): Re
        day_id = @day_id, type = @type, title = @title, status = @status,
        confirmation_ref = @confirmation_ref, notes = @notes,
        cost_amount = @cost_amount, cost_currency = @cost_currency,
-       details = @details, sort_order = @sort_order
+       details = @details, sort_order = @sort_order,
+       location = @location, lat = @lat, lng = @lng
      WHERE id = @id`,
   ).run({
     id,
@@ -152,9 +156,18 @@ export function updateReservation(id: number, input: UpdateReservationInput): Re
     cost_currency:    input.cost_currency    ?? cur.cost_currency,
     details:          input.details !== undefined ? JSON.stringify(input.details) : cur.details,
     sort_order:       cur.sort_order,
+    location:         input.location !== undefined ? (input.location ?? null) : cur.location,
+    lat:              input.lat      !== undefined ? (input.lat ?? null) : cur.lat,
+    lng:              input.lng      !== undefined ? (input.lng ?? null) : cur.lng,
   });
 
   return findById(id);
+}
+
+export function updateReservationLatLng(id: number, lat: number, lng: number): void {
+  getDb()
+    .prepare('UPDATE reservations SET lat = @lat, lng = @lng WHERE id = @id')
+    .run({ id, lat, lng });
 }
 
 export function deleteReservation(id: number): void {
