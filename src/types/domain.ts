@@ -6,10 +6,11 @@ import type {
 } from './db.js';
 
 // ─── Domain class re-exports ──────────────────────────────────────────────────
-// Consumers import Trip, Activity, Reservation from here — never from domain/ directly.
+// Consumers import Trip, Activity, Reservation, ChecklistItem from here — never from domain/ directly.
 export type { Trip } from '@/domain/Trip';
 export type { Activity } from '@/domain/Activity';
 export type { Reservation } from '@/domain/Reservation';
+export type { ChecklistItem } from '@/domain/ChecklistItem';
 
 // Re-export raw row types used directly outside the domain layer.
 export type { ChecklistItemRow, ChecklistTemplateRow, TemplateItemRow };

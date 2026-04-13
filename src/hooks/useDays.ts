@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import type { DayRow } from '@/types/db';
 import type { UpdateDayInput } from '@/db/repositories/days.repo';
@@ -29,9 +30,15 @@ export function useDays(tripId: number): UseDaysReturn {
   useEffect(() => { refetch(); }, [refetch]);
 
   const updateDay = useCallback(async (id: number, input: UpdateDayInput): Promise<DayRow> => {
-    const day = await api.patch<DayRow>(`/days/${id}`, input);
-    refetch();
-    return day;
+    try {
+      const day = await api.patch<DayRow>(`/days/${id}`, input);
+      refetch();
+      toast.success('Day updated');
+      return day;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update day');
+      throw err;
+    }
   }, [refetch]);
 
   return { days, loading, error, refetch, updateDay };

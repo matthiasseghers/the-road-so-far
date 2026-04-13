@@ -1,4 +1,4 @@
-import { useReducer, useState, useEffect } from 'react';
+import { useReducer, useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import TagInput from '@/components/ui/TagInput';
 import { CalendarIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Spinner } from '@/components/ui/spinner';
 import { today, dateRangesOverlap } from '@/utils/dates';
 import { useTrips } from '@/hooks/useTrips';
 import { CreateTripSchema } from '@/schemas/trip.schema';
@@ -118,12 +119,17 @@ export default function TripFormModal({
 
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [overlapConfirmOpen, setOverlapConfirmOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Reason: ref prevents a double-save if the overlap confirm button is clicked twice.
+  const submittingRef = useRef(false);
 
   // Reason: reset validation state when the modal closes.
   useEffect(() => {
     if (!open) {
       setSubmitAttempted(false);
       setOverlapConfirmOpen(false);
+      setIsSubmitting(false);
+      submittingRef.current = false;
     }
   }, [open]);
 
@@ -163,15 +169,22 @@ export default function TripFormModal({
 
   async function doSave(): Promise<void> {
     // Reason: guard for TypeScript narrowing; submit already confirmed validity before calling doSave.
-    if (!schemaResult.success) return;
-    const payload = schemaResult.data;
-    if (isEdit) {
-      await onUpdate(trip.id, payload);
-    } else {
-      await onCreate(payload);
+    if (!schemaResult.success || submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const payload = schemaResult.data;
+      if (isEdit) {
+        await onUpdate(trip.id, payload);
+      } else {
+        await onCreate(payload);
+      }
+      setOverlapConfirmOpen(false);
+      onClose();
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
-    setOverlapConfirmOpen(false);
-    onClose();
   }
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
@@ -317,10 +330,12 @@ export default function TripFormModal({
             <Button
               variant="default"
               onClick={handleSubmit as unknown as React.MouseEventHandler}
-              disabled={submitAttempted && !isFormValid()}
+              disabled={isSubmitting || (submitAttempted && !isFormValid())}
               type="submit"
             >
-              {isEdit ? 'Save changes' : 'Create trip'}
+              {isSubmitting
+                ? <><Spinner className="mr-1.5 size-3.5" />{isEdit ? 'Saving…' : 'Creating…'}</>
+                : (isEdit ? 'Save changes' : 'Create trip')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -337,7 +352,9 @@ export default function TripFormModal({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setOverlapConfirmOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { void doSave(); }}>Save anyway</AlertDialogAction>
+            <AlertDialogAction onClick={() => { void doSave(); }} disabled={isSubmitting}>
+              {isSubmitting ? <><Spinner className="mr-1.5 size-3.5" />Saving…</> : 'Save anyway'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

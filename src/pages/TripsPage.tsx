@@ -5,6 +5,7 @@ import TripFilterBar from '@/components/trips/TripFilterBar';
 import OngoingTripBanner from '@/components/trips/OngoingTripBanner';
 import TripFormModal from '@/components/trips/TripFormModal';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useTrips } from '@/hooks/useTrips';
 import type { Trip, Screen } from '@/types/domain';
 import './TripsPage.css';
@@ -63,7 +64,7 @@ export default function TripsPage({ onNavigate, newTripOpen = false, onNewTripOp
 
   function confirmDelete(): void {
     if (!tripToDelete) return;
-    deleteTrip(tripToDelete.id).catch((e: unknown) => console.error('Delete trip failed:', e));
+    void deleteTrip(tripToDelete.id);
     setTripToDelete(null);
   }
 
@@ -74,7 +75,22 @@ export default function TripsPage({ onNavigate, newTripOpen = false, onNewTripOp
   }
 
   if (loading) {
-    return <div className="trips-page__loading">Loading…</div>;
+    return (
+      <div className="trips-page">
+        <div className="trip-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="trip-card" style={{ pointerEvents: 'none' }}>
+              <Skeleton className="h-[88px] rounded-b-none" />
+              <div className="trip-card__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-2 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (error) {

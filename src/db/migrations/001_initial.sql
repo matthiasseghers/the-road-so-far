@@ -86,8 +86,7 @@ CREATE TABLE IF NOT EXISTS template_items (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   template_id INTEGER NOT NULL REFERENCES checklist_templates(id) ON DELETE CASCADE,
   label       TEXT    NOT NULL,
-  category    TEXT    NOT NULL DEFAULT 'other'
-                      CHECK(category IN ('documents','clothing','tech','health','toiletries','other')),
+  category    TEXT    NOT NULL DEFAULT 'other',
   sort_order  INTEGER NOT NULL DEFAULT 0
 );
 
@@ -97,8 +96,7 @@ CREATE TABLE IF NOT EXISTS checklist_items (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   trip_id     INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   label       TEXT    NOT NULL,
-  category    TEXT    NOT NULL DEFAULT 'other'
-                      CHECK(category IN ('documents','clothing','tech','health','toiletries','other')),
+  category    TEXT    DEFAULT NULL,
   is_checked  INTEGER NOT NULL DEFAULT 0,
   sort_order  INTEGER NOT NULL DEFAULT 0,
   source      TEXT    NOT NULL DEFAULT 'trip'

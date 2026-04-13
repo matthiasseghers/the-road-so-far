@@ -58,8 +58,12 @@ export function useActivities(dayId: number): UseActivitiesReturn {
   }, [refetch]);
 
   const reorderActivities = useCallback(async (orderedIds: number[]): Promise<void> => {
-    await api.put('/activities/reorder', { dayId, orderedIds });
-    refetch();
+    try {
+      await api.put('/activities/reorder', { dayId, orderedIds });
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reorder activities');
+    }
   }, [dayId, refetch]);
 
   return { activities, loading, error, refetch, createActivity, updateActivity, deleteActivity, reorderActivities };

@@ -6,13 +6,8 @@ export type TripStatus = 'draft' | 'planning' | 'confirmed' | 'ready' | 'complet
 export type ActivityType = 'attraction' | 'food' | 'shopping' | 'outdoors' | 'cultural' | 'note' | 'other';
 export type ReservationType = 'lodging' | 'flight' | 'train' | 'bus' | 'ferry' | 'rental_car' | 'restaurant' | 'other';
 export type ReservationStatus = 'pending' | 'confirmed' | 'cancelled';
-export type ChecklistCategory =
-  | 'documents'
-  | 'clothing'
-  | 'tech'
-  | 'health'
-  | 'toiletries'
-  | 'other';
+// Reason: free-form — no CHECK constraint in DB (migration 003)
+export type ChecklistCategory = string | null;
 
 // ─── Row interfaces ───────────────────────────────────────────────────────────
 
@@ -106,7 +101,7 @@ export interface TemplateItemRow {
   id: number;
   template_id: number;
   label: string;
-  category: ChecklistCategory;
+  category: string;
   sort_order: number;
 }
 
@@ -118,4 +113,20 @@ export interface SettingRow {
 export interface MigrationRow {
   name: string;
   run_at: string;
+}
+
+// ─── Calendar ─────────────────────────────────────────────────────────────────
+
+export type CalendarDayStatus = 'ok' | 'gap' | 'travel' | 'empty';
+
+export interface CalendarDayRow {
+  date: string;            // ISO 'YYYY-MM-DD'
+  day_number: number;      // 1-based index within the trip
+  label: string;           // subtitle from the day record, or ''
+  status: CalendarDayStatus;
+  activity_count: number;
+  activity_titles: string[];    // titles of all activities for the day
+  has_lodging: boolean;
+  lodging_title: string | null; // title of the covering lodging reservation, or null
+  has_transit: boolean;
 }

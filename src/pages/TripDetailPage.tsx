@@ -33,6 +33,9 @@ import type { ActivityRow } from '@/types/db';
 import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories/activities.repo';
 import type { CreateTripInput, UpdateTripInput } from '@/db/repositories/trips.repo';
 import { api } from '@/db/api-client';
+import { Skeleton } from '@/components/ui/skeleton';
+import ChecklistPanel from '@/components/checklist/ChecklistPanel';
+import TripCalendar from '@/components/calendar/TripCalendar';
 import './TripDetailPage.css';
 import '@/components/trips/TripFormModal.css';
 
@@ -148,8 +151,12 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
 
   async function confirmDeleteReservation(): Promise<void> {
     if (!deleteResTarget) return;
-    await deleteReservation(deleteResTarget.id);
-    setDeleteResTarget(null);
+    try {
+      await deleteReservation(deleteResTarget.id);
+      setDeleteResTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete reservation');
+    }
   }
 
   // ── Activity modal ─────────────────────────────────────────────────────────
@@ -266,8 +273,28 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
 
   if (loading) {
     return (
-      <div className="tdp tdp--loading">
-        <p>Loading trip…</p>
+      <div className="tdp">
+        {/* Skeleton mimics: topbar chrome + hero banner + hero body + tab bar + content */}
+        <div style={{ height: 48, borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }} />
+        <div className="tdp__hero">
+          <Skeleton className="h-[72px] rounded-[var(--radius-md)] mb-[14px]" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-3.5 w-36" />
+          </div>
+        </div>
+        <div className="tdp__tab-wrap">
+          <div className="view-tabs" style={{ pointerEvents: 'none' }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-7 w-20 rounded-[7px]" />
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-[var(--radius-lg)]" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -358,8 +385,10 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
             onReorderDayItems={(dayId, items) => { void handleReorderDayItems(dayId, items); }}
           />
         )}
-        {activeTab === 'calendar'  && <StubTab label="Trip calendar — Phase 7" />}
-        {activeTab === 'checklist' && <StubTab label="Checklist — Phase 6" />}
+        {activeTab === 'calendar'  && (
+          <TripCalendar tripId={trip.id} startDate={trip.start_date} endDate={trip.end_date} />
+        )}
+        {activeTab === 'checklist' && <ChecklistPanel tripId={trip.id} />}
         {activeTab === 'map'       && (
           <TripMap
             pins={pins}
@@ -1222,16 +1251,6 @@ function ItineraryReservationCard({ reservation, number, onEdit, onDelete, onDra
           <Trash2 size={11} />
         </Button>
       </div>
-    </div>
-  );
-}
-
-// ── Placeholder tabs ──────────────────────────────────────────────────────────
-
-function StubTab({ label }: { label: string }): JSX.Element {
-  return (
-    <div className="tdp__stub">
-      <span>{label}</span>
     </div>
   );
 }

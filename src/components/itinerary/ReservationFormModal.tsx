@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useState } from 'react';
+import { useReducer, useEffect, useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import LocationField from '@/components/common/LocationField';
 import { useGeocode } from '@/hooks/useGeocode';
+import { Spinner } from '@/components/ui/spinner';
 import type { Reservation } from '@/domain/Reservation';
 import type { Activity } from '@/domain/Activity';
 import type { ReservationType, ActivityType } from '@/types/db';
@@ -687,12 +688,20 @@ export default function ReservationFormModal({
   const actGeocode = useGeocode('activities');
   const resGeocode = useGeocode('reservations');
 
+  // ── Submission guard ──────────────────────────────────────────────────────
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Reason: ref prevents a second click while an async submit is in-flight
+  // from enqueuing a duplicate POST, regardless of React re-render timing.
+  const submittingRef = useRef(false);
+
   // Seed form from editing props / reset on close
   useEffect(() => {
     if (!open) {
       setActErrors({});
       setResErrors({});
       setApiError(null);
+      setIsSubmitting(false);
+      submittingRef.current = false;
       actGeocode.reset();
       resGeocode.reset();
       return;
@@ -781,6 +790,7 @@ export default function ReservationFormModal({
 
   async function handleSubmit(): Promise<void> {
     setApiError(null);
+    if (submittingRef.current) return;
 
     if (category === 'activity') {
       const locationTrimmed = actForm.location.trim();
@@ -804,6 +814,8 @@ export default function ReservationFormModal({
         });
         return;
       }
+      submittingRef.current = true;
+      setIsSubmitting(true);
       try {
         let saved: Activity | void;
         if (editingActivity && onUpdateActivity) {
@@ -820,6 +832,9 @@ export default function ReservationFormModal({
         onClose();
       } catch (err) {
         setApiError(err instanceof Error ? err.message : 'Failed to save activity');
+      } finally {
+        submittingRef.current = false;
+        setIsSubmitting(false);
       }
       return;
     }
@@ -851,7 +866,14 @@ export default function ReservationFormModal({
       setResErrors(errs);
       return;
     }
-    await doSaveReservation(parsed.data);
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      await doSaveReservation(parsed.data);
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   async function doSaveReservation(input: Parameters<typeof onCreateReservation>[0]): Promise<void> {
@@ -903,8 +925,10 @@ export default function ReservationFormModal({
     return (
       <>
         <Button variant="outline" onClick={onClose} type="button">Cancel</Button>
-        <Button variant="default" onClick={() => { void handleSubmit(); }} type="button">
-          {saveLabel}
+        <Button variant="default" disabled={isSubmitting} onClick={() => { void handleSubmit(); }} type="button">
+          {isSubmitting
+            ? <><Spinner className="mr-1.5 size-3.5" />Saving…</>
+            : saveLabel}
         </Button>
       </>
     );

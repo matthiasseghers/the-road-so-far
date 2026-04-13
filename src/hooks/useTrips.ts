@@ -36,23 +36,37 @@ export function useTrips(): UseTripsReturn {
   useEffect(() => { refetch(); }, [refetch]);
 
   const createTrip = useCallback(async (input: CreateTripInput): Promise<Trip> => {
-    const row = await api.post<TripData>('/trips', input);
-    refetch();
-    toast.success('Trip created');
-    return new Trip(row);
+    try {
+      const row = await api.post<TripData>('/trips', input);
+      refetch();
+      toast.success('Trip created');
+      return new Trip(row);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create trip');
+      throw err;
+    }
   }, [refetch]);
 
   const updateTrip = useCallback(async (id: number, input: UpdateTripInput): Promise<Trip> => {
-    const row = await api.patch<TripData>(`/trips/${id}`, input);
-    refetch();
-    toast.success('Trip updated');
-    return new Trip(row);
+    try {
+      const row = await api.patch<TripData>(`/trips/${id}`, input);
+      refetch();
+      toast.success('Trip updated');
+      return new Trip(row);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update trip');
+      throw err;
+    }
   }, [refetch]);
 
   const deleteTrip = useCallback(async (id: number): Promise<void> => {
-    await api.delete(`/trips/${id}`);
-    refetch();
-    toast.success('Trip deleted');
+    try {
+      await api.delete(`/trips/${id}`);
+      refetch();
+      toast.success('Trip deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete trip');
+    }
   }, [refetch]);
 
   return {

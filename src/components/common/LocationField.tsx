@@ -1,7 +1,8 @@
 import { useId } from 'react';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
+import { Spinner } from '@/components/ui/spinner';
+import { Check } from 'lucide-react';
 
 type GeocodeStatus = 'idle' | 'loading' | 'ok' | 'not_found' | 'error';
 
@@ -19,26 +20,33 @@ export default function LocationField({ value, onChange, status = 'idle' }: Loca
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={inputId}>Location</Label>
-      <Input
-        id={inputId}
-        type="text"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="e.g. Alfama, Lisbon"
-        maxLength={500}
-      />
-      {status === 'loading' && (
-        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Loader2 size={11} className="animate-spin" aria-hidden="true" />
-          Looking up…
-        </span>
-      )}
-      {status === 'ok' && (
-        <span className="text-xs text-emerald-500">● Location found</span>
-      )}
+      <InputGroup>
+        <InputGroupInput
+          id={inputId}
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="e.g. Alfama, Lisbon"
+          maxLength={500}
+        />
+        {status === 'loading' && (
+          <InputGroupAddon align="inline-end">
+            <Spinner className="size-3.5" />
+          </InputGroupAddon>
+        )}
+        {status === 'ok' && (
+          <InputGroupAddon align="inline-end">
+            <Check size={13} className="text-emerald-500" aria-label="Location found" />
+          </InputGroupAddon>
+        )}
+      </InputGroup>
       {status === 'not_found' && (
         <span className="text-xs text-destructive">Location not found</span>
+      )}
+      {status === 'error' && (
+        <span className="text-xs text-destructive">Geocoding failed</span>
       )}
     </div>
   );
 }
+

@@ -9,6 +9,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import Topbar from '@/components/layout/Topbar';
 import TripsPage from '@/pages/TripsPage';
 import TripDetailPage from '@/pages/TripDetailPage';
+import CalendarPage from '@/pages/CalendarPage';
 import type { Screen, Theme } from '@/types/domain';
 import { Toaster } from '@/components/ui/sonner';
 import './App.css';
@@ -16,9 +17,11 @@ import './App.css';
 const THEME_STORAGE_KEY = 'rsf-theme';
 
 // ScreenEntry pairs a screen name with optional context data.
+// ownsTopbar: true means the page renders its own <Topbar> — App.tsx skips it.
 interface ScreenEntry {
   screen: Screen;
   tripId?: number;
+  ownsTopbar?: boolean;
 }
 
 function getInitialTheme(): Theme {
@@ -50,7 +53,9 @@ export default function App(): JSX.Element {
   }
 
   function handleNavigate(screen: Screen, tripId?: number): void {
-    setStack(prev => [...prev, { screen, tripId }]);
+    // Reason: 'trip' renders its own Topbar (breadcrumb nav); flag it so App.tsx skips rendering one.
+    const ownsTopbar = screen === 'trip';
+    setStack(prev => [...prev, { screen, tripId, ownsTopbar }]);
   }
 
   function handleGoBack(): void {
@@ -68,7 +73,7 @@ export default function App(): JSX.Element {
           />
         );
       case 'calendar':
-        return <Placeholder title="Calendar" subtitle="Phase 7" />;
+        return <CalendarPage />;
       case 'map':
         return <Placeholder title="Map" subtitle="Phase 5" />;
       case 'settings':
@@ -99,9 +104,9 @@ export default function App(): JSX.Element {
       />
 
       <SidebarInset className="overflow-hidden">
-        {/* Reason: TripDetailPage owns its own Topbar with breadcrumb navigation;
-            rendering a second one here would show two topbars stacked. */}
-        {current.screen !== 'trip' && (
+        {/* Reason: pages that own their Topbar set ownsTopbar:true on the ScreenEntry.
+            Any new page that needs custom nav just sets it when pushing to the stack. */}
+        {!current.ownsTopbar && (
           <Topbar
             activeScreen={current.screen}
             onNewTrip={current.screen === 'trips' ? () => setNewTripOpen(true) : undefined}

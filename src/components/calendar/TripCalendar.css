@@ -1,0 +1,174 @@
+/* ── TripCalendar ───────────────────────────────────────────────────────────── */
+
+.trip-cal {
+  padding: 16px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow-y: auto;
+}
+
+.trip-cal--empty,
+.trip-cal--loading {
+  padding: 32px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── Month section ───────────────────────────────────────────────────────────── */
+
+.trip-cal__month {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trip-cal__month-heading {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ── Grid ────────────────────────────────────────────────────────────────────── */
+
+.trip-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.trip-cal__weekday {
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: var(--font-body);
+}
+
+/* ── Day cell ─────────────────────────────────────────────────────────────────── */
+
+.trip-cal__cell {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 7px;
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--bg-surface);
+  transition: background var(--transition-fast);
+}
+
+.trip-cal__cell--pad {
+  border-color: transparent;
+  background: transparent;
+}
+
+.trip-cal__cell--out {
+  background: var(--bg-app);
+  opacity: 0.35;
+  border-color: transparent;
+}
+
+.trip-cal__cell--today {
+  border-color: var(--accent-primary);
+}
+
+.trip-cal__day-num {
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-secondary);
+  line-height: 1;
+  font-family: var(--font-body);
+}
+
+.trip-cal__label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  font-family: var(--font-body);
+}
+
+/* ── Lodging bar ──────────────────────────────────────────────────────────────── */
+
+.trip-cal__lodging-bar {
+  background: color-mix(in srgb, var(--res-lodging) 20%, transparent);
+  color: var(--res-lodging);
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 15px;
+  font-family: var(--font-body);
+}
+
+/* ── Activity items ───────────────────────────────────────────────────────────── */
+
+.trip-cal__activity {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+  padding-left: 9px;
+  position: relative;
+  font-family: var(--font-body);
+}
+
+.trip-cal__activity::before {
+  content: '·';
+  position: absolute;
+  left: 2px;
+  color: var(--text-muted);
+}
+
+.trip-cal__more {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding-left: 9px;
+  font-family: var(--font-body);
+}
+
+/* ── Status badges ────────────────────────────────────────────────────────────── */
+
+.trip-cal__badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: var(--fw-medium);
+  border-radius: var(--radius-full);
+  padding: 1px 5px;
+  line-height: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  font-family: var(--font-body);
+}
+
+.trip-cal__badge--travel {
+  background: color-mix(in srgb, var(--res-transit) 20%, transparent);
+  color: var(--res-transit);
+}
+
+.trip-cal__badge--warn {
+  background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  color: var(--accent-primary);
+}
+
+
+.trip-cal__pill--empty {
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}

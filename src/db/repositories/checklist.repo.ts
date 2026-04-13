@@ -16,6 +16,13 @@ export function findChecklistItemsByTripId(tripId: number): ChecklistItemRow[] {
     .all(tripId) as ChecklistItemRow[];
 }
 
+export function findChecklistItemById(id: number): ChecklistItemRow | null {
+  const row = getDb()
+    .prepare('SELECT * FROM checklist_items WHERE id = ?')
+    .get(id) as ChecklistItemRow | undefined;
+  return row ?? null;
+}
+
 export interface CreateChecklistItemInput {
   trip_id: number;
   label: string;
@@ -31,9 +38,9 @@ export function createChecklistItem(input: CreateChecklistItemInput): ChecklistI
   if (sortOrder === undefined) {
     const max = db
       .prepare(
-        'SELECT MAX(sort_order) AS m FROM checklist_items WHERE trip_id = ? AND category = ?',
+        'SELECT MAX(sort_order) AS m FROM checklist_items WHERE trip_id = ? AND category IS ?',
       )
-      .get(input.trip_id, input.category ?? 'other') as { m: number | null };
+      .get(input.trip_id, input.category ?? null) as { m: number | null };
     sortOrder = (max.m ?? -1) + 1;
   }
 
@@ -45,7 +52,7 @@ export function createChecklistItem(input: CreateChecklistItemInput): ChecklistI
     .run({
       trip_id: input.trip_id,
       label: input.label,
-      category: input.category ?? 'other',
+      category: input.category ?? null,
       sort_order: sortOrder,
       source: input.source ?? 'trip',
     });
@@ -91,6 +98,30 @@ export function updateChecklistItem(
 
 export function deleteChecklistItem(id: number): void {
   getDb().prepare('DELETE FROM checklist_items WHERE id = ?').run(id);
+}
+
+export function deleteChecklistItemsByCategory(tripId: number, category: string): void {
+  getDb()
+    .prepare('DELETE FROM checklist_items WHERE trip_id = ? AND category = ?')
+    .run(tripId, category);
+}
+
+export function renameChecklistCategory(
+  tripId: number,
+  oldCategory: string,
+  newCategory: string,
+): void {
+  getDb()
+    .prepare('UPDATE checklist_items SET category = ? WHERE trip_id = ? AND category = ?')
+    .run(newCategory, tripId, oldCategory);
+}
+
+/** Returns distinct categories used across all template_items, sorted alphabetically. */
+export function getDistinctCategories(): string[] {
+  const rows = getDb()
+    .prepare('SELECT DISTINCT category FROM template_items ORDER BY category ASC')
+    .all() as Array<{ category: string }>;
+  return rows.map(r => r.category);
 }
 
 // ─── Templates ────────────────────────────────────────────────────────────────

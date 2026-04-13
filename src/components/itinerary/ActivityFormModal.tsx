@@ -1,4 +1,5 @@
-import { useReducer, useEffect, useState } from 'react';
+import { useReducer, useEffect, useState, useRef } from 'react';
+import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,10 +92,14 @@ export default function ActivityFormModal({
 
   const [form, dispatch] = useReducer(formReducer, makeBlankForm());
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Reason: ref guard ensures a second click while the promise is in-flight is a no-op,
+  // guarding against duplicate POSTs on slow networks (the server enforces 1 req/s).
+  const submittingRef = useRef(false);
   const geoHook = useGeocode('activities');
 
   useEffect(() => {
-    if (!open) { setSubmitAttempted(false); geoHook.reset(); }
+    if (!open) { setSubmitAttempted(false); setIsSubmitting(false); submittingRef.current = false; geoHook.reset(); }
   // Reason: reset geo status when modal closes; geoHook.reset is stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -122,8 +127,10 @@ export default function ActivityFormModal({
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     setSubmitAttempted(true);
-    if (!isFormValid()) return;
-
+    if (!isFormValid() || submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    try {
     const locationTrimmed = form.location.trim();
     const base = {
       title:         form.title.trim(),
@@ -151,6 +158,10 @@ export default function ActivityFormModal({
     }
 
     onClose();
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
   }
 
   const footer = (
@@ -158,10 +169,12 @@ export default function ActivityFormModal({
       <Button variant="outline" onClick={onClose}>Cancel</Button>
       <Button
         variant="default"
-        disabled={submitAttempted && !isFormValid()}
+        disabled={isSubmitting || (submitAttempted && !isFormValid())}
         onClick={e => { void handleSubmit(e as unknown as React.FormEvent); }}
       >
-        {isEditing ? 'Save changes' : 'Add activity'}
+        {isSubmitting
+          ? <><Spinner className="mr-1.5 size-3.5" />{isEditing ? 'Saving…' : 'Adding…'}</>
+          : (isEditing ? 'Save changes' : 'Add activity')}
       </Button>
     </>
   );

@@ -5,6 +5,7 @@ import * as activitiesRepo from '../src/db/repositories/activities.repo.js';
 import * as reservationsRepo from '../src/db/repositories/reservations.repo.js';
 import * as checklistRepo from '../src/db/repositories/checklist.repo.js';
 import * as settingsRepo from '../src/db/repositories/settings.repo.js';
+import * as calendarRepo from '../src/db/repositories/calendar.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
 import { geocodePlace } from '../src/services/geocoding.service.js';
 import { CreateTripSchema, PatchTripSchema } from '../src/schemas/trip.schema.js';
@@ -37,6 +38,11 @@ router.post('/trips', (req: Request, res: Response) => {
   if (trip.start_date && trip.end_date) {
     syncDaysForTrip(trip.id, trip.start_date, trip.end_date);
   }
+  // Seed checklist from all base templates on trip creation
+  const baseIds = checklistRepo.findAllTemplates()
+    .filter(t => t.is_base === 1)
+    .map(t => t.id);
+  if (baseIds.length > 0) checklistRepo.copyTemplatesToTrip(trip.id, baseIds);
   res.status(201).json(trip);
 });
 
@@ -69,6 +75,14 @@ router.patch('/trips/:id', (req: Request, res: Response) => {
 router.delete('/trips/:id', (req: Request, res: Response) => {
   tripsRepo.deleteTrip(Number(req.params['id']));
   res.status(204).send();
+});
+
+// ── Calendar ──────────────────────────────────────────────────────────────────
+
+router.get('/trips/:tripId/calendar-days', (req: Request, res: Response) => {
+  const trip = tripsRepo.findTripById(Number(req.params['tripId']));
+  if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
+  res.json(calendarRepo.getDaysForTrip(Number(req.params['tripId'])));
 });
 
 // ── Days ──────────────────────────────────────────────────────────────────────
@@ -308,7 +322,76 @@ router.delete('/checklist-items/:id', (req: Request, res: Response) => {
   res.status(204).send();
 });
 
+// ── Checklist RESTful routes ─────────────────────────────────────────────────
+
+router.get('/trips/:tripId/checklist', (req: Request, res: Response) => {
+  const tripId = Number(req.params['tripId']);
+  res.json(checklistRepo.findChecklistItemsByTripId(tripId));
+});
+
+router.post('/trips/:tripId/checklist', (req: Request, res: Response) => {
+  const tripId = Number(req.params['tripId']);
+  const parsed = CreateChecklistItemSchema.safeParse({ ...req.body, trip_id: tripId });
+  if (!parsed.success) {
+    res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  const item = checklistRepo.createChecklistItem(parsed.data);
+  res.status(201).json(item);
+});
+
+router.patch('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
+  const tripId = Number(req.params['tripId']);
+  const id = Number(req.params['id']);
+  const existing = checklistRepo.findChecklistItemById(id);
+  if (!existing || existing.trip_id !== tripId) {
+    res.status(404).json({ error: 'Checklist item not found' });
+    return;
+  }
+  const parsed = PatchChecklistItemSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  const item = checklistRepo.updateChecklistItem(id, parsed.data);
+  res.json(item);
+});
+
+router.delete('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
+  const tripId = Number(req.params['tripId']);
+  const id = Number(req.params['id']);
+  const existing = checklistRepo.findChecklistItemById(id);
+  if (!existing || existing.trip_id !== tripId) {
+    res.status(404).json({ error: 'Checklist item not found' });
+    return;
+  }
+  checklistRepo.deleteChecklistItem(id);
+  res.status(204).send();
+});
+
+// Reason: /category/:cat routes must appear before /:id to prevent Express matching 'category' as an id
+router.patch('/trips/:tripId/checklist/category/:cat', (req: Request, res: Response) => {
+  const tripId = Number(req.params['tripId']);
+  const oldCat = decodeURIComponent(req.params['cat'] as string);
+  const newCat = (req.body as { name?: string }).name?.trim().toLowerCase();
+  if (!newCat) { res.status(400).json({ error: 'name is required' }); return; }
+  checklistRepo.renameChecklistCategory(tripId, oldCat, newCat);
+  res.status(204).send();
+});
+
+router.delete('/trips/:tripId/checklist/category/:cat', (req: Request, res: Response) => {
+  const tripId = Number(req.params['tripId']);
+  const cat = decodeURIComponent(req.params['cat'] as string);
+  checklistRepo.deleteChecklistItemsByCategory(tripId, cat);
+  res.status(204).send();
+});
+
 // ── Checklist templates ───────────────────────────────────────────────────────
+
+// Reason: /categories must be declared before /:id to prevent Express routing 'categories' as an id param
+router.get('/checklist-templates/categories', (_req: Request, res: Response) => {
+  res.json(checklistRepo.getDistinctCategories());
+});
 
 router.get('/checklist-templates', (_req: Request, res: Response) => {
   res.json(checklistRepo.findAllTemplates());
