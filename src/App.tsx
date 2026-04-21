@@ -10,9 +10,9 @@ import Topbar from '@/components/layout/Topbar';
 import TripsPage from '@/pages/TripsPage';
 import TripDetailPage from '@/pages/TripDetailPage';
 import CalendarPage from '@/pages/CalendarPage';
+import SettingsPage from '@/pages/SettingsPage';
 import type { Screen, Theme } from '@/types/domain';
 import { Toaster } from '@/components/ui/sonner';
-import './App.css';
 
 const THEME_STORAGE_KEY = 'rsf-theme';
 
@@ -26,14 +26,25 @@ interface ScreenEntry {
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark') return stored;
+  if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
+  return 'auto';
+}
+
+function resolveTheme(theme: Theme): 'light' | 'dark' {
+  if (theme !== 'auto') return theme;
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 function applyTheme(theme: Theme): void {
+  const resolved = resolveTheme(theme);
   const root = document.documentElement;
-  root.classList.toggle('dk', theme === 'dark');
-  root.classList.toggle('lt', theme === 'light');
+  // Reason: suppress all CSS transitions for one paint frame so the class swap
+  // is instantaneous — prevents color-interpolation flashes between dark and
+  // light token values (e.g. amber midpoints in transition curves).
+  root.classList.add('no-transitions');
+  root.classList.toggle('dk', resolved === 'dark');
+  root.classList.toggle('lt', resolved === 'light');
+  requestAnimationFrame(() => root.classList.remove('no-transitions'));
 }
 
 export default function App(): JSX.Element {
@@ -48,8 +59,20 @@ export default function App(): JSX.Element {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
+  // Reason: when auto, we must re-apply whenever the OS preference changes.
+  useEffect(() => {
+    if (theme !== 'auto') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (): void => applyTheme('auto');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [theme]);
+
   function handleThemeToggle(): void {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    // Reason: sidebar quick-toggle switches between explicit light/dark,
+    // resolving the current effective colour when in auto mode.
+    const resolved = resolveTheme(theme);
+    setTheme(resolved === 'dark' ? 'light' : 'dark');
   }
 
   function handleNavigate(screen: Screen, tripId?: number): void {
@@ -77,7 +100,13 @@ export default function App(): JSX.Element {
       case 'map':
         return <Placeholder title="Map" subtitle="Phase 5" />;
       case 'settings':
-        return <Placeholder title="Settings" subtitle="Phase 6" />;
+        return (
+          <SettingsPage
+            theme={theme}
+            onThemeChange={setTheme}
+            onDataWiped={() => setStack([{ screen: 'trips' }])}
+          />
+        );
       case 'trip':
         return (
           <TripDetailPage

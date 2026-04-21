@@ -1,19 +1,314 @@
 /* ============================================================
-   The Road So Far — Global Reset & Base Styles
+   The Road So Far — Design Tokens, Global Styles & App Shell
+   Single CSS entry point. Imported once in main.tsx.
+
+   Sections:
+   1. Imports + Tailwind setup
+   2. Tokens  — custom properties (shared, light, dark)
+   3. Base element & reset styles
+   4. shadcn token bridge (Tailwind mapping)
+   5. App shell
    ============================================================ */
 
-@import './tokens.css';
-@import './typography.css';
+/* ── 1. Imports + Tailwind setup ─────────────────────────── */
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource/merriweather";
-@import "@fontsource/merriweather/700.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/playfair-display";
+@import "@fontsource/jetbrains-mono";
 
 @custom-variant dark (&:is(.dk *));
 
-/* ── Box sizing / reset (in @layer base so Tailwind utilities win) ── */
+/* Reason: applied for one paint frame during theme switches to suppress
+   transition interpolation flashes between dark and light token values. */
+.no-transitions * { transition: none !important; }
+
+/* ── 2. Tokens ────────────────────────────────────────────── */
+
+/* ── Shared (all themes) ──────────────────────────────────── */
+:root {
+  /* Fonts */
+  --font-display: 'Playfair Display Variable', Georgia, serif;
+  --font-body:    'Inter Variable', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Menlo', monospace;
+
+  /* Font sizes */
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.875rem;   /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-md:   1.125rem;   /* 18px */
+  --text-lg:   1.25rem;    /* 20px */
+  --text-xl:   1.5rem;     /* 24px */
+  --text-2xl:  1.875rem;   /* 30px */
+  --text-3xl:  2.25rem;    /* 36px */
+
+  /* Font weights */
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* Line heights */
+  --lh-tight:   1.2;
+  --lh-snug:    1.375;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.625;
+
+  /* Spacing scale — 4px base */
+  --space-1:   0.25rem;   /* 4px  */
+  --space-1-5: 0.375rem;  /* 6px  */
+  --space-2:   0.5rem;    /* 8px  */
+  --space-3:   0.75rem;   /* 12px */
+  --space-4:   1rem;      /* 16px */
+  --space-5:   1.25rem;   /* 20px */
+  --space-6:   1.5rem;    /* 24px */
+  --space-8:   2rem;      /* 32px */
+  --space-10:  2.5rem;    /* 40px */
+  --space-12:  3rem;      /* 48px */
+  --space-16:  4rem;      /* 64px */
+
+  /* Border radii */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  24px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 350ms ease;
+
+  /* Z-index layers */
+  --z-base:    0;
+  --z-raised:  10;
+  --z-overlay: 100;
+  --z-modal:   200;
+  --z-toast:   300;
+
+  /* Layout */
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+}
+
+/* ── Light mode (.lt) ─────────────────────────────────────── */
+.lt {
+  color-scheme: light;
+
+  /* Backgrounds */
+  --bg-app:            #f7f5ff;
+  --bg-surface:        #fdfcff;
+  --bg-raised:         #f2f0ff;
+  --bg-sunken:         #ede9ff;
+  --bg-overlay:        rgba(0, 0, 0, 0.4);
+
+  /* Sidebar */
+  --bg-sidebar:        #fdfcff;
+  --bg-sidebar-hover:  #f2f0ff;
+  --bg-sidebar-active: #ede9ff;
+
+  /* Text */
+  --text-primary:             #1a1030;
+  --text-secondary:           #2d1b69;
+  --text-muted:               #6b5fa5;
+  --text-disabled:            #b0a8d8;
+  --text-inverse:             #ffffff;
+  --text-on-sidebar:          #2d1b69;
+  --text-on-sidebar-muted:    #6b5fa5;
+
+  /* Borders */
+  --border-subtle:  #ddd8f5;
+  --border-default: #c8bfee;
+  --border-strong:  #8878cc;
+  --border-focus:   #7b52e8;
+
+  /* Accent */
+  --accent-primary:        #4a2fa3;
+  --accent-secondary:      #7a9e87;
+  --accent-tertiary:       #5b7fa6;
+  --accent-primary-hover:  #3a2390;
+  --accent-primary-subtle: #ede9ff;
+
+  /* Statuses */
+  --status-draft:          #9d9591;
+  --status-planning:       #5b7fa6;
+  --status-confirmed:      #7a9e87;
+  --status-ready:          #4a2fa3;
+  --status-completed:      #5a524e;
+  --status-archived:       #b0a8d8;
+  --status-draft-bg:       #f2f0ff;
+  --status-planning-bg:    #e8eef5;
+  --status-confirmed-bg:   #e8f2ec;
+  --status-ready-bg:       #ede9ff;
+  --status-completed-bg:   #ece9e6;
+  --status-archived-bg:    #f2f0ff;
+
+  /* Activity types */
+  --activity-reservation: #5b7fa6;
+  --activity-transport:   #7a9e87;
+  --activity-food:        #c9814a;
+  --activity-attraction:  #a07bc4;
+  --activity-note:        #9d9591;
+  --activity-other:       #9d9591;
+
+  /* Reservation types */
+  --res-lodging:    #9B91D4;
+  --res-flight:     #6A9CC5;
+  --res-transit:    #5AA8B8;
+  --res-car:        #8AAD7A;
+  --res-restaurant: #D4825A;
+  --res-other:      #A09890;
+  --act-default:    #A09890;
+
+  /* Shadows */
+  --shadow-2xs:   0 1px 3px 0px rgb(45 27 105 / 0.05);
+  --shadow-xs:    0 1px 3px 0px rgb(45 27 105 / 0.05);
+  --shadow-sm:    0 1px 3px 0px rgb(45 27 105 / 0.10), 0 1px 2px -1px rgb(45 27 105 / 0.10);
+  --shadow:       0 1px 3px 0px rgb(45 27 105 / 0.10), 0 1px 2px -1px rgb(45 27 105 / 0.10);
+  --shadow-md:    0 1px 3px 0px rgb(45 27 105 / 0.10), 0 2px 4px -1px rgb(45 27 105 / 0.10);
+  --shadow-lg:    0 1px 3px 0px rgb(45 27 105 / 0.10), 0 4px 6px -1px rgb(45 27 105 / 0.10);
+  --shadow-xl:    0 1px 3px 0px rgb(45 27 105 / 0.10), 0 8px 10px -1px rgb(45 27 105 / 0.10);
+  --shadow-2xl:   0 1px 3px 0px rgb(45 27 105 / 0.25);
+  --shadow-modal: 0 1px 3px 0px rgb(45 27 105 / 0.25);
+
+  /* Map */
+  --map-pin:   #4a2fa3;
+  --map-route: #5b7fa6;
+
+  /* Cover gradients */
+  --gradient-warm-brown: linear-gradient(135deg, #c9814a 0%, #8b5a2b 100%);
+  --gradient-cool-blue:  linear-gradient(135deg, #5b7fa6 0%, #2c4f72 100%);
+  --gradient-sage:       linear-gradient(135deg, #7a9e87 0%, #3d6649 100%);
+  --gradient-dusk:       linear-gradient(135deg, #4a2fa3 0%, #1e1450 100%);
+  --gradient-sand:       linear-gradient(135deg, #d4a654 0%, #8b6914 100%);
+  --gradient-slate:      linear-gradient(135deg, #6b8a9e 0%, #334f62 100%);
+
+  /* Toast */
+  --toast-success-bg:     #e8f2ec;
+  --toast-success-border: #7a9e87;
+  --toast-success-text:   #2e5c3a;
+  --toast-error-bg:       #fde8e8;
+  --toast-error-border:   #c9614a;
+  --toast-error-text:     #7a2010;
+  --toast-warning-bg:     #fef3e2;
+  --toast-warning-border: #c9814a;
+  --toast-warning-text:   #6a4010;
+}
+
+/* ── Dark mode (.dk) ──────────────────────────────────────── */
+.dk {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --bg-app:            #0e0a1f;
+  --bg-surface:        #160f2e;
+  --bg-raised:         #1e1440;
+  --bg-sunken:         #08051a;
+  --bg-overlay:        rgba(0, 0, 0, 0.6);
+
+  /* Sidebar */
+  --bg-sidebar:        #120c28;
+  --bg-sidebar-hover:  #1e1440;
+  --bg-sidebar-active: #2d1b69;
+
+  /* Text */
+  --text-primary:             #ede9ff;
+  --text-secondary:           #c4b5fd;
+  --text-muted:               #9985cc;
+  --text-disabled:            #4a3880;
+  --text-inverse:             #0e0a1f;
+  --text-on-sidebar:          #c4b5fd;
+  --text-on-sidebar-muted:    #9985cc;
+
+  /* Borders */
+  --border-subtle:  #201840;
+  --border-default: #2d2060;
+  --border-strong:  #4a3880;
+  --border-focus:   #a87fff;
+
+  /* Accent */
+  --accent-primary:        #a87fff;
+  --accent-secondary:      #8aae97;
+  --accent-tertiary:       #6b8fb8;
+  --accent-primary-hover:  #b892ff;
+  --accent-primary-subtle: #251850;
+
+  /* Statuses */
+  --status-draft:          #7d7570;
+  --status-planning:       #6b8fb8;
+  --status-confirmed:      #8aae97;
+  --status-ready:          #a87fff;
+  --status-completed:      #c4b5fd;
+  --status-archived:       #4a3880;
+  --status-draft-bg:       #201840;
+  --status-planning-bg:    #1a2535;
+  --status-confirmed-bg:   #192820;
+  --status-ready-bg:       #251850;
+  --status-completed-bg:   #2d1b69;
+  --status-archived-bg:    #201840;
+
+  /* Activity types */
+  --activity-reservation: #6b8fb8;
+  --activity-transport:   #8aae97;
+  --activity-food:        #d4935e;
+  --activity-attraction:  #b48fd4;
+  --activity-note:        #9985cc;
+  --activity-other:       #9985cc;
+
+  /* Reservation types */
+  --res-lodging:    #B8AFDF;
+  --res-flight:     #8AB8D8;
+  --res-transit:    #7DC0CE;
+  --res-car:        #A3C49A;
+  --res-restaurant: #E09A78;
+  --res-other:      #B8B0AB;
+  --act-default:    #B8B0AB;
+
+  /* Shadows */
+  --shadow-2xs:   0 1px 3px 0px rgb(0 0 0 / 0.05);
+  --shadow-xs:    0 1px 3px 0px rgb(0 0 0 / 0.05);
+  --shadow-sm:    0 1px 3px 0px rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow:       0 1px 3px 0px rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow-md:    0 1px 3px 0px rgb(0 0 0 / 0.10), 0 2px 4px -1px rgb(0 0 0 / 0.10);
+  --shadow-lg:    0 1px 3px 0px rgb(0 0 0 / 0.10), 0 4px 6px -1px rgb(0 0 0 / 0.10);
+  --shadow-xl:    0 1px 3px 0px rgb(0 0 0 / 0.10), 0 8px 10px -1px rgb(0 0 0 / 0.10);
+  --shadow-2xl:   0 1px 3px 0px rgb(0 0 0 / 0.25);
+  --shadow-modal: 0 1px 3px 0px rgb(0 0 0 / 0.25);
+
+  /* Map */
+  --map-pin:   #a87fff;
+  --map-route: #6b8fb8;
+
+  /* Cover gradients */
+  --gradient-warm-brown: linear-gradient(135deg, #a86838 0%, #5c3a1a 100%);
+  --gradient-cool-blue:  linear-gradient(135deg, #3f5f82 0%, #1a3050 100%);
+  --gradient-sage:       linear-gradient(135deg, #5a7d68 0%, #28472f 100%);
+  --gradient-dusk:       linear-gradient(135deg, #a87fff 0%, #2d1b69 100%);
+  --gradient-sand:       linear-gradient(135deg, #b08a3a 0%, #6b5010 100%);
+  --gradient-slate:      linear-gradient(135deg, #4a6878 0%, #1e3244 100%);
+
+  /* Toast */
+  --toast-success-bg:     #172218;
+  --toast-success-border: #4a8560;
+  --toast-success-text:   #8aae97;
+  --toast-error-bg:       #271818;
+  --toast-error-border:   #8a4040;
+  --toast-error-text:     #d48a8a;
+  --toast-warning-bg:     #261d10;
+  --toast-warning-border: #8a6030;
+  --toast-warning-text:   #d4935e;
+}
+
+/* ── 3. Base element & reset styles ─────────────────────────── */
+
+code, pre {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
 @layer base {
   *,
   *::before,
@@ -24,7 +319,6 @@
   }
 }
 
-/* ── Root ─────────────────────────────────────────────────── */
 html {
   height: 100%;
   font-size: 16px;
@@ -50,7 +344,6 @@ body {
   flex-direction: column;
 }
 
-/* ── Typography reset ─────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   font-weight: var(--fw-semibold);
@@ -71,19 +364,16 @@ a:hover {
   text-decoration: underline;
 }
 
-/* ── Lists ────────────────────────────────────────────────── */
 ul, ol {
   list-style: none;
 }
 
-/* ── Images + media ───────────────────────────────────────── */
-img,
-svg {
+img, svg {
   display: block;
   max-width: 100%;
 }
 
-/* ── Form element resets (in @layer base so Tailwind/shadcn utilities win) ── */
+/* ── Form element resets ── */
 @layer base {
   button {
     font-family: var(--font-body);
@@ -117,29 +407,23 @@ svg {
   }
 }
 
-/* ── Form field error message ─────────────────────────────── */
-/* Reason: single canonical class for all inline field errors across every form modal.
-   Uses var(--destructive) so it automatically tracks shadcn's token instead of a hardcoded hex. */
+/* ── Form field error ── */
+/* Reason: single canonical class for inline field errors across all form modals. */
 .form-field-error {
   font-size: var(--text-xs);
   color: var(--destructive);
   margin-top: 2px;
 }
 
-/* ── Form field label states (mirrors shadcn Field component behaviour) ─────── */
-/* Reason: shadcn's Field component achieves label colouring by setting
-   data-[invalid=true]:text-destructive on the wrapper. We replicate this with
-   :has([aria-invalid="true"]) so the label turns red without needing to refactor
-   every form to use Field wrappers — the wrapper already sets aria-invalid on
-   the input, which is enough signal. */
+/* ── Form field label states ── */
+/* Reason: replicates shadcn Field label-colouring via :has so we don't need
+   Field wrappers on every existing form — aria-invalid on the input is enough. */
 .rfm__field:has([aria-invalid="true"]) > label,
 .trip-form__field:has([aria-invalid="true"]) > label,
 .activity-form__field:has([aria-invalid="true"]) > label {
   color: var(--destructive);
 }
 
-/* Required asterisk — appended after the label text on required fields.
-   Reason: matches the shadcn Input "Required" example (required attr → * mark). */
 .rfm__field--required > label::after,
 .trip-form__field--required > label::after,
 .activity-form__field--required > label::after {
@@ -148,40 +432,35 @@ svg {
   color: var(--text-muted);
 }
 
-/* ── Scrollbar ────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+/* ── Scrollbar ── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border-default); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-default);
-  border-radius: var(--radius-full);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
-}
-
-/* ── Focus visible (non-shadcn elements only) ────────────── */
+/* ── Focus (non-shadcn elements) ── */
 :focus-visible:not([data-slot]) {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
 
-/* ── Selection ────────────────────────────────────────────── */
+/* ── Selection ── */
 ::selection {
   background: var(--accent-primary-subtle);
   color: var(--text-primary);
 }
 
+/* ── 4. shadcn token bridge ─────────────────────────────────── */
+
 @theme inline {
-  --font-heading: 'Merriweather', Georgia, serif;
-  --font-sans: 'Geist Variable', system-ui, sans-serif;
+  --font-heading: 'Playfair Display Variable', Georgia, serif;
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-serif: 'Playfair Display Variable', Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
+  /* Reason: project surface tokens exposed as Tailwind colors so components can
+     use dark:bg-surface-raised / dark:bg-surface-sunken instead of inline vars. */
+  --color-surface-raised: var(--bg-raised);
+  --color-surface-sunken: var(--bg-sunken);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -213,96 +492,97 @@ svg {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
 }
 
-/* ── shadcn token bridge — light mode (.lt) ────────────────── */
 :root,
 .lt {
-  --background:           oklch(0.961 0.006 53);   /* #f5f2ee bg-app */
-  --foreground:           oklch(0.122 0.008 53);   /* #1a1614 text-primary */
-  --card:                 oklch(1 0 0);             /* #ffffff bg-surface */
-  --card-foreground:      oklch(0.122 0.008 53);
-  --popover:              oklch(0.984 0.004 53);   /* #faf9f7 bg-raised */
-  --popover-foreground:   oklch(0.122 0.008 53);
-  --primary:              oklch(0.621 0.108 47);   /* #c9814a accent-primary */
-  --primary-foreground:   oklch(1 0 0);
-  --secondary:            oklch(0.937 0.010 53);   /* #efe9e1 bg-sunken */
-  --secondary-foreground: oklch(0.392 0.010 53);   /* #5a524e text-secondary */
-  --muted:                oklch(0.937 0.010 53);
-  --muted-foreground:     oklch(0.572 0.009 53);   /* #8c837e text-muted */
-  --accent:               oklch(0.961 0.006 53);
-  --accent-foreground:    oklch(0.621 0.108 47);
-  --destructive:          oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(1 0 0);
-  --border:               oklch(0.831 0.014 53);   /* #cfc6bc border-default */
-  --input:                oklch(0.831 0.014 53);
-  --ring:                 oklch(0.621 0.108 47);   /* #c9814a border-focus */
+  --background:           #f7f5ff;
+  --foreground:           #1a1030;
+  --card:                 #fdfcff;
+  --card-foreground:      #1a1030;
+  --popover:              #fdfcff;
+  --popover-foreground:   #1a1030;
+  --primary:              #4a2fa3;
+  --primary-foreground:   #ffffff;
+  --secondary:            #ede9ff;
+  --secondary-foreground: #2d1b69;
+  --muted:                #ede9ff;
+  --muted-foreground:     #6b5fa5;
+  --accent:               #e4dffa;
+  --accent-foreground:    #2d1b69;
+  --destructive:          #c0365a;
+  --destructive-foreground: #ffffff;
+  --border:               #c8bfee;
+  --input:                #c8bfee;
+  --ring:                 #7b52e8;
   --radius:               0.5rem;
-  --chart-1:              oklch(0.621 0.108 47);   /* accent */
-  --chart-2:              oklch(0.532 0.082 240);  /* flight */
-  --chart-3:              oklch(0.631 0.072 195);  /* transit */
-  --chart-4:              oklch(0.638 0.088 140);  /* car/sage */
-  --chart-5:              oklch(0.601 0.068 290);  /* lodging */
-  --sidebar:              oklch(0.211 0.010 53);   /* #2c2825 bg-sidebar */
-  --sidebar-foreground:   oklch(0.918 0.009 53);   /* #e8e2db */
-  --sidebar-primary:      oklch(0.621 0.108 47);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent:       oklch(0.268 0.010 53);   /* bg-sidebar-hover */
-  --sidebar-accent-foreground: oklch(0.918 0.009 53);
-  --sidebar-border:       oklch(0.268 0.010 53);
-  --sidebar-ring:         oklch(0.621 0.108 47);
+  --chart-1:              #7b52e8;
+  --chart-2:              #f5a623;
+  --chart-3:              #ede9ff;
+  --chart-4:              #f7c96a;
+  --chart-5:              #2d1b69;
+  --sidebar:              #fdfcff;
+  --sidebar-foreground:   #2d1b69;
+  --sidebar-primary:      #2d1b69;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:       #f2f0ff;
+  --sidebar-accent-foreground: #4a2fa3;
+  --sidebar-border:       #ddd8f5;
+  --sidebar-ring:         #a87fff;
 }
 
-/* ── shadcn token bridge — dark mode (.dk) ─────────────────── */
 .dk {
-  --background:           oklch(0.141 0.010 53);   /* #1a1714 bg-app */
-  --foreground:           oklch(0.918 0.009 53);   /* #e8e2db text-primary */
-  --card:                 oklch(0.171 0.010 53);   /* #231f1c bg-surface */
-  --card-foreground:      oklch(0.918 0.009 53);
-  --popover:              oklch(0.201 0.010 53);   /* #2b2724 bg-raised */
-  --popover-foreground:   oklch(0.918 0.009 53);
-  --primary:              oklch(0.651 0.118 47);   /* #d4935e accent-primary */
-  --primary-foreground:   oklch(0.141 0.010 53);
-  --secondary:            oklch(0.171 0.010 53);   /* #231f1c bg-surface — chips need contrast vs popover/bg-raised */
-  --secondary-foreground: oklch(0.738 0.009 53);   /* #b8b0ab text-secondary */
-  --muted:                oklch(0.201 0.010 53);
-  --muted-foreground:     oklch(0.511 0.009 53);   /* #7d7570 text-muted */
-  --accent:               oklch(0.201 0.010 53);
-  --accent-foreground:    oklch(0.651 0.118 47);
-  --destructive:          oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.141 0.010 53);
-  --border:               oklch(0.261 0.010 53);   /* #3d3835 border-default */
-  --input:                oklch(0.171 0.010 53);
-  --ring:                 oklch(0.651 0.118 47);
+  --background:           #0e0a1f;
+  --foreground:           #ede9ff;
+  --card:                 #160f2e;
+  --card-foreground:      #ede9ff;
+  --popover:              #160f2e;
+  --popover-foreground:   #ede9ff;
+  --primary:              #a87fff;
+  --primary-foreground:   #1a0d40;
+  --secondary:            #2d1b69;
+  --secondary-foreground: #c4b5fd;
+  --muted:                #1e1440;
+  --muted-foreground:     #9985cc;
+  --accent:               #251850;
+  --accent-foreground:    #ede9ff;
+  --destructive:          #e05080;
+  --destructive-foreground: #ede9ff;
+  --border:               #2d2060;
+  --input:                #3d2e7a;
+  --ring:                 #a87fff;
   --radius:               0.5rem;
-  --chart-1:              oklch(0.651 0.118 47);
-  --chart-2:              oklch(0.621 0.082 240);
-  --chart-3:              oklch(0.648 0.072 195);
-  --chart-4:              oklch(0.648 0.078 140);
-  --chart-5:              oklch(0.681 0.068 290);
-  --sidebar:              oklch(0.111 0.009 53);   /* #141210 bg-sidebar */
-  --sidebar-foreground:   oklch(0.918 0.009 53);
-  --sidebar-primary:      oklch(0.651 0.118 47);
-  --sidebar-primary-foreground: oklch(0.141 0.010 53);
-  --sidebar-accent:       oklch(0.151 0.009 53);   /* bg-sidebar-hover */
-  --sidebar-accent-foreground: oklch(0.918 0.009 53);
-  --sidebar-border:       oklch(0.201 0.009 53);
-  --sidebar-ring:         oklch(0.651 0.118 47);
+  --chart-1:              #a87fff;
+  --chart-2:              #f5a623;
+  --chart-3:              #2d1b69;
+  --chart-4:              #f7c96a;
+  --chart-5:              #7b52e8;
+  --sidebar:              #120c28;
+  --sidebar-foreground:   #c4b5fd;
+  --sidebar-primary:      #a87fff;
+  --sidebar-primary-foreground: #1a0d40;
+  --sidebar-accent:       #1e1440;
+  --sidebar-accent-foreground: #c4b5fd;
+  --sidebar-border:       #2d2060;
+  --sidebar-ring:         #7b52e8;
 }
 
 @layer base {
   * {
-    /* Reason: outline-ring/50 removed — it set outline-color on every element, causing
-       any <input> or <button> that receives browser focus to show an accent-colored outline
-       even when the component explicitly applies outline-none. All shadcn components manage
-       their own focus rings via focus-visible:ring-* so the global override is not needed. */
+    /* Reason: outline-ring/50 would set outline-color on every element and break
+       components that explicitly apply outline-none. shadcn manages its own rings. */
     @apply border-border;
   }
   body {
@@ -312,3 +592,46 @@ svg {
     @apply font-sans;
   }
 }
+
+/* ── 5. App shell ─────────────────────────────────────────── */
+
+/* ── Rainbow border animation ── */
+/* Reason: used by OngoingTripBanner to signal an active trip. @property is
+   required so the browser can interpolate --rainbow-angle as an <angle>. */
+@property --rainbow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes rainbow {
+  to { --rainbow-angle: 360deg; }
+}
+
+.app-shell__content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.app-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-2);
+  color: var(--text-muted);
+}
+
+.app-placeholder__title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  color: var(--text-default);
+  margin: 0;
+}
+
+.app-placeholder__sub {
+  font-size: var(--text-sm);
+  margin: 0;
+}
+

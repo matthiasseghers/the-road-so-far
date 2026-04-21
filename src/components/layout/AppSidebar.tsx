@@ -1,7 +1,7 @@
 // AppSidebar — shadcn Sidebar wrapper.
 // collapsible="icon": desktop collapses to icon rail, mobile becomes Sheet drawer.
 
-import { Navigation, Luggage, Calendar, Map, Settings, Sun, Moon, type LucideIcon } from 'lucide-react';
+import { Navigation, Luggage, Calendar, Map, Settings, Sun, Moon, Monitor, type LucideIcon } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -41,9 +41,9 @@ export function AppSidebar({
   theme,
   onThemeToggle,
 }: AppSidebarProps): JSX.Element {
-  const ThemeIcon  = theme === 'dark' ? Sun : Moon;
-  const themeLabel   = theme === 'dark' ? 'Light mode' : 'Dark mode';
-  const themeTooltip = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  const ThemeIcon    = theme === 'dark' ? Sun : theme === 'auto' ? Monitor : Moon;
+  const themeLabel   = theme === 'dark' ? 'Light mode' : theme === 'auto' ? 'Dark mode' : 'Dark mode';
+  const themeTooltip = theme === 'dark' ? 'Switch to light mode' : theme === 'auto' ? 'Switch to dark mode' : 'Switch to dark mode';
 
   return (
     <Sidebar collapsible="icon">

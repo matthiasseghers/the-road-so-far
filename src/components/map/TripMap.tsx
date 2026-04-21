@@ -7,7 +7,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './TripMap.css';
 import type { MapPin, MapDay } from './mapDataUtils';
-import { TYPE_COLORS, TYPE_LABELS } from './mapDataUtils';
+import { TYPE_COLORS, TYPE_LABELS, resolveTypeColors } from './mapDataUtils';
 
 // ── Leaflet default marker icon fix ──────────────────────────────────────────
 // Reason: Vite/webpack removes _getIconUrl; mergeOptions re-points to bundled assets.
@@ -73,6 +73,10 @@ export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 
     () => selectedDay === null ? pins : pins.filter(p => p.dayNumber === selectedDay),
     [pins, selectedDay],
   );
+
+  // Reason: read computed CSS vars here (not in mapDataUtils) so colors update
+  // after a theme switch, which triggers a re-render of this component.
+  const colors = resolveTypeColors();
 
   const positions: [number, number][] = visiblePins.map(p => [p.lat, p.lng]);
   const showPolyline = selectedDay === null && lodgingRoute.length > 1;
@@ -145,13 +149,13 @@ export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 
             <Marker
               key={pin.id}
               position={[pin.lat, pin.lng]}
-              icon={pinIcon(pin.type, pin.color)}
+              icon={pinIcon(pin.type, colors[pin.type] ?? pin.color)}
             >
               <Popup>
                 <div className="trip-map__popup">
                   <span
                     className="trip-map__popup-badge"
-                    style={{ background: pin.color }}
+                    style={{ background: colors[pin.type] ?? pin.color }}
                   >
                     {TYPE_LABELS[pin.type]}
                   </span>
@@ -166,7 +170,7 @@ export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 
           {showPolyline && (
             <Polyline
               positions={lodgingRoute.map(p => [p.lat, p.lng] as [number, number])}
-              pathOptions={{ color: '#D4825A', weight: 2, opacity: 0.8, dashArray: '6 4' }}
+              pathOptions={{ color: colors.restaurant, weight: 2, opacity: 0.8, dashArray: '6 4' }}
             />
           )}
         </MapContainer>
@@ -176,14 +180,14 @@ export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 
           <div className="trip-map__legend">
             {presentTypes.map(type => (
               <div key={type} className="trip-map__legend-row">
-                <span className="trip-map__legend-dot" style={{ background: TYPE_COLORS[type] }} />
+                <span className="trip-map__legend-dot" style={{ background: colors[type] ?? TYPE_COLORS[type] }} />
                 <span>{TYPE_LABELS[type]}</span>
               </div>
             ))}
             {showPolyline && (
               <div className="trip-map__legend-row">
                 <svg width="20" height="4" className="trip-map__legend-line">
-                  <line x1="0" y1="2" x2="20" y2="2" stroke="#D4825A" strokeWidth="2" strokeDasharray="4 3" />
+                  <line x1="0" y1="2" x2="20" y2="2" stroke={colors.restaurant} strokeWidth="2" strokeDasharray="4 3" />
                 </svg>
                 <span>Lodging route</span>
               </div>

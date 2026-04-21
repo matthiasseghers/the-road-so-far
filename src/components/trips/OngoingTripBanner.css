@@ -5,12 +5,44 @@
   gap: var(--space-4);
   padding: var(--space-4) var(--space-5);
   background: linear-gradient(135deg, var(--accent-primary-subtle) 0%, var(--bg-raised) 100%);
-  border: 1px solid var(--accent-primary);
+  border: none; /* replaced by ::before rainbow border */
   border-radius: var(--radius-xl);
   cursor: pointer;
   text-align: left;
   transition: box-shadow var(--transition-base), transform var(--transition-base);
   font-family: var(--font-body);
+  position: relative;
+}
+
+/* Animated rainbow border — rotates a conic gradient behind the element.
+   The mask punches out the content-box, leaving only the 1.5px padding
+   ring visible as the border. */
+.ongoing-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-xl);
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--rainbow-angle),
+    #a87fff 0%,
+    #7b52e8 16%,
+    #4d96ff 32%,
+    #7a9e87 48%,
+    #f5a623 64%,
+    #c0365a 80%,
+    #a87fff 100%
+  );
+  animation: rainbow var(--speed, 3s) linear infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .ongoing-banner:hover {

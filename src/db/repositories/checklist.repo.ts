@@ -256,3 +256,53 @@ export function copyTemplatesToTrip(
   txn(templateIds);
   return findChecklistItemsByTripId(tripId);
 }
+
+// ─── Template items CRUD ──────────────────────────────────────────────────────
+
+export function createTemplateItem(
+  templateId: number,
+  label: string,
+  category: string,
+): TemplateItemRow {
+  const db = getDb();
+  const max = db
+    .prepare('SELECT MAX(sort_order) AS m FROM template_items WHERE template_id = ?')
+    .get(templateId) as { m: number | null };
+  const sortOrder = (max.m ?? -1) + 1;
+
+  const result = db
+    .prepare(
+      `INSERT INTO template_items (template_id, label, category, sort_order)
+       VALUES (@template_id, @label, @category, @sort_order)`,
+    )
+    .run({ template_id: templateId, label, category, sort_order: sortOrder });
+
+  return db
+    .prepare('SELECT * FROM template_items WHERE id = ?')
+    .get(result.lastInsertRowid as number) as TemplateItemRow;
+}
+
+export function updateTemplateItem(
+  id: number,
+  input: { label?: string; category?: string },
+): TemplateItemRow | null {
+  const db = getDb();
+  const cur = db
+    .prepare('SELECT * FROM template_items WHERE id = ?')
+    .get(id) as TemplateItemRow | undefined;
+  if (!cur) return null;
+
+  db.prepare(
+    'UPDATE template_items SET label = @label, category = @category WHERE id = @id',
+  ).run({
+    id,
+    label: input.label ?? cur.label,
+    category: input.category ?? cur.category,
+  });
+
+  return db.prepare('SELECT * FROM template_items WHERE id = ?').get(id) as TemplateItemRow;
+}
+
+export function deleteTemplateItem(id: number): void {
+  getDb().prepare('DELETE FROM template_items WHERE id = ?').run(id);
+}

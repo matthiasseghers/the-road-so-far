@@ -52,7 +52,7 @@ export interface AppError {
 
 export type DistanceUnit = 'km' | 'mi';
 export type DateFormat = 'DD MMM YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'auto';
 
 export interface TimeAreaConfig {
   label: string;

@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { getDb } from '../src/db/client.js';
 import * as tripsRepo from '../src/db/repositories/trips.repo.js';
 import * as daysRepo from '../src/db/repositories/days.repo.js';
 import * as activitiesRepo from '../src/db/repositories/activities.repo.js';
@@ -432,6 +433,27 @@ router.get('/template-items', (req: Request, res: Response) => {
   res.json(checklistRepo.findTemplateItems(templateId));
 });
 
+router.post('/template-items', (req: Request, res: Response) => {
+  const { template_id, label, category } = req.body as { template_id: number; label: string; category: string };
+  if (!template_id || !label || !category) { res.status(400).json({ error: 'template_id, label and category required' }); return; }
+  const item = checklistRepo.createTemplateItem(template_id, label, category);
+  res.status(201).json(item);
+});
+
+router.patch('/template-items/:id', (req: Request, res: Response) => {
+  const item = checklistRepo.updateTemplateItem(
+    Number(req.params['id']),
+    req.body as { label?: string; category?: string },
+  );
+  if (!item) { res.status(404).json({ error: 'Template item not found' }); return; }
+  res.json(item);
+});
+
+router.delete('/template-items/:id', (req: Request, res: Response) => {
+  checklistRepo.deleteTemplateItem(Number(req.params['id']));
+  res.status(204).send();
+});
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 
 router.get('/settings', (_req: Request, res: Response) => {
@@ -443,5 +465,139 @@ router.put('/settings/:key', (req: Request, res: Response) => {
   // Reason: Express params are always string at runtime; bracket access types as string | string[] in some @types/express versions
   const key = req.params['key'] as string;
   settingsRepo.setSetting(key, value);
+  res.status(204).send();
+});
+
+// ── Data export / wipe ────────────────────────────────────────────────────────
+
+router.get('/export/all', (_req: Request, res: Response) => {
+  const trips = tripsRepo.findAllTrips();
+  const allDays = trips.flatMap(t => daysRepo.findDaysByTripId(t.id));
+  const allActivities = trips.flatMap(t => activitiesRepo.findActivitiesByTripId(t.id));
+  const allReservations = trips.flatMap(t => reservationsRepo.findAllByTripId(t.id));
+  const allChecklistItems = trips.flatMap(t =>
+    checklistRepo.findChecklistItemsByTripId(t.id),
+  );
+  res.json({
+    exportedAt: new Date().toISOString(),
+    trips,
+    days: allDays,
+    activities: allActivities,
+    reservations: allReservations,
+    checklistItems: allChecklistItems,
+  });
+});
+
+router.delete('/data/wipe', (_req: Request, res: Response) => {
+  const db = getDb();
+  db.transaction(() => {
+    db.prepare('DELETE FROM checklist_items').run();
+    db.prepare('DELETE FROM activities').run();
+    db.prepare('DELETE FROM reservations').run();
+    db.prepare('DELETE FROM days').run();
+    db.prepare('DELETE FROM trips').run();
+  })();
+  res.status(204).send();
+});
+
+// ── Trip pack import ──────────────────────────────────────────────────────────
+
+const ImportPayloadSchema = z.object({
+  trips:          z.array(z.record(z.string(), z.unknown())),
+  days:           z.array(z.record(z.string(), z.unknown())),
+  activities:     z.array(z.record(z.string(), z.unknown())),
+  reservations:   z.array(z.record(z.string(), z.unknown())),
+  checklistItems: z.array(z.record(z.string(), z.unknown())),
+});
+
+router.post('/import/trippack', (req: Request, res: Response) => {
+  const parsed = ImportPayloadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid trippack format' });
+    return;
+  }
+  const { trips, days, activities, reservations, checklistItems } = parsed.data;
+  const db = getDb();
+  const tripIdMap = new Map<number, number>();
+  const dayIdMap  = new Map<number, number>();
+
+  db.transaction(() => {
+    for (const t of trips) {
+      // Reason: tags may be a parsed string[] (from ParsedTripRow) or already a JSON string.
+      const tags = Array.isArray(t['tags']) ? JSON.stringify(t['tags']) : (t['tags'] ?? '[]');
+      const result = db.prepare(
+        `INSERT INTO trips (title, emoji, status, start_date, end_date, tags, notes, cover_gradient)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        t['title'] ?? '', t['emoji'] ?? '🗺️', t['status'] ?? 'draft',
+        t['start_date'] ?? null, t['end_date'] ?? null, tags,
+        t['notes'] ?? null, t['cover_gradient'] ?? 'warm-brown',
+      );
+      tripIdMap.set(t['id'] as number, result.lastInsertRowid as number);
+    }
+
+    for (const d of days) {
+      const newTripId = tripIdMap.get(d['trip_id'] as number);
+      if (newTripId == null) continue;
+      const result = db.prepare(
+        `INSERT OR IGNORE INTO days (trip_id, date, title, subtitle, notes)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).run(newTripId, d['date'], d['title'] ?? null, d['subtitle'] ?? null, d['notes'] ?? null);
+      // Reason: lastInsertRowid is 0 when INSERT OR IGNORE skips a duplicate — fall back to a SELECT.
+      const newId = (result.lastInsertRowid as number) !== 0
+        ? (result.lastInsertRowid as number)
+        : (db.prepare('SELECT id FROM days WHERE trip_id = ? AND date = ?').get(newTripId, d['date']) as { id: number }).id;
+      dayIdMap.set(d['id'] as number, newId);
+    }
+
+    for (const a of activities) {
+      const newTripId = tripIdMap.get(a['trip_id'] as number);
+      const newDayId  = a['day_id'] != null ? (dayIdMap.get(a['day_id'] as number) ?? null) : null;
+      if (newTripId == null) continue;
+      db.prepare(
+        `INSERT INTO activities
+           (day_id, trip_id, title, activity_type, start_time, end_time, sort_order, notes, location, lat, lng)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        newDayId, newTripId,
+        a['title'] ?? '', a['activity_type'] ?? 'note',
+        a['start_time'] ?? null, a['end_time'] ?? null, a['sort_order'] ?? 0,
+        a['notes'] ?? null, a['location'] ?? null, a['lat'] ?? null, a['lng'] ?? null,
+      );
+    }
+
+    for (const r of reservations) {
+      const newTripId = tripIdMap.get(r['trip_id'] as number);
+      const newDayId  = r['day_id'] != null ? (dayIdMap.get(r['day_id'] as number) ?? null) : null;
+      if (newTripId == null) continue;
+      // Reason: details may already be a JSON string (from DB) or a plain object (re-serialised export).
+      const details = typeof r['details'] === 'string' ? r['details'] : JSON.stringify(r['details'] ?? {});
+      db.prepare(
+        `INSERT INTO reservations
+           (trip_id, day_id, type, title, status, confirmation_ref, notes, cost_amount, cost_currency, details)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        newTripId, newDayId,
+        r['type'] ?? 'other', r['title'] ?? '', r['status'] ?? 'pending',
+        r['confirmation_ref'] ?? null, r['notes'] ?? null,
+        r['cost_amount'] ?? null, r['cost_currency'] ?? 'EUR', details,
+      );
+    }
+
+    for (const ci of checklistItems) {
+      const newTripId = tripIdMap.get(ci['trip_id'] as number);
+      if (newTripId == null) continue;
+      // Reason: checked is stored as 0|1 in SQLite; the export may carry a boolean.
+      const checked = typeof ci['checked'] === 'boolean' ? (ci['checked'] ? 1 : 0) : (ci['checked'] ?? 0);
+      db.prepare(
+        `INSERT INTO checklist_items (trip_id, label, category, checked, source, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(
+        newTripId, ci['label'] ?? '', ci['category'] ?? 'General',
+        checked, ci['source'] ?? 'trip', ci['sort_order'] ?? 0,
+      );
+    }
+  })();
+
   res.status(204).send();
 });

@@ -1006,11 +1006,11 @@ function ItineraryDayCard({
       {lodgings.length === 0 && (
         <DayInfoBanner
           icon={<AlertTriangle size={12} />}
-          iconBg="rgba(212,168,74,.15)"
-          iconColor="#D4A84A"
+          iconBg="color-mix(in srgb, var(--toast-warning-border) 15%, transparent)"
+          iconColor="var(--toast-warning-text)"
           text="No accommodation for this night"
-          borderColor="rgba(212,168,74,.15)"
-          gradient="linear-gradient(to right, rgba(212,168,74,.06), transparent)"
+          borderColor="color-mix(in srgb, var(--toast-warning-border) 15%, transparent)"
+          gradient="linear-gradient(to right, color-mix(in srgb, var(--toast-warning-border) 8%, transparent), transparent)"
         />
       )}
 

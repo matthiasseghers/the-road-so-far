@@ -85,7 +85,7 @@
   padding: 2px 8px;
   border-radius: var(--radius-full);
   background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  color: var(--text-inverse);
   backdrop-filter: blur(4px);
   /* Override status-badge colour when inside the banner */
 }
@@ -245,7 +245,7 @@
   display: block;
   margin-top: 5px;
   font-size: 11.5px;
-  color: #4caf50;
+  color: var(--status-confirmed);
   font-weight: 500;
 }
 
@@ -319,7 +319,7 @@
 }
 
 .tdp__ov-icon--lodging    { background: color-mix(in srgb, var(--res-lodging) 15%, transparent); }
-.tdp__ov-icon--attraction { background: #e1f5ee; }
+.tdp__ov-icon--attraction { background: color-mix(in srgb, var(--status-confirmed) 15%, transparent); }
 
 .tdp__ov-body {
   flex: 1;
@@ -733,7 +733,7 @@
 }
 
 .stat-val.sage { color: var(--accent-secondary); }
-.stat-val.amb  { color: #D4A84A; }
+.stat-val.amb  { color: var(--toast-warning-border); }
 .stat-val.acc  { color: var(--accent-primary); }
 
 .stat-lbl {

@@ -41,5 +41,5 @@
 }
 
 .trips-page__error {
-  color: #c05050;
+  color: var(--destructive);
 }

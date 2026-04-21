@@ -26,8 +26,30 @@ export interface MapDay {
   hasLodging: boolean;
 }
 
-// ── Color map (literal values matching tokens.css) ────────────────────────────
+// ── Color resolution ─────────────────────────────────────────────────────────
+// Reason: Leaflet sets colors via element.style which cannot resolve CSS vars.
+// Reading computed values at call time ensures colors update after theme switch.
 
+const TOKEN_MAP: Record<PinType, string> = {
+  lodging:    '--res-lodging',
+  flight:     '--res-flight',
+  transit:    '--res-transit',
+  car:        '--res-car',
+  restaurant: '--res-restaurant',
+  activity:   '--act-default',
+};
+
+export function resolveTypeColors(): Record<PinType, string> {
+  const style = getComputedStyle(document.documentElement);
+  return Object.fromEntries(
+    Object.entries(TOKEN_MAP).map(([type, token]) => [
+      type,
+      style.getPropertyValue(token).trim(),
+    ]),
+  ) as Record<PinType, string>;
+}
+
+// Kept for non-DOM contexts (tests, SSR). These are the light-mode fallback values.
 export const TYPE_COLORS: Record<PinType, string> = {
   lodging:    '#9B91D4',
   flight:     '#6A9CC5',

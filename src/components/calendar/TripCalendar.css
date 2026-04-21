@@ -163,8 +163,8 @@
 }
 
 .trip-cal__badge--warn {
-  background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
-  color: var(--accent-primary);
+  background: var(--toast-warning-bg);
+  color: var(--toast-warning-text);
 }
 
 
