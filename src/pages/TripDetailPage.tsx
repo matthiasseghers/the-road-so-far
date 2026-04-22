@@ -36,6 +36,7 @@ import { api } from '@/db/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import ChecklistPanel from '@/components/checklist/ChecklistPanel';
 import TripCalendar from '@/components/calendar/TripCalendar';
+import ExportButton from '@/components/export/ExportButton';
 import './TripDetailPage.css';
 import '@/components/trips/TripFormModal.css';
 
@@ -336,6 +337,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
             </Breadcrumb>
           </>
         }
+        actions={<ExportButton trip={trip} reservations={reservations} />}
       />
 
       {/* ── Header card ──────────────────────────────── */}
