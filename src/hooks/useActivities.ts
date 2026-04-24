@@ -7,7 +7,7 @@ import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories
 
 interface UseActivitiesReturn {
   activities: Activity[];
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
   refetch: () => void;
   createActivity: (input: CreateActivityInput) => Promise<Activity>;
@@ -18,20 +18,20 @@ interface UseActivitiesReturn {
 
 export function useActivities(dayId: number): UseActivitiesReturn {
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
-    setLoading(true);
+    setIsLoading(true);
     api.get<ActivityRow[]>(`/activities?dayId=${dayId}`)
       .then(rows => {
         setActivities(rows.map(r => new Activity(r)));
         setError(null);
-        setLoading(false);
+        setIsLoading(false);
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
+        setIsLoading(false);
       });
   }, [dayId]);
 
@@ -66,6 +66,6 @@ export function useActivities(dayId: number): UseActivitiesReturn {
     }
   }, [dayId, refetch]);
 
-  return { activities, loading, error, refetch, createActivity, updateActivity, deleteActivity, reorderActivities };
+  return { activities, isLoading, error, refetch, createActivity, updateActivity, deleteActivity, reorderActivities };
 }
 

@@ -15,6 +15,43 @@ import { CreateReservationSchema, UpdateReservationSchema } from '../src/schemas
 import { CreateChecklistItemSchema, PatchChecklistItemSchema } from '../src/schemas/checklist.schema.js';
 import { z } from 'zod';
 
+// ── Shared inline schemas (small, single-use, not worth a separate file) ─────
+
+const ReorderActivitiesSchema = z.object({
+  dayId:      z.number().int().positive(),
+  orderedIds: z.array(z.number().int().positive()),
+});
+const CopyTemplatesSchema   = z.object({
+  tripId:      z.number().int().positive(),
+  templateIds: z.array(z.number().int().positive()),
+});
+const RenameCategorySchema  = z.object({ name: z.string().trim().min(1) });
+const TemplateItemCreateSchema = z.object({
+  template_id: z.number().int().positive(),
+  label:       z.string().trim().min(1),
+  category:    z.string().trim().min(1),
+});
+const TemplateItemPatchSchema = z.object({
+  label:    z.string().trim().min(1).optional(),
+  category: z.string().trim().min(1).optional(),
+});
+const TemplateReorderSchema = z.object({
+  templateId: z.number().int().positive(),
+  ids:        z.array(z.number().int().positive()),
+});
+const TripReorderSchema     = z.object({ ids: z.array(z.number().int().positive()) });
+const SettingValueSchema    = z.object({ value: z.unknown() });
+const TemplateCreateSchema  = z.object({
+  name:       z.string().trim().min(1),
+  icon_name:  z.string().trim().min(1).nullable().optional(),
+  sort_order: z.number().int().nonnegative().optional(),
+});
+const TemplatePatchSchema   = z.object({
+  name:       z.string().trim().min(1).optional(),
+  icon_name:  z.string().trim().min(1).nullable().optional(),
+  sort_order: z.number().int().nonnegative().optional(),
+});
+
 export const router = Router();
 
 // ── Health check ─────────────────────────────────────────────────────────────
@@ -135,8 +172,9 @@ router.post('/activities', (req: Request, res: Response) => {
 
 // Reason: PUT /activities/reorder must be before /:id (same pattern as stops).
 router.put('/activities/reorder', (req: Request, res: Response) => {
-  const { dayId, orderedIds } = req.body as { dayId: number; orderedIds: number[] };
-  activitiesRepo.reorderActivities(dayId, orderedIds);
+  const parsed = ReorderActivitiesSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  activitiesRepo.reorderActivities(parsed.data.dayId, parsed.data.orderedIds);
   res.status(204).send();
 });
 
@@ -195,22 +233,12 @@ router.post('/reservations', (req: Request, res: Response) => {
     return;
   }
 
-  // Lodging overlap detection
-  if (parsed.data.type === 'lodging') {
-    const d = parsed.data.details as { check_in_date?: string; check_out_date?: string };
-    if (d.check_in_date && d.check_out_date) {
-      const conflict = reservationsRepo.findLodgingOverlap(
-        parsed.data.trip_id, d.check_in_date, d.check_out_date,
-      );
-      if (conflict) {
-        res.status(409).json({ error: 'overlap', conflictingTitle: conflict.title });
-        return;
-      }
-    }
+  const result = reservationsRepo.createReservationSafe(parsed.data);
+  if (!result.ok) {
+    res.status(409).json({ error: 'overlap', conflictingTitle: result.conflict });
+    return;
   }
-
-  const reservation = reservationsRepo.createReservation(parsed.data);
-  res.status(201).json(reservation);
+  res.status(201).json(result.item);
 });
 
 router.get('/reservations/:id', (req: Request, res: Response) => {
@@ -239,28 +267,13 @@ router.patch('/reservations/:id', (req: Request, res: Response) => {
     return;
   }
 
-  // Lodging overlap detection on edit
-  if (parsed.data.type === 'lodging' || parsed.data.details?.type === 'lodging') {
-    const d = parsed.data.details as { check_in_date?: string; check_out_date?: string } | undefined;
-    if (d?.check_in_date && d?.check_out_date) {
-      const existing = reservationsRepo.findById(Number(req.params['id']));
-      const conflict = reservationsRepo.findLodgingOverlap(
-        existing?.trip_id ?? 0, d.check_in_date, d.check_out_date,
-        Number(req.params['id']),
-      );
-      if (conflict) {
-        res.status(409).json({ error: 'overlap', conflictingTitle: conflict.title });
-        return;
-      }
-    }
+  const result = reservationsRepo.updateReservationSafe(Number(req.params['id']), parsed.data);
+  if (result === null) { res.status(404).json({ error: 'Reservation not found' }); return; }
+  if (!result.ok) {
+    res.status(409).json({ error: 'overlap', conflictingTitle: result.conflict });
+    return;
   }
-
-  const reservation = reservationsRepo.updateReservation(
-    Number(req.params['id']),
-    parsed.data,
-  );
-  if (!reservation) { res.status(404).json({ error: 'Reservation not found' }); return; }
-  res.json(reservation);
+  res.json(result.item);
 });
 
 // Reason: PATCH /days/:dayId/reorder handles unified reorder of activities + reservations.
@@ -302,9 +315,18 @@ router.post('/checklist-items', (req: Request, res: Response) => {
 });
 
 router.post('/checklist-items/copy-templates', (req: Request, res: Response) => {
-  const { tripId, templateIds } = req.body as { tripId: number; templateIds: number[] };
-  const items = checklistRepo.copyTemplatesToTrip(tripId, templateIds);
-  res.status(201).json(items);
+  const parsed = CopyTemplatesSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const { items, inserted, skipped } = checklistRepo.copyTemplatesToTrip(parsed.data.tripId, parsed.data.templateIds);
+  res.status(201).json({ items, inserted, skipped });
+});
+
+router.put('/trips/:tripId/checklist/reorder', (req: Request, res: Response) => {
+  const parsed = TripReorderSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const tripId = Number(req.params['tripId']);
+  checklistRepo.reorderChecklistItems(tripId, parsed.data.ids);
+  res.status(204).send();
 });
 
 router.patch('/checklist-items/:id', (req: Request, res: Response) => {
@@ -372,11 +394,11 @@ router.delete('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
 
 // Reason: /category/:cat routes must appear before /:id to prevent Express matching 'category' as an id
 router.patch('/trips/:tripId/checklist/category/:cat', (req: Request, res: Response) => {
+  const parsed = RenameCategorySchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
   const tripId = Number(req.params['tripId']);
   const oldCat = decodeURIComponent(req.params['cat'] as string);
-  const newCat = (req.body as { name?: string }).name?.trim().toLowerCase();
-  if (!newCat) { res.status(400).json({ error: 'name is required' }); return; }
-  checklistRepo.renameChecklistCategory(tripId, oldCat, newCat);
+  checklistRepo.renameChecklistCategory(tripId, oldCat, parsed.data.name.toLowerCase());
   res.status(204).send();
 });
 
@@ -399,7 +421,9 @@ router.get('/checklist-templates', (_req: Request, res: Response) => {
 });
 
 router.post('/checklist-templates', (req: Request, res: Response) => {
-  const template = checklistRepo.createTemplate(req.body as checklistRepo.CreateTemplateInput);
+  const parsed = TemplateCreateSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const template = checklistRepo.createTemplate(parsed.data);
   res.status(201).json(template);
 });
 
@@ -410,9 +434,11 @@ router.get('/checklist-templates/:id', (req: Request, res: Response) => {
 });
 
 router.patch('/checklist-templates/:id', (req: Request, res: Response) => {
+  const parsed = TemplatePatchSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
   const template = checklistRepo.updateTemplate(
     Number(req.params['id']),
-    req.body as checklistRepo.UpdateTemplateInput,
+    parsed.data,
   );
   if (!template) { res.status(404).json({ error: 'Template not found' }); return; }
   res.json(template);
@@ -434,16 +460,18 @@ router.get('/template-items', (req: Request, res: Response) => {
 });
 
 router.post('/template-items', (req: Request, res: Response) => {
-  const { template_id, label, category } = req.body as { template_id: number; label: string; category: string };
-  if (!template_id || !label || !category) { res.status(400).json({ error: 'template_id, label and category required' }); return; }
-  const item = checklistRepo.createTemplateItem(template_id, label, category);
+  const parsed = TemplateItemCreateSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const item = checklistRepo.createTemplateItem(parsed.data.template_id, parsed.data.label, parsed.data.category);
   res.status(201).json(item);
 });
 
 router.patch('/template-items/:id', (req: Request, res: Response) => {
+  const parsed = TemplateItemPatchSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
   const item = checklistRepo.updateTemplateItem(
     Number(req.params['id']),
-    req.body as { label?: string; category?: string },
+    parsed.data,
   );
   if (!item) { res.status(404).json({ error: 'Template item not found' }); return; }
   res.json(item);
@@ -454,6 +482,66 @@ router.delete('/template-items/:id', (req: Request, res: Response) => {
   res.status(204).send();
 });
 
+router.put('/template-items/reorder', (req: Request, res: Response) => {
+  const parsed = TemplateReorderSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  checklistRepo.reorderTemplateItems(parsed.data.templateId, parsed.data.ids);
+  res.status(204).send();
+});
+
+// ── Global map ───────────────────────────────────────────────────────────────
+
+// Reason: returns all geocoded activities + reservations across all trips in one
+// flat list so the global MapPage can render without per-trip fetch loops.
+router.get('/map/pins', (_req: Request, res: Response) => {
+  const db = getDb();
+
+  const activities = db.prepare(`
+    SELECT a.id, a.title, a.start_time, a.lat, a.lng,
+           t.id   AS trip_id,
+           t.title AS trip_title,
+           d.date  AS day_date
+    FROM   activities a
+    JOIN   days d  ON d.id  = a.day_id
+    JOIN   trips t ON t.id  = d.trip_id
+    WHERE  a.lat IS NOT NULL AND a.lng IS NOT NULL
+  `).all() as Array<{
+    id: number; title: string; start_time: string | null;
+    lat: number; lng: number;
+    trip_id: number; trip_title: string; day_date: string;
+  }>;
+
+  const reservations = db.prepare(`
+    SELECT r.id, r.title, r.type, r.lat, r.lng,
+           t.id    AS trip_id,
+           t.title AS trip_title,
+           d.date  AS day_date
+    FROM   reservations r
+    JOIN   trips t ON t.id = r.trip_id
+    LEFT JOIN days d ON d.id = r.day_id
+    WHERE  r.lat IS NOT NULL AND r.lng IS NOT NULL
+  `).all() as Array<{
+    id: number; title: string; type: string;
+    lat: number; lng: number;
+    trip_id: number; trip_title: string; day_date: string | null;
+  }>;
+
+  // Reason: include trip metadata so the client can show date ranges in the legend
+  // without a second round-trip. Ordered by start_date for consistent palette assignment.
+  const trips = db.prepare(`
+    SELECT DISTINCT t.id, t.title, t.start_date, t.end_date
+    FROM   trips t
+    WHERE  t.id IN (
+      SELECT DISTINCT trip_id FROM activities   WHERE lat IS NOT NULL AND lng IS NOT NULL
+      UNION
+      SELECT DISTINCT trip_id FROM reservations WHERE lat IS NOT NULL AND lng IS NOT NULL
+    )
+    ORDER BY t.start_date
+  `).all() as Array<{ id: number; title: string; start_date: string | null; end_date: string | null }>;
+
+  res.json({ activities, reservations, trips });
+});
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 
 router.get('/settings', (_req: Request, res: Response) => {
@@ -461,10 +549,11 @@ router.get('/settings', (_req: Request, res: Response) => {
 });
 
 router.put('/settings/:key', (req: Request, res: Response) => {
-  const { value } = req.body as { value: unknown };
+  const parsed = SettingValueSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
   // Reason: Express params are always string at runtime; bracket access types as string | string[] in some @types/express versions
   const key = req.params['key'] as string;
-  settingsRepo.setSetting(key, value);
+  settingsRepo.setSetting(key, parsed.data.value);
   res.status(204).send();
 });
 
@@ -479,12 +568,29 @@ router.get('/export/all', (_req: Request, res: Response) => {
     checklistRepo.findChecklistItemsByTripId(t.id),
   );
   res.json({
+    version: 1,
     exportedAt: new Date().toISOString(),
     trips,
     days: allDays,
     activities: allActivities,
     reservations: allReservations,
     checklistItems: allChecklistItems,
+  });
+});
+
+// Per-trip .trippack export — same shape as /export/all but scoped to one trip.
+router.get('/trips/:tripId/export/trippack', (req: Request, res: Response) => {
+  const tripId = Number(req.params['tripId']);
+  const trip = tripsRepo.findTripById(tripId);
+  if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
+  res.json({
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    trips:          [trip],
+    days:           daysRepo.findDaysByTripId(tripId),
+    activities:     activitiesRepo.findActivitiesByTripId(tripId),
+    reservations:   reservationsRepo.findAllByTripId(tripId),
+    checklistItems: checklistRepo.findChecklistItemsByTripId(tripId),
   });
 });
 
@@ -503,6 +609,7 @@ router.delete('/data/wipe', (_req: Request, res: Response) => {
 // ── Trip pack import ──────────────────────────────────────────────────────────
 
 const ImportPayloadSchema = z.object({
+  version:        z.number().optional(),
   trips:          z.array(z.record(z.string(), z.unknown())),
   days:           z.array(z.record(z.string(), z.unknown())),
   activities:     z.array(z.record(z.string(), z.unknown())),
@@ -525,13 +632,28 @@ router.post('/import/trippack', (req: Request, res: Response) => {
     for (const t of trips) {
       // Reason: tags may be a parsed string[] (from ParsedTripRow) or already a JSON string.
       const tags = Array.isArray(t['tags']) ? JSON.stringify(t['tags']) : (t['tags'] ?? '[]');
+
+      // Reason: if external_id is present and already exists in the DB, skip this
+      // trip and all its children to prevent silent duplication on re-import.
+      const externalId = (t['external_id'] as string | undefined) ?? null;
+      if (externalId) {
+        const existing = db
+          .prepare('SELECT id FROM trips WHERE external_id = ?')
+          .get(externalId) as { id: number } | undefined;
+        if (existing) {
+          tripIdMap.set(t['id'] as number, existing.id);
+          continue; // skip re-inserting trip + children
+        }
+      }
+
       const result = db.prepare(
-        `INSERT INTO trips (title, emoji, status, start_date, end_date, tags, notes, cover_gradient)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO trips (title, emoji, status, start_date, end_date, tags, notes, cover_gradient, external_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         t['title'] ?? '', t['emoji'] ?? '🗺️', t['status'] ?? 'draft',
         t['start_date'] ?? null, t['end_date'] ?? null, tags,
         t['notes'] ?? null, t['cover_gradient'] ?? 'warm-brown',
+        externalId ?? (db.prepare("SELECT lower(hex(randomblob(16))) AS v").get() as { v: string }).v,
       );
       tripIdMap.set(t['id'] as number, result.lastInsertRowid as number);
     }
@@ -574,27 +696,28 @@ router.post('/import/trippack', (req: Request, res: Response) => {
       const details = typeof r['details'] === 'string' ? r['details'] : JSON.stringify(r['details'] ?? {});
       db.prepare(
         `INSERT INTO reservations
-           (trip_id, day_id, type, title, status, confirmation_ref, notes, cost_amount, cost_currency, details)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (trip_id, day_id, type, title, status, confirmation_ref, notes, cost_amount, cost_currency, details, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         newTripId, newDayId,
         r['type'] ?? 'other', r['title'] ?? '', r['status'] ?? 'pending',
         r['confirmation_ref'] ?? null, r['notes'] ?? null,
         r['cost_amount'] ?? null, r['cost_currency'] ?? 'EUR', details,
+        r['sort_order'] ?? 0,
       );
     }
 
     for (const ci of checklistItems) {
       const newTripId = tripIdMap.get(ci['trip_id'] as number);
       if (newTripId == null) continue;
-      // Reason: checked is stored as 0|1 in SQLite; the export may carry a boolean.
-      const checked = typeof ci['checked'] === 'boolean' ? (ci['checked'] ? 1 : 0) : (ci['checked'] ?? 0);
+      // Reason: is_checked is stored as 0|1 in SQLite; the export may carry a boolean.
+      const isChecked = typeof ci['is_checked'] === 'boolean' ? (ci['is_checked'] ? 1 : 0) : (ci['is_checked'] ?? 0);
       db.prepare(
-        `INSERT INTO checklist_items (trip_id, label, category, checked, source, sort_order)
+        `INSERT INTO checklist_items (trip_id, label, category, is_checked, source, sort_order)
          VALUES (?, ?, ?, ?, ?, ?)`,
       ).run(
         newTripId, ci['label'] ?? '', ci['category'] ?? 'General',
-        checked, ci['source'] ?? 'trip', ci['sort_order'] ?? 0,
+        isChecked, ci['source'] ?? 'trip', ci['sort_order'] ?? 0,
       );
     }
   })();

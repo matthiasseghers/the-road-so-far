@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { FileDown, Calendar } from 'lucide-react';
+import { FileDown, Calendar, Package } from 'lucide-react';
+import JSZip from 'jszip';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { generateTripPDF } from '@/lib/export/pdf';
 import IcsExportModal from './IcsExportModal';
+import { api } from '@/db/api-client';
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 
@@ -24,6 +26,7 @@ function safeFilename(title: string): string {
 
 export default function ExportButton({ trip, reservations }: ExportButtonProps): JSX.Element {
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingPack, setExportingPack] = useState(false);
   const [icsModalOpen, setIcsModalOpen] = useState(false);
 
   async function handlePdf(): Promise<void> {
@@ -42,6 +45,27 @@ export default function ExportButton({ trip, reservations }: ExportButtonProps):
       toast.error('Failed to generate PDF');
     } finally {
       setExportingPdf(false);
+    }
+  }
+
+  async function handleTrippack(): Promise<void> {
+    setExportingPack(true);
+    try {
+      const data = await api.get<unknown>(`/trips/${trip.id}/export/trippack`);
+      const zip  = new JSZip();
+      zip.file('trip.json', JSON.stringify(data, null, 2));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${safeFilename(trip.title)}.trippack`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('.trippack exported');
+    } catch {
+      toast.error('Failed to export .trippack');
+    } finally {
+      setExportingPack(false);
     }
   }
 
@@ -66,6 +90,16 @@ export default function ExportButton({ trip, reservations }: ExportButtonProps):
         >
           <Calendar size={15} />
           Export .ics
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => { void handleTrippack(); }}
+          disabled={exportingPack}
+          type="button"
+        >
+          <Package size={15} />
+          {exportingPack ? 'Packing\u2026' : 'Export .trippack'}
         </Button>
       </div>
 

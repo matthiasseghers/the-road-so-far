@@ -1,17 +1,18 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Utensils, Camera, ShoppingBag, TreePine, Landmark, FileText, Tag } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Activity } from '@/types/domain';
 import './ActivityItem.css';
 
-// Icon map for activity types
-const ACTIVITY_TYPE_ICONS: Record<string, string> = {
-  food:        '🍽️',
-  attraction:  '🎯',
-  shopping:    '🛍️',
-  outdoors:    '🌿',
-  cultural:    '🏛️',
-  note:        '📝',
-  other:       '📌',
+// Icon map for activity types — Lucide components for crisp SVG rendering
+const ACTIVITY_TYPE_ICONS: Record<string, LucideIcon> = {
+  food:        Utensils,
+  attraction:  Camera,
+  shopping:    ShoppingBag,
+  outdoors:    TreePine,
+  cultural:    Landmark,
+  note:        FileText,
+  other:       Tag,
 };
 
 interface ActivityItemProps {
@@ -21,12 +22,12 @@ interface ActivityItemProps {
 }
 
 export default function ActivityItem({ activity, onEdit, onDelete }: ActivityItemProps): JSX.Element {
-  const icon = ACTIVITY_TYPE_ICONS[activity.activity_type] ?? '📌';
+  const Icon = ACTIVITY_TYPE_ICONS[activity.activity_type] ?? Tag;
   const timeLabel = activity.timeDisplay() || null;
 
   return (
     <div className={`activity-item activity-item--${activity.activity_type}`}>
-      <span className="activity-item__icon" aria-hidden="true">{icon}</span>
+      <span className="activity-item__icon" aria-hidden="true"><Icon size={15} /></span>
 
       <div className="activity-item__body">
         <span className="activity-item__title">{activity.title}</span>

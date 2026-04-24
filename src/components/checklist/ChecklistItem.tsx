@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, GripVertical } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,15 +12,36 @@ interface ChecklistItemProps {
   onToggle: (id: number, checked: boolean) => void;
   onDelete: (id: number) => void;
   showCategory?: boolean;
+  draggable?: boolean;
+  onDragStart?: (id: number) => void;
+  onDragOver?: (e: React.DragEvent, id: number) => void;
+  onDrop?: (e: React.DragEvent, id: number) => void;
+  onDragEnd?: () => void;
 }
 
-export default function ChecklistItem({ item, onToggle, onDelete, showCategory }: ChecklistItemProps) {
+export default function ChecklistItem({
+  item, onToggle, onDelete, showCategory,
+  draggable, onDragStart, onDragOver, onDrop, onDragEnd,
+}: ChecklistItemProps) {
   const checkboxId = `checklist-item-${item.id}`;
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
     <>
-      <div className="group flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-accent/40 transition-colors">
+      <div
+        className={cn(
+          'group flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-accent/40 transition-colors',
+          draggable && 'cl-item--draggable',
+        )}
+        draggable={draggable}
+        onDragStart={draggable ? () => onDragStart?.(item.id) : undefined}
+        onDragOver={draggable ? e => { e.preventDefault(); onDragOver?.(e, item.id); } : undefined}
+        onDrop={draggable ? e => onDrop?.(e, item.id) : undefined}
+        onDragEnd={draggable ? onDragEnd : undefined}
+      >
+        {draggable && (
+          <GripVertical size={14} className="cl-item__grip text-muted-foreground/40 cursor-grab shrink-0" />
+        )}
         <Checkbox
           id={checkboxId}
           checked={item.isChecked}

@@ -10,18 +10,23 @@ import Topbar from '@/components/layout/Topbar';
 import TripsPage from '@/pages/TripsPage';
 import TripDetailPage from '@/pages/TripDetailPage';
 import CalendarPage from '@/pages/CalendarPage';
+import MapPage from '@/pages/MapPage';
 import SettingsPage from '@/pages/SettingsPage';
 import type { Screen, Theme } from '@/types/domain';
 import { Toaster } from '@/components/ui/sonner';
 
 const THEME_STORAGE_KEY = 'rsf-theme';
 
+// Reason: screens that render their own <Topbar> declare it here so App.tsx
+// never needs an if/else per screen — add a new screen, set the flag once.
+const SCREEN_OWNS_TOPBAR: Partial<Record<Screen, true>> = {
+  trip: true,
+};
+
 // ScreenEntry pairs a screen name with optional context data.
-// ownsTopbar: true means the page renders its own <Topbar> — App.tsx skips it.
 interface ScreenEntry {
   screen: Screen;
   tripId?: number;
-  ownsTopbar?: boolean;
 }
 
 function getInitialTheme(): Theme {
@@ -76,9 +81,7 @@ export default function App(): JSX.Element {
   }
 
   function handleNavigate(screen: Screen, tripId?: number): void {
-    // Reason: 'trip' renders its own Topbar (breadcrumb nav); flag it so App.tsx skips rendering one.
-    const ownsTopbar = screen === 'trip';
-    setStack(prev => [...prev, { screen, tripId, ownsTopbar }]);
+    setStack(prev => [...prev, { screen, tripId }]);
   }
 
   function handleGoBack(): void {
@@ -98,7 +101,7 @@ export default function App(): JSX.Element {
       case 'calendar':
         return <CalendarPage />;
       case 'map':
-        return <Placeholder title="Map" subtitle="Phase 5" />;
+        return <MapPage />;
       case 'settings':
         return (
           <SettingsPage
@@ -133,9 +136,8 @@ export default function App(): JSX.Element {
       />
 
       <SidebarInset className="overflow-hidden">
-        {/* Reason: pages that own their Topbar set ownsTopbar:true on the ScreenEntry.
-            Any new page that needs custom nav just sets it when pushing to the stack. */}
-        {!current.ownsTopbar && (
+        {/* Reason: screens listed in SCREEN_OWNS_TOPBAR render their own header. */}
+        {!SCREEN_OWNS_TOPBAR[current.screen] && (
           <Topbar
             activeScreen={current.screen}
             onNewTrip={current.screen === 'trips' ? () => setNewTripOpen(true) : undefined}
@@ -149,15 +151,6 @@ export default function App(): JSX.Element {
       <Toaster />
     </SidebarProvider>
     </TooltipProvider>
-  );
-}
-
-function Placeholder({ title, subtitle }: { title: string; subtitle: string }): JSX.Element {
-  return (
-    <div className="app-placeholder">
-      <h2 className="app-placeholder__title">{title}</h2>
-      <p className="app-placeholder__sub">{subtitle}</p>
-    </div>
   );
 }
 

@@ -4,6 +4,16 @@ import type { CreateReservationInput, UpdateReservationInput } from '@/schemas/r
 
 export type { CreateReservationInput, UpdateReservationInput };
 
+// ─── Result type ──────────────────────────────────────────────────────────────
+
+/**
+ * Typed discriminated union returned by safe create/update operations.
+ * Routes pattern-match on `ok` — no overlap logic ever leaks into route handlers.
+ */
+export type ReservationResult =
+  | { ok: true;  item: ReservationRow }
+  | { ok: false; conflict: string };
+
 // ─── Auto-title helper ────────────────────────────────────────────────────────
 
 function deriveTitle(type: string, details: Record<string, string>): string {
@@ -172,6 +182,43 @@ export function updateReservationLatLng(id: number, lat: number, lng: number): v
 
 export function deleteReservation(id: number): void {
   getDb().prepare('DELETE FROM reservations WHERE id = ?').run(id);
+}
+
+// ─── Safe mutations (include overlap check) ───────────────────────────────────
+
+/**
+ * Creates a reservation, running the lodging overlap check first.
+ * Routes should always call this instead of createReservation directly.
+ */
+export function createReservationSafe(input: CreateReservationInput): ReservationResult {
+  if (input.type === 'lodging') {
+    const d = input.details as { check_in_date?: string; check_out_date?: string };
+    if (d.check_in_date && d.check_out_date) {
+      const conflict = findLodgingOverlap(input.trip_id, d.check_in_date, d.check_out_date);
+      if (conflict) return { ok: false, conflict: conflict.title };
+    }
+  }
+  return { ok: true, item: createReservation(input) };
+}
+
+/**
+ * Updates a reservation, running the lodging overlap check first.
+ * Routes should always call this instead of updateReservation directly.
+ */
+export function updateReservationSafe(id: number, input: UpdateReservationInput): ReservationResult | null {
+  const existing = findById(id);
+  if (!existing) return null;
+
+  const effectiveType = input.type ?? existing.type;
+  if (effectiveType === 'lodging') {
+    const d = input.details as { check_in_date?: string; check_out_date?: string } | undefined;
+    if (d?.check_in_date && d?.check_out_date) {
+      const conflict = findLodgingOverlap(existing.trip_id, d.check_in_date, d.check_out_date, id);
+      if (conflict) return { ok: false, conflict: conflict.title };
+    }
+  }
+  const item = updateReservation(id, input);
+  return item ? { ok: true, item } : null;
 }
 
 /**

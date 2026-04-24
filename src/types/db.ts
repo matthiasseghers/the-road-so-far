@@ -23,6 +23,7 @@ export interface TripRow {
   cover_gradient: string;
   distance_total_m: number | null;
   distance_synced_at: string | null;
+  external_id: string; // stable UUID for .trippack dedup
   created_at: string;
   updated_at: string;
   // Reason: populated only by findAllTrips via COUNT subqueries — undefined on single-row fetches

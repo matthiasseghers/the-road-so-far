@@ -12,18 +12,22 @@ interface UseChecklistReturn {
   remove(id: number): Promise<void>;
   renameCategory(oldCat: string, newCat: string): Promise<void>;
   removeCategory(cat: string): Promise<void>;
+  applyTemplates(templateIds: number[]): Promise<void>;
+  reorder(ids: number[]): void;
   isLoading: boolean;
+  error: string | null;
 }
 
 export function useChecklist(tripId: number): UseChecklistReturn {
   const [rows, setRows] = useState<ChecklistItemRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
     setIsLoading(true);
     api.get<ChecklistItemRow[]>(`/trips/${tripId}/checklist`)
-      .then(data => { setRows(data); setIsLoading(false); })
-      .catch(() => { setIsLoading(false); });
+      .then(data => { setRows(data); setError(null); setIsLoading(false); })
+      .catch((e: unknown) => { setError(e instanceof Error ? e.message : 'Unknown error'); setIsLoading(false); });
   }, [tripId]);
 
   useEffect(() => { refetch(); }, [refetch]);
@@ -100,6 +104,41 @@ export function useChecklist(tripId: number): UseChecklistReturn {
     }
   }, [tripId]);
 
-  return { items, grouped, add, toggle, remove, renameCategory, removeCategory, isLoading };
+  const applyTemplates = useCallback(async (templateIds: number[]): Promise<void> => {
+    if (templateIds.length === 0) return;
+    try {
+      const { inserted, skipped } = await api.post<{ items: unknown[]; inserted: number; skipped: number }>(
+        '/checklist-items/copy-templates',
+        { tripId, templateIds },
+      );
+      refetch();
+      if (inserted > 0 && skipped === 0) {
+        toast.success(`${inserted} item${inserted === 1 ? '' : 's'} added`);
+      } else if (inserted > 0 && skipped > 0) {
+        toast.success(`${inserted} item${inserted === 1 ? '' : 's'} added, ${skipped} already present and skipped`);
+      } else {
+        toast.info('All items already in checklist — nothing added');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to apply template');
+    }
+  }, [tripId, refetch]);
+
+  // Reason: optimistic — reorder rows locally immediately, then persist in background.
+  // No refetch needed; sort_order is only used for initial ordering on next mount.
+  const reorder = useCallback((ids: number[]): void => {
+    setRows(prev => {
+      const byId = new Map(prev.map(r => [r.id, r]));
+      const reordered = ids.map((id, idx) => ({ ...byId.get(id)!, sort_order: idx }));
+      const rest = prev.filter(r => !ids.includes(r.id));
+      return [...reordered, ...rest];
+    });
+    void api.put(`/trips/${tripId}/checklist/reorder`, { ids }).catch(() => {
+      // On failure just refetch to restore server order
+      refetch();
+    });
+  }, [tripId, refetch]);
+
+  return { items, grouped, add, toggle, remove, renameCategory, removeCategory, applyTemplates, reorder, isLoading, error };
 }
 

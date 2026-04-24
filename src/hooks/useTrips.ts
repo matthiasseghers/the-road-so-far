@@ -10,7 +10,7 @@ interface UseTripsReturn {
   ongoing: Trip[];
   upcoming: Trip[];
   past: Trip[];
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
   refetch: () => void;
   createTrip: (input: CreateTripInput) => Promise<Trip>;
@@ -20,16 +20,16 @@ interface UseTripsReturn {
 
 export function useTrips(): UseTripsReturn {
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
-    setLoading(true);
+    setIsLoading(true);
     api.get<TripData[]>('/trips')
-      .then(rows => { setTrips(rows.map(row => new Trip(row))); setError(null); setLoading(false); })
+      .then(rows => { setTrips(rows.map(row => new Trip(row))); setError(null); setIsLoading(false); })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
+        setIsLoading(false);
       });
   }, []);
 
@@ -74,7 +74,7 @@ export function useTrips(): UseTripsReturn {
     ongoing:  trips.filter(t => t.isOngoing()),
     upcoming: trips.filter(t => t.isUpcoming()),
     past:     trips.filter(t => t.isPast()),
-    loading,
+    isLoading,
     error,
     refetch,
     createTrip,

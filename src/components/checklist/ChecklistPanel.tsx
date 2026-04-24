@@ -1,14 +1,18 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, Fragment } from 'react';
 import confetti from 'canvas-confetti';
-import { Plus, Check, X, MoreHorizontal, Pencil, Trash2, PackageOpen } from 'lucide-react';
+import { Plus, Check, X, MoreHorizontal, Pencil, Trash2, PackageOpen, LibraryBig } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useChecklist } from '@/hooks/useChecklist';
+import { api } from '@/db/api-client';
+import type { ChecklistTemplateRow } from '@/types/domain';
 import ChecklistItem from './ChecklistItem';
 import './ChecklistPanel.css';
 
@@ -20,7 +24,7 @@ interface ChecklistPanelProps {
 }
 
 export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
-  const { items, grouped, add, toggle, remove, renameCategory, removeCategory, isLoading } = useChecklist(tripId);
+  const { items, grouped, add, toggle, remove, renameCategory, removeCategory, applyTemplates, reorder, isLoading } = useChecklist(tripId);
 
   const [activeCategory, setActiveCategory] = useState<string>(ALL_KEY);
   const [newLabel, setNewLabel] = useState('');
@@ -33,6 +37,14 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
   const [renameDraft, setRenameDraft] = useState('');
   // AlertDialog state: category pending deletion confirmation
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  // Template picker state
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState<ChecklistTemplateRow[]>([]);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<number>>(new Set());
+  const [applyingTemplates, setApplyingTemplates] = useState(false);
+  // Drag-to-reorder state (only active when a single category is selected)
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const catInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +129,38 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
     setNewLabel('');
     inputRef.current?.focus();
   }, [newLabel, effectiveCategory, add]);
+
+  const handleDrop = useCallback((targetId: number): void => {
+    if (draggedId === null || draggedId === targetId) { setDraggedId(null); setDropTargetId(null); return; }
+    const currentIds = visibleItems.map(i => i.id);
+    const fromIdx = currentIds.indexOf(draggedId);
+    const toIdx   = currentIds.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const reordered = [...currentIds];
+    reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, draggedId);
+    reorder(reordered);
+    setDraggedId(null);
+    setDropTargetId(null);
+  }, [draggedId, visibleItems, reorder]);
+
+  const handleApplyTemplates = useCallback(async (): Promise<void> => {
+    setApplyingTemplates(true);
+    try {
+      await applyTemplates(Array.from(selectedTemplateIds));
+      setTemplatePickerOpen(false);
+      setSelectedTemplateIds(new Set());
+    } finally {
+      setApplyingTemplates(false);
+    }
+  }, [applyTemplates, selectedTemplateIds]);
+
+  const openTemplatePicker = useCallback((): void => {
+    setSelectedTemplateIds(new Set());
+    api.get<ChecklistTemplateRow[]>('/checklist-templates')
+      .then(data => { setAvailableTemplates(data); setTemplatePickerOpen(true); })
+      .catch(() => {});
+  }, []);
 
   const panelTitle = activeCategory === ALL_KEY ? 'All items' : activeCategory;
 
@@ -229,6 +273,11 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
               <span className="cl-nav-label">New category</span>
             </button>
           )}
+
+          <button className="cl-nav-item cl-nav-item--new" onClick={openTemplatePicker}>
+            <LibraryBig size={12} />
+            <span className="cl-nav-label">From template</span>
+          </button>
         </nav>
 
         {/* Right: items panel */}
@@ -252,13 +301,22 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
             ) : (
               // Flat list for both All and category views; show badge only in All
               visibleItems.map(item => (
-                <ChecklistItem
-                  key={item.id}
-                  item={item}
-                  onToggle={toggle}
-                  onDelete={remove}
-                  showCategory={activeCategory === ALL_KEY}
-                />
+                <Fragment key={item.id}>
+                  {dropTargetId === item.id && draggedId !== null && draggedId !== item.id && (
+                    <div className="cl-drop-indicator" />
+                  )}
+                  <ChecklistItem
+                    item={item}
+                    onToggle={toggle}
+                    onDelete={remove}
+                    showCategory={activeCategory === ALL_KEY}
+                    draggable={activeCategory !== ALL_KEY}
+                    onDragStart={setDraggedId}
+                    onDragOver={(_, id) => setDropTargetId(id)}
+                    onDrop={(_, id) => handleDrop(id)}
+                    onDragEnd={() => { setDraggedId(null); setDropTargetId(null); }}
+                  />
+                </Fragment>
               ))
             )}
           </div>
@@ -301,6 +359,52 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog: apply checklist templates */}
+      <Dialog open={templatePickerOpen} onOpenChange={v => { if (!v) { setTemplatePickerOpen(false); setSelectedTemplateIds(new Set()); } }}>
+        <DialogContent style={{ maxWidth: 400 }}>
+          <DialogHeader>
+            <DialogTitle>Apply template</DialogTitle>
+          </DialogHeader>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflowY: 'auto', padding: '4px 0' }}>
+            {availableTemplates.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No templates found. Create one in Settings → Templates.</p>
+            ) : (
+              availableTemplates.map(t => (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Checkbox
+                    id={`tpl-${t.id}`}
+                    checked={selectedTemplateIds.has(t.id)}
+                    onCheckedChange={checked => {
+                      setSelectedTemplateIds(prev => {
+                        const next = new Set(prev);
+                        if (checked) next.add(t.id); else next.delete(t.id);
+                        return next;
+                      });
+                    }}
+                  />
+                  <Label htmlFor={`tpl-${t.id}`} style={{ cursor: 'pointer', fontWeight: 500 }}>
+                    {t.name}
+                  </Label>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setTemplatePickerOpen(false); setSelectedTemplateIds(new Set()); }} type="button">
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void handleApplyTemplates()}
+              disabled={selectedTemplateIds.size === 0 || applyingTemplates}
+              type="button"
+            >
+              {applyingTemplates ? 'Applying…' : `Apply${selectedTemplateIds.size > 0 ? ` (${selectedTemplateIds.size})` : ''}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

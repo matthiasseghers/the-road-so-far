@@ -14,6 +14,7 @@ interface UseTemplateEditorReturn {
   deleteTemplate: (id: number) => Promise<void>;
   addItem: (templateId: number, label: string, category: string) => Promise<void>;
   deleteItem: (templateId: number, itemId: number) => Promise<void>;
+  reorderItems: (templateId: number, ids: number[]) => void;
 }
 
 export function useTemplateEditor(): UseTemplateEditorReturn {
@@ -73,5 +74,19 @@ export function useTemplateEditor(): UseTemplateEditorReturn {
     );
   }, []);
 
-  return { templates, isLoading, addTemplate, renameTemplate, deleteTemplate, addItem, deleteItem };
+  const reorderItems = useCallback((templateId: number, ids: number[]): void => {
+    // Optimistic: update local order immediately.
+    setTemplates(prev => prev.map(t => {
+      if (t.id !== templateId) return t;
+      const byId = new Map(t.items.map(i => [i.id, i]));
+      const reordered = ids.map((id, idx) => ({ ...byId.get(id)!, sort_order: idx }));
+      const rest = t.items.filter(i => !ids.includes(i.id));
+      return { ...t, items: [...reordered, ...rest] };
+    }));
+    void api.put('/template-items/reorder', { templateId, ids }).catch(() => {
+      void fetchAll();
+    });
+  }, [fetchAll]);
+
+  return { templates, isLoading, addTemplate, renameTemplate, deleteTemplate, addItem, deleteItem, reorderItems };
 }

@@ -12,7 +12,7 @@ interface UseMapDataReturn {
   mapDays: MapDay[];
   lodgingRoute: { lat: number; lng: number }[];
   missingCount: number;
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
   refetch: () => void;
 }
@@ -22,11 +22,11 @@ export function useMapData(tripId: number): UseMapDataReturn {
   const [mapDays,      setMapDays]      = useState<MapDay[]>([]);
   const [lodgingRoute, setLodgingRoute] = useState<{ lat: number; lng: number }[]>([]);
   const [missingCount, setMissingCount] = useState(0);
-  const [loading,      setLoading]      = useState(true);
+  const [isLoading,    setIsLoading]    = useState(true);
   const [error,        setError]        = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
-    setLoading(true);
+    setIsLoading(true);
     Promise.all([
       api.get<RawTripWithDays>(`/trips/${tripId}/full`),
       api.get<ReservationRow[]>(`/reservations?tripId=${tripId}`),
@@ -40,15 +40,15 @@ export function useMapData(tripId: number): UseMapDataReturn {
         setLodgingRoute(lr);
         setMissingCount(missing);
         setError(null);
-        setLoading(false);
+        setIsLoading(false);
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
+        setIsLoading(false);
       });
   }, [tripId]);
 
   useEffect(() => { refetch(); }, [refetch]);
 
-  return { pins, mapDays, lodgingRoute, missingCount, loading, error, refetch };
+  return { pins, mapDays, lodgingRoute, missingCount, isLoading, error, refetch };
 }

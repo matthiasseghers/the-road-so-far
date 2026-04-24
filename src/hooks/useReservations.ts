@@ -9,7 +9,7 @@ export type { CreateReservationInput, UpdateReservationInput };
 
 interface UseReservationsReturn {
   reservations: Reservation[];
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
   refetch: () => void;
   byType: (type: ReservationType) => Reservation[];
@@ -23,20 +23,20 @@ interface UseReservationsReturn {
 
 export function useReservations(tripId: number): UseReservationsReturn {
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
-    setLoading(true);
+    setIsLoading(true);
     api.get<ReservationRow[]>(`/reservations?tripId=${tripId}`)
       .then(rows => {
         setReservations(rows.map(r => new Reservation(r)));
         setError(null);
-        setLoading(false);
+        setIsLoading(false);
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
+        setIsLoading(false);
       });
   }, [tripId]);
 
@@ -91,7 +91,7 @@ export function useReservations(tripId: number): UseReservationsReturn {
 
   return {
     reservations,
-    loading,
+    isLoading,
     error,
     refetch,
     byType,

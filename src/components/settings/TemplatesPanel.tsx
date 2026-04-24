@@ -1,5 +1,5 @@
-import { useState, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { useState, Fragment, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,7 +9,7 @@ import { useTemplateEditor } from '@/hooks/useTemplateEditor';
 import type { TemplateWithItems } from '@/hooks/useTemplateEditor';
 
 export default function TemplatesPanel(): JSX.Element {
-  const { templates, isLoading, addTemplate, renameTemplate, deleteTemplate, addItem, deleteItem } = useTemplateEditor();
+  const { templates, isLoading, addTemplate, renameTemplate, deleteTemplate, addItem, deleteItem, reorderItems } = useTemplateEditor();
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [newTemplateName, setNewTemplateName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -86,6 +86,7 @@ export default function TemplatesPanel(): JSX.Element {
             onDelete={() => void deleteTemplate(t.id)}
             onAddItem={(label, category) => void addItem(t.id, label, category)}
             onDeleteItem={itemId => void deleteItem(t.id, itemId)}
+            onReorderItems={ids => reorderItems(t.id, ids)}
           />
         ))}
       </div>
@@ -121,6 +122,7 @@ interface TemplateCardProps {
   onDelete: () => void;
   onAddItem: (label: string, category: string) => void;
   onDeleteItem: (id: number) => void;
+  onReorderItems: (ids: number[]) => void;
 }
 
 function TemplateCard({
@@ -136,10 +138,26 @@ function TemplateCard({
   onDelete,
   onAddItem,
   onDeleteItem,
+  onReorderItems,
 }: TemplateCardProps): JSX.Element {
   const [newLabel, setNewLabel] = useState('');
   const [newCategory, setNewCategory] = useState('General');
+  const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
+  const [dropTargetItemId, setDropTargetItemId] = useState<number | null>(null);
   const isBase = template.is_base === 1;
+
+  function handleDrop(targetId: number): void {
+    if (draggedItemId === null || draggedItemId === targetId) { setDraggedItemId(null); setDropTargetItemId(null); return; }
+    const ids = template.items.map(i => i.id);
+    const fromIdx = ids.indexOf(draggedItemId);
+    const toIdx   = ids.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    ids.splice(fromIdx, 1);
+    ids.splice(toIdx, 0, draggedItemId);
+    onReorderItems(ids);
+    setDraggedItemId(null);
+    setDropTargetItemId(null);
+  }
 
   function handleAddItem(): void {
     const label = newLabel.trim();
@@ -208,7 +226,19 @@ function TemplateCard({
       {expanded && (
         <div className="template-card__items">
           {template.items.map(item => (
-            <div key={item.id} className="template-item-row">
+            <Fragment key={item.id}>
+              {dropTargetItemId === item.id && draggedItemId !== null && draggedItemId !== item.id && (
+                <div className="template-item-drop-indicator" />
+              )}
+              <div
+                className="template-item-row"
+                draggable
+                onDragStart={() => setDraggedItemId(item.id)}
+                onDragOver={e => { e.preventDefault(); setDropTargetItemId(item.id); }}
+                onDrop={() => handleDrop(item.id)}
+                onDragEnd={() => { setDraggedItemId(null); setDropTargetItemId(null); }}
+              >
+              <GripVertical size={13} className="template-item-row__grip" />
               <span className="template-item-row__label">{item.label}</span>
               <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginRight: 'var(--space-2)' }}>
                 {item.category}
@@ -222,6 +252,7 @@ function TemplateCard({
                 <Trash2 size={12} />
               </Button>
             </div>
+            </Fragment>
           ))}
 
           {/* Add item row */}

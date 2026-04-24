@@ -86,8 +86,9 @@ export function createTrip(input: CreateTripInput): ParsedTripRow {
   const db = getDb();
   const result = db
     .prepare(
-      `INSERT INTO trips (title, emoji, status, start_date, end_date, tags, notes, cover_gradient)
-       VALUES (@title, @emoji, @status, @start_date, @end_date, @tags, @notes, @cover_gradient)`,
+      `INSERT INTO trips (title, emoji, status, start_date, end_date, tags, notes, cover_gradient, external_id)
+       VALUES (@title, @emoji, @status, @start_date, @end_date, @tags, @notes, @cover_gradient,
+               lower(hex(randomblob(16))))`,
     )
     .run({
       title: input.title,

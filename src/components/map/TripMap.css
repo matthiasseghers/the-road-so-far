@@ -148,3 +148,35 @@
 .trip-map__legend-line {
   flex-shrink: 0;
 }
+
+/* ── Interactive legend rows (global map filter) ─────────────────────────── */
+
+.trip-map__legend-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.trip-map__legend-btn:hover {
+  color: var(--text-primary);
+}
+
+.trip-map__legend-btn--hidden {
+  opacity: 0.35;
+}
+
+.trip-map__legend-range {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}

@@ -1,4 +1,6 @@
 import { useReducer, useEffect, useState, useRef } from 'react';
+import { BedDouble, Plane, Train, Bus, Ship, Car, Utensils, Tag, Camera, ShoppingBag, TreePine, Landmark, FileText } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +12,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import LocationField from '@/components/common/LocationField';
 import { useGeocode } from '@/hooks/useGeocode';
 import { Spinner } from '@/components/ui/spinner';
+import { ApiError } from '@/db/api-client';
 import type { Reservation } from '@/domain/Reservation';
 import type { Activity } from '@/domain/Activity';
 import type { ReservationType, ActivityType } from '@/types/db';
@@ -36,17 +39,17 @@ interface Step2bChipDef {
   value: Step2bChip;
   label: string;
   sub: string;
-  emoji: string;
+  icon: LucideIcon;
   defaultType: ReservationType;
 }
 
 const STEP2B_CHIPS: Step2bChipDef[] = [
-  { value: 'lodging',    label: 'Lodging',     sub: 'Hotel, hostel, Airbnb',   emoji: '🏨', defaultType: 'lodging' },
-  { value: 'flight',     label: 'Flight',       sub: 'Any airline booking',     emoji: '✈️', defaultType: 'flight' },
-  { value: 'transit',    label: 'Transit',      sub: 'Train, bus, or ferry',    emoji: '🚆', defaultType: 'train' },
-  { value: 'rental_car', label: 'Rental car',   sub: 'Pick-up and drop-off',    emoji: '🚗', defaultType: 'rental_car' },
-  { value: 'restaurant', label: 'Restaurant',   sub: 'Table booking with time', emoji: '🍽️', defaultType: 'restaurant' },
-  { value: 'other',      label: 'Other',        sub: 'Tours, tickets, events',  emoji: '📎', defaultType: 'other' },
+  { value: 'lodging',    label: 'Lodging',     sub: 'Hotel, hostel, Airbnb',   icon: BedDouble,  defaultType: 'lodging' },
+  { value: 'flight',     label: 'Flight',       sub: 'Any airline booking',     icon: Plane,      defaultType: 'flight' },
+  { value: 'transit',    label: 'Transit',      sub: 'Train, bus, or ferry',    icon: Train,      defaultType: 'train' },
+  { value: 'rental_car', label: 'Rental car',   sub: 'Pick-up and drop-off',    icon: Car,        defaultType: 'rental_car' },
+  { value: 'restaurant', label: 'Restaurant',   sub: 'Table booking with time', icon: Utensils,   defaultType: 'restaurant' },
+  { value: 'other',      label: 'Other',        sub: 'Tours, tickets, events',  icon: Tag,        defaultType: 'other' },
 ];
 
 // ── Activity form state ───────────────────────────────────────────────────────
@@ -69,14 +72,14 @@ const BLANK_ACTIVITY: ActivityFormState = {
   location: '',
 };
 
-const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string; emoji: string }[] = [
-  { value: 'attraction', label: 'Attraction',  emoji: '🎯' },
-  { value: 'food',       label: 'Food',         emoji: '🍽️' },
-  { value: 'shopping',   label: 'Shopping',     emoji: '🛍️' },
-  { value: 'outdoors',   label: 'Outdoors',     emoji: '🌿' },
-  { value: 'cultural',   label: 'Cultural',     emoji: '🏛️' },
-  { value: 'note',       label: 'Note',         emoji: '📝' },
-  { value: 'other',      label: 'Other',        emoji: '📌' },
+const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string; icon: LucideIcon }[] = [
+  { value: 'attraction', label: 'Attraction',  icon: Camera },
+  { value: 'food',       label: 'Food',        icon: Utensils },
+  { value: 'shopping',   label: 'Shopping',    icon: ShoppingBag },
+  { value: 'outdoors',   label: 'Outdoors',    icon: TreePine },
+  { value: 'cultural',   label: 'Cultural',    icon: Landmark },
+  { value: 'note',       label: 'Note',        icon: FileText },
+  { value: 'other',      label: 'Other',       icon: Tag },
 ];
 
 // ── Reservation form state ────────────────────────────────────────────────────
@@ -267,7 +270,9 @@ function ActivitySubForm({
           </SelectTrigger>
           <SelectContent>
             {ACTIVITY_TYPE_OPTIONS.map(o => (
-              <SelectItem key={o.value} value={o.value}>{o.emoji} {o.label}</SelectItem>
+              <SelectItem key={o.value} value={o.value}>
+                <span className="flex items-center gap-1.5"><o.icon size={13} />{o.label}</span>
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -361,7 +366,10 @@ function ReservationSubForm({
           >
             {(['train', 'bus', 'ferry'] as ReservationType[]).map(t => (
               <ToggleGroupItem key={t} value={t} className="rfm__segment-btn">
-                {t === 'train' ? '🚂 Train' : t === 'bus' ? '🚌 Bus' : '⛴️ Ferry'}
+                <span className="flex items-center gap-1.5">
+                  {t === 'train' ? <Train size={13} /> : t === 'bus' ? <Bus size={13} /> : <Ship size={13} />}
+                  {t === 'train' ? 'Train' : t === 'bus' ? 'Bus' : 'Ferry'}
+                </span>
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
@@ -892,14 +900,12 @@ export default function ReservationFormModal({
       }
       onClose();
     } catch (err) {
-      if (err instanceof Error && err.message.startsWith('409:')) {
-        try {
-          const body = JSON.parse(err.message.slice(4)) as { error: string; conflictingTitle?: string };
-          if (body.error === 'overlap') {
-            setApiError(`Dates overlap with "${body.conflictingTitle ?? 'an existing lodging'}". Adjust your check-in or check-out date.`);
-            return;
-          }
-        } catch { /* fall through */ }
+      if (err instanceof ApiError && err.status === 409) {
+        const body = err.body as { error: string; conflictingTitle?: string };
+        if (body.error === 'overlap') {
+          setApiError(`Dates overlap with "${body.conflictingTitle ?? 'an existing lodging'}". Adjust your check-in or check-out date.`);
+          return;
+        }
       }
       setApiError(err instanceof Error ? err.message : 'Failed to save reservation');
     }
@@ -966,7 +972,7 @@ export default function ReservationFormModal({
                       className={`rfm__type-chip${step2bChip === chip.value ? ' rfm__type-chip--active' : ''}`}
                       onClick={() => handleChipChange(chip.value)}
                     >
-                      <span className="rfm__tc-icon">{chip.emoji}</span>
+                      <span className="rfm__tc-icon"><chip.icon size={18} /></span>
                       <div>
                         <div className="rfm__tc-label">{chip.label}</div>
                         <div className="rfm__tc-sub">{chip.sub}</div>

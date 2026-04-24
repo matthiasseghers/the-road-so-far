@@ -16,7 +16,7 @@ interface RawTripFull {
 
 interface UseTripReturn {
   trip: TripWithDays | null;
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
   refetch: () => void;
   updateTrip: (input: UpdateTripInput) => Promise<TripWithDays>;
@@ -35,16 +35,16 @@ function buildTripWithDays(raw: RawTripFull): TripWithDays {
 
 export function useTrip(id: number): UseTripReturn {
   const [trip, setTrip] = useState<TripWithDays | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
-    setLoading(true);
+    setIsLoading(true);
     api.get<RawTripFull>(`/trips/${id}/full`)
-      .then(raw => { setTrip(buildTripWithDays(raw)); setError(null); setLoading(false); })
+      .then(raw => { setTrip(buildTripWithDays(raw)); setError(null); setIsLoading(false); })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
+        setIsLoading(false);
       });
   }, [id]);
 
@@ -65,5 +65,5 @@ export function useTrip(id: number): UseTripReturn {
     toast.success('Trip deleted');
   }, [id]);
 
-  return { trip, loading, error, refetch, updateTrip, deleteTrip };
+  return { trip, isLoading, error, refetch, updateTrip, deleteTrip };
 }

@@ -22,9 +22,10 @@
 .activity-item--other        { border-left: 3px solid var(--border-subtle); }
 
 .activity-item__icon {
-  font-size: 1.1rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
   flex-shrink: 0;
+  color: var(--text-secondary);
   margin-top: 1px;
 }
 

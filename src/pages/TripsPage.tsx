@@ -20,7 +20,7 @@ interface TripsPageProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TripsPage({ onNavigate, newTripOpen = false, onNewTripOpenChange }: TripsPageProps): JSX.Element {
-  const { trips, loading, error, createTrip, updateTrip, deleteTrip } = useTrips();
+  const { trips, isLoading, error, createTrip, updateTrip, deleteTrip } = useTrips();
 
   const [search, setSearch] = useState('');
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -74,7 +74,7 @@ export default function TripsPage({ onNavigate, newTripOpen = false, onNewTripOp
     setEditingTrip(undefined);
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="trips-page">
         <div className="trip-grid">

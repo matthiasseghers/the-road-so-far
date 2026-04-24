@@ -223,12 +223,21 @@ export function deleteTemplate(id: number): void {
 export function copyTemplatesToTrip(
   tripId: number,
   templateIds: number[],
-): ChecklistItemRow[] {
+): { items: ChecklistItemRow[]; inserted: number; skipped: number } {
   const db = getDb();
   const insert = db.prepare(
     `INSERT INTO checklist_items (trip_id, label, category, is_checked, sort_order, source)
-     VALUES (@trip_id, @label, @category, 0, @sort_order, 'template')`,
+     SELECT @trip_id, @label, @category, 0, @sort_order, 'template'
+     WHERE NOT EXISTS (
+       SELECT 1 FROM checklist_items
+       WHERE trip_id = @trip_id
+         AND label    = @label
+         AND category = @category
+     )`,
   );
+
+  let inserted = 0;
+  let skipped  = 0;
 
   const txn = db.transaction((ids: number[]) => {
     for (const templateId of ids) {
@@ -243,18 +252,19 @@ export function copyTemplatesToTrip(
         const cur = categoryMax.get(item.category) ?? -1;
         const sortOrder = cur + 1;
         categoryMax.set(item.category, sortOrder);
-        insert.run({
+        const result = insert.run({
           trip_id: tripId,
           label: item.label,
           category: item.category,
           sort_order: sortOrder,
         });
+        if (result.changes > 0) inserted++; else skipped++;
       }
     }
   });
 
   txn(templateIds);
-  return findChecklistItemsByTripId(tripId);
+  return { items: findChecklistItemsByTripId(tripId), inserted, skipped };
 }
 
 // ─── Template items CRUD ──────────────────────────────────────────────────────
@@ -305,4 +315,34 @@ export function updateTemplateItem(
 
 export function deleteTemplateItem(id: number): void {
   getDb().prepare('DELETE FROM template_items WHERE id = ?').run(id);
+}
+
+// ─── Reorder ──────────────────────────────────────────────────────────────────
+
+/**
+ * Bulk-update sort_order for checklist_items within a single trip + category.
+ * `ids` must be the full ordered list of IDs for that category.
+ */
+export function reorderChecklistItems(tripId: number, ids: number[]): void {
+  const db = getDb();
+  const stmt = db.prepare(
+    'UPDATE checklist_items SET sort_order = @sort_order WHERE id = @id AND trip_id = @trip_id',
+  );
+  db.transaction((orderedIds: number[]) => {
+    orderedIds.forEach((id, idx) => stmt.run({ id, trip_id: tripId, sort_order: idx }));
+  })(ids);
+}
+
+/**
+ * Bulk-update sort_order for template_items within a single template.
+ * `ids` must be the full ordered list of IDs for that template.
+ */
+export function reorderTemplateItems(templateId: number, ids: number[]): void {
+  const db = getDb();
+  const stmt = db.prepare(
+    'UPDATE template_items SET sort_order = @sort_order WHERE id = @id AND template_id = @template_id',
+  );
+  db.transaction((orderedIds: number[]) => {
+    orderedIds.forEach((id, idx) => stmt.run({ id, template_id: templateId, sort_order: idx }));
+  })(ids);
 }

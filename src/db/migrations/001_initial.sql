@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS trips (
   cover_gradient      TEXT    NOT NULL DEFAULT 'warm-brown', -- key into gradient presets
   distance_total_m    INTEGER,  -- sum of all leg distances, cached
   distance_synced_at  TEXT,     -- ISO datetime of last TomTom sync
+  external_id         TEXT      UNIQUE DEFAULT (lower(hex(randomblob(16)))),  -- stable UUID for .trippack dedup
   created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );

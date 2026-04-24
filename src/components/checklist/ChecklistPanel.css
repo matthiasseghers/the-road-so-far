@@ -7,6 +7,44 @@
   align-items: start;
 }
 
+/* ── Drag-to-reorder ──────────────────────────────────────── */
+
+.cl-item--draggable {
+  cursor: grab;
+}
+
+.cl-item__grip {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.cl-item--draggable:hover .cl-item__grip {
+  opacity: 1;
+}
+
+.cl-drop-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 1px 6px;
+  color: var(--accent-primary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.cl-drop-indicator::before {
+  content: '\2192'; /* → */
+  flex-shrink: 0;
+}
+
+.cl-drop-indicator::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-primary);
+}
+
 /* ── Category nav (left card) ──────────────────────────────── */
 
 .cl-nav {

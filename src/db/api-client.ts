@@ -4,6 +4,22 @@
 
 const BASE = '/api';
 
+// ─── Typed API error ──────────────────────────────────────────────────────────
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: Record<string, unknown>;
+
+  constructor(status: number, body: Record<string, unknown>) {
+    // Reason: use the server's `error` string as message so existing
+    // `err.message` fallbacks in hooks/toasts get a human-readable text.
+    super(typeof body['error'] === 'string' ? body['error'] : `HTTP ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -13,8 +29,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({ error: res.statusText })) as Record<string, unknown>;
-    // Reason: prefix with status code so callers can detect specific codes (e.g. 409 overlap).
-    throw new Error(`${res.status}:${JSON.stringify(errBody)}`);
+    throw new ApiError(res.status, errBody);
   }
 
   if (res.status === 204) return undefined as T;

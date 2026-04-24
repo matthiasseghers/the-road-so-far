@@ -49,7 +49,7 @@ interface GlobalCalendarProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function GlobalCalendar({ month }: GlobalCalendarProps): JSX.Element {
-  const { trips, loading } = useTrips();
+  const { trips, isLoading } = useTrips();
   const cells = buildMonthGrid(month.getFullYear(), month.getMonth());
 
   return (
@@ -71,7 +71,7 @@ export default function GlobalCalendar({ month }: GlobalCalendarProps): JSX.Elem
         {WEEKDAY_HEADERS.map(h => (
           <div key={h} className="gcal__weekday">{h}</div>
         ))}
-        {loading ? (
+        {isLoading ? (
           Array.from({ length: 35 }).map((_, i) => (
             <Skeleton key={i} className="min-h-[80px] rounded-[var(--radius-sm)]" />
           ))

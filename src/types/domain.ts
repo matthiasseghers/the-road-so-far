@@ -36,18 +36,6 @@ export interface DayViewModel {
   activities: Activity[];
 }
 
-// ─── Result type ─────────────────────────────────────────────────────────────
-
-export type Result<T, E = AppError> =
-  | { ok: true; value: T }
-  | { ok: false; error: E };
-
-export interface AppError {
-  code: 'API_OFFLINE' | 'API_KEY_MISSING' | 'INVALID_DATA' | 'DB_ERROR' | 'NOT_FOUND';
-  message: string;
-  cause?: unknown;
-}
-
 // ─── Settings domain ──────────────────────────────────────────────────────────
 
 export type DistanceUnit = 'km' | 'mi';

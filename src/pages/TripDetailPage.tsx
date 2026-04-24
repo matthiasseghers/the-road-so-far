@@ -76,7 +76,7 @@ interface TripDetailPageProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailPageProps): JSX.Element {
-  const { trip, loading, error, refetch, updateTrip, deleteTrip } = useTrip(tripId);
+  const { trip, isLoading, error, refetch, updateTrip, deleteTrip } = useTrip(tripId);
   const {
     reservations,
     lodgingsForDate,
@@ -272,7 +272,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
 
   // ── Loading / error states ────────────────────────────────────────────────
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="tdp">
         {/* Skeleton mimics: topbar chrome + hero banner + hero body + tab bar + content */}

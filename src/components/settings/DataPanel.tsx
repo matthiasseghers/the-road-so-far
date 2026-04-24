@@ -59,9 +59,10 @@ export default function DataPanel({ onDataWiped }: DataPanelProps): JSX.Element 
     e.target.value = '';
     try {
       const zip = await JSZip.loadAsync(await file.arrayBuffer());
-      const entry = zip.file('backup.json');
+      // Support both full-backup packs (backup.json) and per-trip packs (trip.json).
+      const entry = zip.file('trip.json') ?? zip.file('backup.json');
       if (!entry) {
-        toast.error('Invalid .trippack: backup.json not found inside the archive');
+        toast.error('Invalid .trippack: no trip.json or backup.json found inside the archive');
         return;
       }
       const payload = JSON.parse(await entry.async('text')) as unknown;
