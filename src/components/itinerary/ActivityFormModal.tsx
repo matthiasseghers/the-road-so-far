@@ -38,7 +38,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
 function makeBlankForm(): FormState {
   return {
     title:         '',
-    activity_type: 'note',
+    activity_type: 'attraction',
     start_time:    '',
     end_time:      '',
     notes:         '',
@@ -96,10 +96,13 @@ export default function ActivityFormModal({
   // Reason: ref guard ensures a second click while the promise is in-flight is a no-op,
   // guarding against duplicate POSTs on slow networks (the server enforces 1 req/s).
   const submittingRef = useRef(false);
+  // Reason: store coordinates from autocomplete selection so the geocode call
+  // can skip the Nominatim round-trip and use them directly.
+  const coordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
   const geoHook = useGeocode('activities');
 
   useEffect(() => {
-    if (!open) { setSubmitAttempted(false); setIsSubmitting(false); submittingRef.current = false; geoHook.reset(); }
+    if (!open) { setSubmitAttempted(false); setIsSubmitting(false); submittingRef.current = false; coordsRef.current = undefined; geoHook.reset(); }
   // Reason: reset geo status when modal closes; geoHook.reset is stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -151,7 +154,7 @@ export default function ActivityFormModal({
     }
 
     if (locationTrimmed) {
-      await geoHook.geocode(savedRow.id, locationTrimmed);
+      await geoHook.geocode(savedRow.id, locationTrimmed, coordsRef.current);
       onGeocodeDone?.();
       // Reason: brief pause so user sees geocode status before modal closes.
       await new Promise<void>(resolve => { setTimeout(resolve, 800); });
@@ -254,7 +257,8 @@ export default function ActivityFormModal({
           {/* Location (geocodable place for the map) */}
           <LocationField
             value={form.location}
-            onChange={val => set('location', val)}
+            onChange={val => { set('location', val); coordsRef.current = undefined; }}
+            onCoordinates={(lat, lng) => { coordsRef.current = { lat, lng }; }}
             status={geoHook.status}
           />
         </form>

@@ -346,11 +346,28 @@
   border-radius: var(--radius-md);
   min-height: 60px;
   border: 1px dashed var(--border-subtle);
+  cursor: pointer;
+}
+
+.tdp__notes-area:hover {
+  border-color: var(--border-default);
 }
 
 .tdp__notes-placeholder {
   font-style: italic;
   color: var(--text-muted);
+}
+
+.tdp__notes-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tdp__notes-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 /* ── Day cards ───────────────────────────────────────────────── */
@@ -562,6 +579,27 @@
   max-width: 180px;
 }
 
+.tdp__act-loc {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 0;
+  max-width: 320px;
+}
+
+.tdp__act-loc svg {
+  flex-shrink: 0; /* never squeeze the icon */
+}
+
+.tdp__act-loc > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 /* ── Activity type badges ─────────────────────────────────────── */
 
 .tdp__type-badge {
@@ -742,6 +780,25 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 3px;
+}
+
+/* ── Route sync nudge (itinerary tab) ────────────────────────── */
+
+.tdp__route-nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.tdp__route-nudge > span {
+  flex: 1;
 }
 
 /* ── Timeline column ─────────────────────────────────────────── */
@@ -949,6 +1006,9 @@
 }
 
 .tdp__lc-loc {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   font-size: 11.5px;
   color: var(--text-secondary);
 }
@@ -1035,5 +1095,49 @@
 
 @media (hover: none) {
   .tdp__lc-actions { opacity: 1; }
+}
+
+/* ── Route leg distance chip (between day cards in the itinerary) ────────── */
+
+.tdp__leg-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  margin: -4px 0 -4px 40px; /* align with day card left edge, not timeline */
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-body);
+}
+
+/* Intra-day chip: sits inside the day card between activity rows */
+.tdp__leg-chip--intra {
+  margin: 0 0 0 8px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  opacity: 0.75;
+}
+
+.tdp__leg-chip-sep {
+  opacity: 0.5;
+}
+
+/* Clickable mode icon inside a leg chip */
+.tdp__leg-chip-mode-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: inherit;
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tdp__leg-chip-mode-btn:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-raised) 80%, transparent);
 }
 

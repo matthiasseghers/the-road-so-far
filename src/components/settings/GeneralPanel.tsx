@@ -1,7 +1,17 @@
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { usePreferences } from '@/hooks/usePreferences';
+import { api } from '@/db/api-client';
 import type { Theme } from '@/types/domain';
+
+interface UsageStats {
+  today: number;
+  total: number;
+  dailyLimit: number;
+}
 
 interface GeneralPanelProps {
   theme: Theme;
@@ -10,6 +20,37 @@ interface GeneralPanelProps {
 
 export default function GeneralPanel({ theme, onThemeChange }: GeneralPanelProps): JSX.Element {
   const { distanceUnit, currency, setDistanceUnit, setCurrency } = usePreferences();
+  const [apiKey, setApiKey]       = useState('');
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+  const [usage, setUsage]         = useState<UsageStats | null>(null);
+
+  useEffect(() => {
+    api.get<Record<string, unknown>>('/settings')
+      .then(settings => {
+        const key = settings['tomtom_api_key'];
+        if (typeof key === 'string') setApiKey(key);
+      })
+      .catch(() => { /* ignore */ });
+
+    api.get<UsageStats>('/route-legs/usage')
+      .then(setUsage)
+      .catch(() => { /* ignore — table may not exist yet */ });
+  }, []);
+
+  async function saveApiKey(): Promise<void> {
+    try {
+      await api.put('/settings/tomtom_api_key', { value: apiKey.trim() });
+      setApiKeySaved(true);
+      setTimeout(() => setApiKeySaved(false), 2000);
+      toast.success('API key saved');
+    } catch {
+      toast.error('Failed to save API key');
+    }
+  }
+
+  const usedPct = usage ? Math.round((usage.today / usage.dailyLimit) * 100) : 0;
+  // Reason: warn when within 20% of the daily cap so the user can stop syncing.
+  const usageColour = usedPct >= 80 ? 'text-destructive' : usedPct >= 50 ? 'text-amber-500' : 'text-muted-foreground';
 
   return (
     <div>
@@ -75,6 +116,73 @@ export default function GeneralPanel({ theme, onThemeChange }: GeneralPanelProps
             aria-label="Currency symbol"
           />
         </div>
+      </div>
+
+      {/* TomTom routing */}
+      <div className="settings-section">
+        <h3 className="settings-subsection__title">Routing</h3>
+
+        <div className="settings-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <div className="settings-row__info">
+            <span className="settings-row__label">TomTom API key</span>
+            <span className="settings-row__hint">
+              Used to calculate driving routes between days. Get a free key at{' '}
+              <a href="https://developer.tomtom.com" target="_blank" rel="noreferrer" className="underline">
+                developer.tomtom.com
+              </a>
+              . Never sent anywhere except TomTom.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 w-full">
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+              placeholder="Enter your TomTom API key…"
+              className="flex-1 font-mono text-xs"
+              aria-label="TomTom API key"
+              onKeyDown={e => { if (e.key === 'Enter') void saveApiKey(); }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void saveApiKey()}
+              disabled={apiKeySaved}
+            >
+              {apiKeySaved ? 'Saved!' : 'Save'}
+            </Button>
+          </div>
+        </div>
+
+        {usage !== null && (
+          <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
+            <div className="settings-row__info">
+              <span className="settings-row__label">API usage (today)</span>
+              <span className="settings-row__hint">
+                Each "Sync routes" click fetches one leg per consecutive day pair. Legs are cached — re-syncing the same trip doesn't re-fetch already-cached routes.
+              </span>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full">
+              <div
+                className="h-1.5 w-full rounded-full bg-border overflow-hidden"
+                role="progressbar"
+                aria-valuenow={usage.today}
+                aria-valuemax={usage.dailyLimit}
+                aria-label="Daily TomTom API usage"
+              >
+                <div
+                  className={`h-full rounded-full transition-all ${usedPct >= 80 ? 'bg-destructive' : usedPct >= 50 ? 'bg-amber-500' : 'bg-primary'}`}
+                  style={{ width: `${Math.min(usedPct, 100)}%` }}
+                />
+              </div>
+              <p className={`mt-1 text-xs ${usageColour}`}>
+                {usage.today.toLocaleString()} / {usage.dailyLimit.toLocaleString()} calls today
+                {' · '}{usage.total.toLocaleString()} cached legs total
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

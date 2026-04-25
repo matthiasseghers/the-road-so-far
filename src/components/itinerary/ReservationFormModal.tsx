@@ -240,11 +240,13 @@ function ActivitySubForm({
   onChange,
   errors,
   locationStatus,
+  onLocationCoordinates,
 }: {
   form: ActivityFormState;
   onChange: (field: keyof ActivityFormState, value: string) => void;
   errors: Partial<Record<keyof ActivityFormState, string>>;
   locationStatus: ReturnType<typeof useGeocode>['status'];
+  onLocationCoordinates?: (lat: number, lng: number) => void;
 }): JSX.Element {
   return (
     <div className="rfm__form">
@@ -313,6 +315,7 @@ function ActivitySubForm({
       <LocationField
         value={form.location}
         onChange={val => onChange('location', val)}
+        onCoordinates={onLocationCoordinates}
         status={locationStatus}
       />
     </div>
@@ -330,6 +333,7 @@ function ReservationSubForm({
   errors,
   apiError,
   locationStatus,
+  onLocationCoordinates,
 }: {
   resType: ReservationType;
   form: ReservationFormState;
@@ -339,6 +343,7 @@ function ReservationSubForm({
   errors: Record<string, string>;
   apiError: string | null;
   locationStatus: ReturnType<typeof useGeocode>['status'];
+  onLocationCoordinates?: (lat: number, lng: number) => void;
 }): JSX.Element {
   const fields = RESERVATION_TYPE_FIELDS[resType] ?? [];
   const isTransit = TRANSIT_TYPES.includes(resType);
@@ -566,6 +571,7 @@ function ReservationSubForm({
         <LocationField
           value={form.location}
           onChange={val => onShared('location', val)}
+          onCoordinates={onLocationCoordinates}
           status={locationStatus}
         />
       </div>
@@ -695,6 +701,10 @@ export default function ReservationFormModal({
   // ── Geocoding ─────────────────────────────────────────────────────────────
   const actGeocode = useGeocode('activities');
   const resGeocode = useGeocode('reservations');
+  // Reason: store coordinates from autocomplete so the geocode call can skip
+  // the Nominatim round-trip and use them directly.
+  const actCoordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
+  const resCoordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
 
   // ── Submission guard ──────────────────────────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -712,6 +722,8 @@ export default function ReservationFormModal({
       submittingRef.current = false;
       actGeocode.reset();
       resGeocode.reset();
+      actCoordsRef.current = undefined;
+      resCoordsRef.current = undefined;
       return;
     }
 
@@ -793,6 +805,7 @@ export default function ReservationFormModal({
   }
 
   function handleResSharedChange(field: keyof ReservationFormState, value: string): void {
+    if (field === 'location') resCoordsRef.current = undefined;
     setResForm(prev => ({ ...prev, [field]: value }));
   }
 
@@ -833,7 +846,7 @@ export default function ReservationFormModal({
         }
         const savedId = (saved as Activity | undefined)?.id ?? editingActivity?.id;
         if (savedId && locationTrimmed) {
-          await actGeocode.geocode(savedId, locationTrimmed);
+          await actGeocode.geocode(savedId, locationTrimmed, actCoordsRef.current);
           onGeocodeDone?.();
           await new Promise<void>(resolve => { setTimeout(resolve, 800); });
         }
@@ -894,7 +907,7 @@ export default function ReservationFormModal({
       }
       const locationTrimmed = resForm.location.trim();
       if (locationTrimmed) {
-        await resGeocode.geocode(saved.id, locationTrimmed);
+        await resGeocode.geocode(saved.id, locationTrimmed, resCoordsRef.current);
         onGeocodeDone?.();
         await new Promise<void>(resolve => { setTimeout(resolve, 800); });
       }
@@ -956,7 +969,8 @@ export default function ReservationFormModal({
           {category === 'activity' ? (
             <ActivitySubForm
               form={actForm}
-              onChange={(f, v) => dispatchAct({ type: 'SET', field: f, value: v })}
+              onChange={(f, v) => { if (f === 'location') actCoordsRef.current = undefined; dispatchAct({ type: 'SET', field: f, value: v }); }}
+              onLocationCoordinates={(lat, lng) => { actCoordsRef.current = { lat, lng }; }}
               errors={actErrors}
               locationStatus={actGeocode.status}
             />
@@ -990,7 +1004,8 @@ export default function ReservationFormModal({
                 errors={resErrors}
                 apiError={apiError}
                 locationStatus={resGeocode.status}
-              />
+              onLocationCoordinates={(lat, lng) => { resCoordsRef.current = { lat, lng }; }}
+            />
             </div>
           )}
         </div>

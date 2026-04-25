@@ -6,9 +6,12 @@ import * as activitiesRepo from '../src/db/repositories/activities.repo.js';
 import * as reservationsRepo from '../src/db/repositories/reservations.repo.js';
 import * as checklistRepo from '../src/db/repositories/checklist.repo.js';
 import * as settingsRepo from '../src/db/repositories/settings.repo.js';
+import * as routeLegsRepo from '../src/db/repositories/route-legs.repo.js';
+import * as legModesRepo from '../src/db/repositories/leg-modes.repo.js';
 import * as calendarRepo from '../src/db/repositories/calendar.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
 import { geocodePlace } from '../src/services/geocoding.service.js';
+import { fetchRouteLeg } from '../src/services/routing.service.js';
 import { CreateTripSchema, PatchTripSchema } from '../src/schemas/trip.schema.js';
 import { CreateActivitySchema, PatchActivitySchema } from '../src/schemas/activity.schema.js';
 import { CreateReservationSchema, UpdateReservationSchema } from '../src/schemas/reservation.schema.js';
@@ -192,7 +195,13 @@ router.patch('/activities/:id', (req: Request, res: Response) => {
   res.json(activity);
 });
 
-const GeocodeBodySchema = z.object({ location: z.string().trim().min(1) });
+const GeocodeBodySchema = z.object({
+  location: z.string().trim().min(1),
+  // Reason: when the client already has coordinates from autocomplete, skip
+  // the external Nominatim call and use them directly.
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+});
 
 router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
   const id = Number(req.params['id']);
@@ -200,6 +209,12 @@ router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
   if (!activity) { res.status(404).json({ error: 'Activity not found' }); return; }
   const parsed = GeocodeBodySchema.safeParse(req.body);
   if (!parsed.success) { res.status(422).json({ error: 'Location is required for geocoding' }); return; }
+  // Reason: skip Nominatim round-trip when client already has coordinates from autocomplete.
+  if (parsed.data.lat !== undefined && parsed.data.lng !== undefined) {
+    activitiesRepo.updateActivityLatLng(id, parsed.data.lat, parsed.data.lng);
+    res.json(activitiesRepo.findActivityById(id));
+    return;
+  }
   geocodePlace(parsed.data.location)
     .then(coords => {
       if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
@@ -252,6 +267,12 @@ router.patch('/reservations/:id/geocode', (req: Request, res: Response) => {
   if (!reservation) { res.status(404).json({ error: 'Reservation not found' }); return; }
   const parsed = GeocodeBodySchema.safeParse(req.body);
   if (!parsed.success) { res.status(422).json({ error: 'Location is required for geocoding' }); return; }
+  // Reason: skip Nominatim round-trip when client already has coordinates from autocomplete.
+  if (parsed.data.lat !== undefined && parsed.data.lng !== undefined) {
+    reservationsRepo.updateReservationLatLng(id, parsed.data.lat, parsed.data.lng);
+    res.json(reservationsRepo.findById(id));
+    return;
+  }
   geocodePlace(parsed.data.location)
     .then(coords => {
       if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
@@ -723,4 +744,160 @@ router.post('/import/trippack', (req: Request, res: Response) => {
   })();
 
   res.status(204).send();
+});
+
+// ── Route legs ────────────────────────────────────────────────────────────────
+
+router.get('/route-legs/usage', (_req: Request, res: Response) => {
+  res.json(routeLegsRepo.getUsageStats());
+});
+
+router.get('/trips/:tripId/route-legs', (req: Request, res: Response) => {
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  res.json(routeLegsRepo.getByTrip(tripId));
+});
+
+router.get('/trips/:tripId/leg-modes', (req: Request, res: Response) => {
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  res.json(legModesRepo.getLegModes(tripId));
+});
+
+const SetLegModeSchema = z.object({
+  from_lat:    z.number(),
+  from_lng:    z.number(),
+  to_lat:      z.number(),
+  to_lng:      z.number(),
+  travel_mode: z.enum(['car', 'pedestrian', 'bicycle']),
+});
+
+// Reason: POST rather than PATCH because this is an upsert on the primary key.
+router.post('/trips/:tripId/leg-modes', async (req: Request, res: Response) => {
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+
+  const parsed = SetLegModeSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+
+  const { from_lat, from_lng, to_lat, to_lng, travel_mode } = parsed.data;
+  legModesRepo.setLegMode(tripId, from_lat, from_lng, to_lat, to_lng, travel_mode);
+
+  const { tomtom_api_key: apiKey } = settingsRepo.getAllSettings();
+  if (!apiKey) { res.status(422).json({ error: 'no_api_key' }); return; }
+
+  const result = await fetchRouteLeg(
+    { lat: from_lat, lng: from_lng },
+    { lat: to_lat,   lng: to_lng },
+    apiKey,
+    travel_mode,
+  );
+  if (!result) { res.status(502).json({ error: 'route_fetch_failed' }); return; }
+
+  const leg = routeLegsRepo.upsertLeg({
+    trip_id:    tripId,
+    from_lat, from_lng, to_lat, to_lng,
+    distance_m: result.distance_m,
+    duration_s: result.duration_s,
+    polyline:   result.polyline,
+    travel_mode,
+  });
+
+  res.json({ leg, legs: routeLegsRepo.getByTrip(tripId), modes: legModesRepo.getLegModes(tripId) });
+});
+
+router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response) => {
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+
+  const { tomtom_api_key: apiKey } = settingsRepo.getAllSettings();
+  if (!apiKey) { res.status(422).json({ error: 'no_api_key' }); return; }
+
+  const db = getDb();
+
+  // Reason: union activities + reservations so every geocoded point in the day
+  // is considered, regardless of type. Reservations offset by 1000 to sort after activities.
+  type GeoPoint = { day_id: number; date: string; sort_order: number; lat: number; lng: number };
+  const points = db.prepare(`
+    SELECT a.day_id, d.date, a.sort_order, a.lat, a.lng
+    FROM   activities a JOIN days d ON d.id = a.day_id
+    WHERE  a.trip_id = ? AND a.lat IS NOT NULL AND a.lng IS NOT NULL
+    UNION ALL
+    SELECT r.day_id, d.date, r.sort_order + 1000 AS sort_order, r.lat, r.lng
+    FROM   reservations r JOIN days d ON d.id = r.day_id
+    WHERE  r.trip_id = ? AND r.lat IS NOT NULL AND r.lng IS NOT NULL
+    ORDER  BY date, sort_order
+  `).all(tripId, tripId) as GeoPoint[];
+
+  // Group into map of date → ordered points
+  const byDate = new Map<string, GeoPoint[]>();
+  for (const p of points) {
+    const list = byDate.get(p.date) ?? [];
+    list.push(p);
+    byDate.set(p.date, list);
+  }
+
+  const dates = [...byDate.keys()].sort();
+  let synced = 0;
+
+  // Reason: read per-leg mode overrides so each coord pair can have its own mode.
+  // Falls back to 'car' when no override has been set for a pair.
+  const storedModes = legModesRepo.getLegModes(tripId);
+  const COORD_EPS = 0.00001;
+  function legMode(from: GeoPoint, to: GeoPoint): 'car' | 'pedestrian' | 'bicycle' {
+    const found = storedModes.find(m =>
+      Math.abs(m.from_lat - from.lat) < COORD_EPS &&
+      Math.abs(m.from_lng - from.lng) < COORD_EPS &&
+      Math.abs(m.to_lat   - to.lat)   < COORD_EPS &&
+      Math.abs(m.to_lng   - to.lng)   < COORD_EPS,
+    );
+    return (found?.travel_mode ?? 'car') as 'car' | 'pedestrian' | 'bicycle';
+  }
+
+  async function fetchAndUpsert(from: GeoPoint, to: GeoPoint): Promise<void> {
+    const mode = legMode(from, to);
+    const result = await fetchRouteLeg(
+      { lat: from.lat, lng: from.lng },
+      { lat: to.lat,   lng: to.lng },
+      apiKey as string,
+      mode,
+    );
+    if (!result) return;
+    routeLegsRepo.upsertLeg({
+      trip_id:     tripId,
+      from_lat:    from.lat, from_lng: from.lng,
+      to_lat:      to.lat,   to_lng:   to.lng,
+      distance_m:  result.distance_m,
+      duration_s:  result.duration_s,
+      polyline:    result.polyline,
+      travel_mode: mode,
+    });
+    synced++;
+  }
+
+  for (const date of dates) {
+    const dayPts = byDate.get(date)!;
+    // Reason: intra-day legs — route between every consecutive geocoded pair within the day
+    // so single-day trips (or any day with multiple geocoded activities) get routing too.
+    for (let j = 0; j < dayPts.length - 1; j++) {
+      await fetchAndUpsert(dayPts[j], dayPts[j + 1]);
+    }
+  }
+
+  for (let i = 0; i < dates.length - 1; i++) {
+    const fromPoints = byDate.get(dates[i])!;
+    const toPoints   = byDate.get(dates[i + 1])!;
+    // Reason: inter-day leg — from the last geocoded point of day N to the first of day N+1.
+    await fetchAndUpsert(fromPoints[fromPoints.length - 1], toPoints[0]);
+  }
+
+  // Update the trip's cached total distance
+  if (synced > 0) {
+    const legs = routeLegsRepo.getByTrip(tripId);
+    const totalM = legs.reduce((sum, l) => sum + l.distance_m, 0);
+    db.prepare(`UPDATE trips SET distance_total_m = ?, distance_synced_at = datetime('now') WHERE id = ?`)
+      .run(totalM, tripId);
+  }
+
+  res.json({ synced, legs: routeLegsRepo.getByTrip(tripId) });
 });

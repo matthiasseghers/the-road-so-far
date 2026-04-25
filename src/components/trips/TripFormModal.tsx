@@ -4,6 +4,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -54,6 +55,7 @@ interface FormState {
   end_date: string;
   tags: string[];
   cover_gradient: string;
+  notes: string;
 }
 
 type FormAction =
@@ -63,7 +65,8 @@ type FormAction =
   | { type: 'set_start_date';     value: string }
   | { type: 'set_end_date';       value: string }
   | { type: 'set_tags';           value: string[] }
-  | { type: 'set_cover_gradient'; value: string };
+  | { type: 'set_cover_gradient'; value: string }
+  | { type: 'set_notes';          value: string };
 
 function formReducer(state: FormState, action: FormAction): FormState {
   switch (action.type) {
@@ -74,6 +77,7 @@ function formReducer(state: FormState, action: FormAction): FormState {
     case 'set_end_date':       return { ...state, end_date: action.value };
     case 'set_tags':           return { ...state, tags: action.value };
     case 'set_cover_gradient': return { ...state, cover_gradient: action.value };
+    case 'set_notes':          return { ...state, notes: action.value };
   }
 }
 
@@ -86,6 +90,7 @@ function buildInitialState(trip?: Trip): FormState {
     end_date:       trip?.end_date       ?? '',
     tags:           trip?.tags           ?? [],
     cover_gradient: trip?.cover_gradient ?? 'warm-brown',
+    notes:          trip?.notes          ?? '',
   };
 }
 
@@ -132,6 +137,12 @@ export default function TripFormModal({
       submittingRef.current = false;
     }
   }, [open]);
+
+  // Reason: trip.notes can be updated inline on the overview tab without opening this modal.
+  // Re-sync the local notes field whenever the prop changes so the modal stays up to date.
+  useEffect(() => {
+    dispatch({ type: 'set_notes', value: trip?.notes ?? '' });
+  }, [trip?.notes]);
 
   // Reason: schema is the single source of validation truth — no inline checks.
   const schemaResult = CreateTripSchema.safeParse(state);
@@ -301,6 +312,18 @@ export default function TripFormModal({
                 tags={state.tags}
                 onChange={tags => dispatch({ type: 'set_tags', value: tags })}
                 placeholder="Add tags (press Enter or comma)…"
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="trip-form__field">
+              <Label htmlFor="trip-notes">Notes</Label>
+              <Textarea
+                id="trip-notes"
+                value={state.notes}
+                onChange={e => dispatch({ type: 'set_notes', value: e.target.value })}
+                placeholder="Packing reminders, visa info, contacts…"
+                rows={3}
               />
             </div>
 

@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
-import { MapPin as MapPinIcon } from 'lucide-react';
+import { MapPin as MapPinIcon, Route, Loader2 } from 'lucide-react';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './TripMap.css';
 import type { MapPin, MapDay } from './mapDataUtils';
 import { TYPE_COLORS, TYPE_LABELS, resolveTypeColors } from './mapDataUtils';
+import type { RouteLeg } from '@/domain/RouteLeg';
 
 // ── Leaflet default marker icon fix ──────────────────────────────────────────
 // Reason: Vite/webpack removes _getIconUrl; mergeOptions re-points to bundled assets.
@@ -60,13 +62,15 @@ function BoundsFitter({ positions }: { positions: [number, number][] }): null {
 interface TripMapProps {
   pins: MapPin[];
   mapDays: MapDay[];
-  lodgingRoute: { lat: number; lng: number }[];
+  routeLegs?: RouteLeg[];
   missingCount?: number;
+  isSyncing?: boolean;
+  onSyncRoutes?: () => void;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────────────
 
-export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 }: TripMapProps): JSX.Element {
+export default function TripMap({ pins, mapDays, routeLegs = [], missingCount = 0, isSyncing = false, onSyncRoutes }: TripMapProps): JSX.Element {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const visiblePins = useMemo(
@@ -79,7 +83,34 @@ export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 
   const colors = resolveTypeColors();
 
   const positions: [number, number][] = visiblePins.map(p => [p.lat, p.lng]);
-  const showPolyline = selectedDay === null && lodgingRoute.length > 1;
+  // Reason: if multiple modes are cached for the same coord pair, keep the most
+  // recently fetched to avoid drawing duplicate/overlapping polylines on the map.
+  const dedupedLegs = useMemo(() => {
+    const best = new Map<string, RouteLeg>();
+    for (const leg of routeLegs) {
+      const key = `${leg.from_lat},${leg.from_lng},${leg.to_lat},${leg.to_lng}`;
+      const prev = best.get(key);
+      if (!prev || leg.fetched_at > prev.fetched_at) best.set(key, leg);
+    }
+    return [...best.values()];
+  }, [routeLegs]);
+
+  // Reason: only draw legs whose both endpoints appear among the currently visible pins.
+  // This makes routes show correctly on single-day views (intra-day legs only) as well as
+  // the all-days view (inter-day + intra-day). Inter-day legs disappear when one endpoint
+  // is on a different day — which is correct behaviour.
+  const visibleLegs = useMemo(() => {
+    const pinCoords = new Set(visiblePins.map(p => `${p.lat},${p.lng}`));
+    return dedupedLegs.filter(
+      leg =>
+        pinCoords.has(`${leg.from_lat},${leg.from_lng}`) &&
+        pinCoords.has(`${leg.to_lat},${leg.to_lng}`),
+    );
+  }, [dedupedLegs, visiblePins]);
+
+  const hasVisibleRoutes = visibleLegs.length > 0;
+  // Reason: fall back to a dashed line connecting visible pins in order when no routes cover them.
+  const showPolyline = visiblePins.length > 1 && !hasVisibleRoutes;
 
   // Types present in visible pins (for legend)
   const presentTypes = useMemo(
@@ -129,6 +160,18 @@ export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 
             {missingCount} day{missingCount !== 1 ? 's' : ''} missing locations
           </span>
         )}
+        {onSyncRoutes && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto h-7 text-xs"
+            onClick={onSyncRoutes}
+            disabled={isSyncing}
+          >
+            {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <Route size={12} />}
+            {isSyncing ? 'Syncing…' : 'Sync routes'}
+          </Button>
+        )}
       </div>
 
       {/* ── Map ── */}
@@ -169,10 +212,19 @@ export default function TripMap({ pins, mapDays, lodgingRoute, missingCount = 0 
 
           {showPolyline && (
             <Polyline
-              positions={lodgingRoute.map(p => [p.lat, p.lng] as [number, number])}
-              pathOptions={{ color: colors.restaurant, weight: 2, opacity: 0.8, dashArray: '6 4' }}
+              positions={visiblePins.map(p => [p.lat, p.lng] as [number, number])}
+              pathOptions={{ color: '#7C3AED', weight: 2, opacity: 0.6, dashArray: '6 5' }}
             />
           )}
+
+          {/* Real TomTom road polylines — filtered to endpoints visible in current day selection */}
+          {visibleLegs.map((leg, i) => (
+            <Polyline
+              key={i}
+              positions={leg.points().map(p => [p.lat, p.lng] as [number, number])}
+              pathOptions={{ color: '#7C3AED', weight: 4, opacity: 0.85 }}
+            />
+          ))}
         </MapContainer>
 
         {/* ── Legend ── */}

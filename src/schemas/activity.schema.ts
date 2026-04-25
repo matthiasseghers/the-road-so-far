@@ -13,7 +13,7 @@ const ActivityBaseSchema = z.object({
   day_id:        z.number().int().positive().nullable().optional(),
   trip_id:       z.number().int().positive(),
   title:         z.string().trim().min(1, 'Title is required'),
-  activity_type: ActivityTypeSchema.default('note'),
+  activity_type: ActivityTypeSchema.default('attraction'),
   start_time:    HH_MM.nullable().optional(),
   end_time:      HH_MM.nullable().optional(),
   sort_order:    z.number().int().default(0),

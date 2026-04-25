@@ -13,7 +13,7 @@ describe('CreateActivitySchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.title).toBe('Visit Louvre');
-      expect(result.data.activity_type).toBe('note');  // default
+      expect(result.data.activity_type).toBe('attraction');  // default
     }
   });
 

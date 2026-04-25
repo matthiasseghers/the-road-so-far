@@ -116,6 +116,32 @@ export interface MigrationRow {
   run_at: string;
 }
 
+export type RouteLegTravelMode = 'car' | 'pedestrian' | 'bicycle';
+
+/** User-selected travel mode per coord pair. Keyed by (trip_id, from_lat, from_lng, to_lat, to_lng). */
+export interface LegModeRow {
+  trip_id: number;
+  from_lat: number;
+  from_lng: number;
+  to_lat: number;
+  to_lng: number;
+  travel_mode: RouteLegTravelMode;
+}
+
+export interface RouteLegRow {
+  id: number;
+  trip_id: number;
+  from_lat: number;
+  from_lng: number;
+  to_lat: number;
+  to_lng: number;
+  distance_m: number;   // metres
+  duration_s: number;   // seconds
+  polyline: string;     // JSON string of {lat: number, lng: number}[]
+  travel_mode: RouteLegTravelMode;
+  fetched_at: string;   // ISO datetime
+}
+
 // ─── Calendar ─────────────────────────────────────────────────────────────────
 
 export type CalendarDayStatus = 'ok' | 'gap' | 'travel' | 'empty';

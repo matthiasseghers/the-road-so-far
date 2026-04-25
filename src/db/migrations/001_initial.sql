@@ -159,3 +159,45 @@ CREATE INDEX IF NOT EXISTS idx_res_day  ON reservations(day_id);
 CREATE TRIGGER IF NOT EXISTS reservations_updated_at
   AFTER UPDATE ON reservations
   BEGIN UPDATE reservations SET updated_at = datetime('now') WHERE id = NEW.id; END;
+
+-- ─── ROUTE LEGS ───────────────────────────────────────────────────────────────
+-- Caches TomTom routing results between consecutive geocoded points on a trip.
+-- Keyed by (trip_id, from_lat, from_lng, to_lat, to_lng) so the same pair is
+-- never fetched twice even if points appear on different trips.
+-- Reason: storing the polyline as encoded JSON avoids a separate points table
+-- while keeping rendering simple (decode JSON array of {lat,lng} in the client).
+
+CREATE TABLE IF NOT EXISTS route_legs (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  trip_id          INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  from_lat         REAL    NOT NULL,
+  from_lng         REAL    NOT NULL,
+  to_lat           REAL    NOT NULL,
+  to_lng           REAL    NOT NULL,
+  distance_m       INTEGER NOT NULL,  -- metres
+  duration_s       INTEGER NOT NULL,  -- seconds
+  polyline         TEXT    NOT NULL,  -- JSON array of {lat, lng} points
+  travel_mode      TEXT    NOT NULL DEFAULT 'car'
+                           CHECK(travel_mode IN ('car','pedestrian','bicycle')),
+  fetched_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(trip_id, from_lat, from_lng, to_lat, to_lng, travel_mode)
+);
+
+CREATE INDEX IF NOT EXISTS idx_route_legs_trip ON route_legs(trip_id);
+
+-- ─── LEG MODES ─────────────────────────────────────────────────────────────────
+-- User-selected travel mode per coord pair per trip.
+-- Keyed by (trip_id, from_lat, from_lng, to_lat, to_lng).
+-- The sync route reads this table to decide which TomTom mode to request per leg.
+-- Defaults to 'car' when no override exists.
+
+CREATE TABLE IF NOT EXISTS leg_modes (
+  trip_id     INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  from_lat    REAL    NOT NULL,
+  from_lng    REAL    NOT NULL,
+  to_lat      REAL    NOT NULL,
+  to_lng      REAL    NOT NULL,
+  travel_mode TEXT    NOT NULL DEFAULT 'car'
+              CHECK(travel_mode IN ('car','pedestrian','bicycle')),
+  PRIMARY KEY (trip_id, from_lat, from_lng, to_lat, to_lng)
+);
