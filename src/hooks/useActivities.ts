@@ -38,23 +38,37 @@ export function useActivities(dayId: number): UseActivitiesReturn {
   useEffect(() => { refetch(); }, [refetch]);
 
   const createActivity = useCallback(async (input: CreateActivityInput): Promise<Activity> => {
-    const row = await api.post<ActivityRow>('/activities', input);
-    refetch();
-    toast.success('Activity added');
-    return new Activity(row);
+    try {
+      const row = await api.post<ActivityRow>('/activities', input);
+      refetch();
+      toast.success('Activity added');
+      return new Activity(row);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add activity');
+      throw err;
+    }
   }, [refetch]);
 
   const updateActivity = useCallback(async (id: number, input: UpdateActivityInput): Promise<Activity> => {
-    const row = await api.patch<ActivityRow>(`/activities/${id}`, input);
-    refetch();
-    toast.success('Activity updated');
-    return new Activity(row);
+    try {
+      const row = await api.patch<ActivityRow>(`/activities/${id}`, input);
+      refetch();
+      toast.success('Activity updated');
+      return new Activity(row);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update activity');
+      throw err;
+    }
   }, [refetch]);
 
   const deleteActivity = useCallback(async (id: number): Promise<void> => {
-    await api.delete(`/activities/${id}`);
-    refetch();
-    toast.success('Activity deleted');
+    try {
+      await api.delete(`/activities/${id}`);
+      refetch();
+      toast.success('Activity deleted');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete activity');
+    }
   }, [refetch]);
 
   const reorderActivities = useCallback(async (orderedIds: number[]): Promise<void> => {

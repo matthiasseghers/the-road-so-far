@@ -74,7 +74,13 @@ export function findLodgingOverlap(
     .all(excludeId != null ? [tripId, excludeId] : [tripId]) as ReservationRow[];
 
   for (const row of rows) {
-    const d = JSON.parse(row.details) as Record<string, string>;
+    let d: Record<string, string>;
+    // Reason: guard against malformed JSON so a corrupt row doesn't abort the overlap check.
+    try {
+      d = JSON.parse(row.details) as Record<string, string>;
+    } catch {
+      continue;
+    }
     const ci = d['check_in_date'];
     const co = d['check_out_date'];
     if (!ci || !co) continue;

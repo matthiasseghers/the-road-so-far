@@ -28,7 +28,13 @@ export class Reservation {
   isCancelled(): boolean { return this.data.status === 'cancelled'; }
 
   parsedDetails<T = Record<string, unknown>>(): T {
-    return JSON.parse(this.data.details) as T;
+    // Reason: guard against malformed JSON in the details column (manual DB edit,
+    // import corruption) so callers get a safe empty object instead of a SyntaxError.
+    try {
+      return JSON.parse(this.data.details) as T;
+    } catch {
+      return {} as T;
+    }
   }
 
   /**

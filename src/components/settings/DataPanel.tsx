@@ -75,7 +75,7 @@ export default function DataPanel({ onDataWiped }: DataPanelProps): JSX.Element 
 
   async function handleWipe(): Promise<void> {
     try {
-      await api.delete('/data/wipe');
+      await api.delete('/data/wipe?confirm=wipe-all-data');
       toast.success('All data wiped');
       onDataWiped();
     } catch {

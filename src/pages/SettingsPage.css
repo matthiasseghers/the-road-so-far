@@ -1,15 +1,21 @@
 /* ── SettingsPage layout ──────────────────────────────────────────────────── */
+.settings-page-wrap {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-8) var(--space-12);
+}
+
 .settings-page {
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
   gap: 0 var(--space-8);
-  height: 100%;
-  overflow: hidden;
 }
 
 .settings-nav {
-  padding: var(--space-6) var(--space-4) var(--space-6) var(--space-6);
   align-self: start;
+  position: sticky;
+  top: 0;
 }
 
 .settings-nav__list {
@@ -50,10 +56,7 @@
 }
 
 .settings-content {
-  overflow-y: auto;
-  height: 100%;
-  padding: var(--space-6) var(--space-8) var(--space-12) 0;
-  max-width: 600px;
+  min-width: 0;
 }
 
 /* ── Shared panel styles ─────────────────────────────────────────────────── */

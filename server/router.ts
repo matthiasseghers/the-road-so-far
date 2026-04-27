@@ -569,11 +569,20 @@ router.get('/settings', (_req: Request, res: Response) => {
   res.json(settingsRepo.getAllSettings());
 });
 
+// Reason: whitelist prevents arbitrary keys from being written to the settings table
+// by non-browser HTTP clients that bypass the frontend's fixed set of setting keys.
+const ALLOWED_SETTING_KEYS = ['theme', 'distance_unit', 'date_format', 'time_areas', 'tomtom_api_key'] as const;
+type AllowedSettingKey = typeof ALLOWED_SETTING_KEYS[number];
+
 router.put('/settings/:key', (req: Request, res: Response) => {
   const parsed = SettingValueSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
   // Reason: Express params are always string at runtime; bracket access types as string | string[] in some @types/express versions
   const key = req.params['key'] as string;
+  if (!ALLOWED_SETTING_KEYS.includes(key as AllowedSettingKey)) {
+    res.status(400).json({ error: `Unknown setting key: ${key}` });
+    return;
+  }
   settingsRepo.setSetting(key, parsed.data.value);
   res.status(204).send();
 });
@@ -615,7 +624,13 @@ router.get('/trips/:tripId/export/trippack', (req: Request, res: Response) => {
   });
 });
 
-router.delete('/data/wipe', (_req: Request, res: Response) => {
+router.delete('/data/wipe', (req: Request, res: Response) => {
+  // Reason: confirmation guard prevents accidental data loss from non-browser HTTP clients
+  // (curl, scripts, LAN requests) that are not blocked by the browser CORS policy.
+  if (req.query['confirm'] !== 'wipe-all-data') {
+    res.status(400).json({ error: 'Pass ?confirm=wipe-all-data to confirm data wipe' });
+    return;
+  }
   const db = getDb();
   db.transaction(() => {
     db.prepare('DELETE FROM checklist_items').run();
@@ -649,7 +664,14 @@ router.post('/import/trippack', (req: Request, res: Response) => {
   const tripIdMap = new Map<number, number>();
   const dayIdMap  = new Map<number, number>();
 
-  db.transaction(() => {
+  // Reason: validate CHECK-constrained enum columns so invalid values in the import payload
+  // fall back to safe defaults rather than throwing a SqliteError inside the transaction.
+  const toTripStatus   = (v: unknown): string => typeof v === 'string' && ['draft','planning','confirmed','ready','completed','archived'].includes(v) ? v : 'draft';
+  const toActivityType = (v: unknown): string => typeof v === 'string' && ['attraction','food','shopping','outdoors','cultural','note','other'].includes(v) ? v : 'note';
+  const toResType      = (v: unknown): string => typeof v === 'string' && ['lodging','flight','train','bus','ferry','rental_car','restaurant','other'].includes(v) ? v : 'other';
+  const toResStatus    = (v: unknown): string => typeof v === 'string' && ['pending','confirmed','cancelled'].includes(v) ? v : 'pending';
+
+  const runImport = db.transaction(() => {
     for (const t of trips) {
       // Reason: tags may be a parsed string[] (from ParsedTripRow) or already a JSON string.
       const tags = Array.isArray(t['tags']) ? JSON.stringify(t['tags']) : (t['tags'] ?? '[]');
@@ -671,7 +693,7 @@ router.post('/import/trippack', (req: Request, res: Response) => {
         `INSERT INTO trips (title, emoji, status, start_date, end_date, tags, notes, cover_gradient, external_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
-        t['title'] ?? '', t['emoji'] ?? '🗺️', t['status'] ?? 'draft',
+        t['title'] ?? '', t['emoji'] ?? '🗺️', toTripStatus(t['status']),
         t['start_date'] ?? null, t['end_date'] ?? null, tags,
         t['notes'] ?? null, t['cover_gradient'] ?? 'warm-brown',
         externalId ?? (db.prepare("SELECT lower(hex(randomblob(16))) AS v").get() as { v: string }).v,
@@ -703,7 +725,7 @@ router.post('/import/trippack', (req: Request, res: Response) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         newDayId, newTripId,
-        a['title'] ?? '', a['activity_type'] ?? 'note',
+        a['title'] ?? '', toActivityType(a['activity_type']),
         a['start_time'] ?? null, a['end_time'] ?? null, a['sort_order'] ?? 0,
         a['notes'] ?? null, a['location'] ?? null, a['lat'] ?? null, a['lng'] ?? null,
       );
@@ -721,7 +743,7 @@ router.post('/import/trippack', (req: Request, res: Response) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         newTripId, newDayId,
-        r['type'] ?? 'other', r['title'] ?? '', r['status'] ?? 'pending',
+        toResType(r['type']), r['title'] ?? '', toResStatus(r['status']),
         r['confirmation_ref'] ?? null, r['notes'] ?? null,
         r['cost_amount'] ?? null, r['cost_currency'] ?? 'EUR', details,
         r['sort_order'] ?? 0,
@@ -741,7 +763,13 @@ router.post('/import/trippack', (req: Request, res: Response) => {
         isChecked, ci['source'] ?? 'trip', ci['sort_order'] ?? 0,
       );
     }
-  })();
+  });
+  try {
+    runImport();
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : 'Import failed' });
+    return;
+  }
 
   res.status(204).send();
 });

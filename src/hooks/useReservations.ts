@@ -60,31 +60,45 @@ export function useReservations(tripId: number): UseReservationsReturn {
 
   const createReservation = useCallback(
     async (input: CreateReservationInput): Promise<Reservation> => {
-      const row = await api.post<ReservationRow>('/reservations', input);
-      const reservation = new Reservation(row);
-      refetch();
-      toast.success('Reservation saved');
-      return reservation;
+      try {
+        const row = await api.post<ReservationRow>('/reservations', input);
+        const reservation = new Reservation(row);
+        refetch();
+        toast.success('Reservation saved');
+        return reservation;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to save reservation');
+        throw err;
+      }
     },
     [refetch],
   );
 
   const updateReservation = useCallback(
     async (id: number, input: UpdateReservationInput): Promise<Reservation> => {
-      const row = await api.patch<ReservationRow>(`/reservations/${id}`, input);
-      const reservation = new Reservation(row);
-      refetch();
-      toast.success('Reservation updated');
-      return reservation;
+      try {
+        const row = await api.patch<ReservationRow>(`/reservations/${id}`, input);
+        const reservation = new Reservation(row);
+        refetch();
+        toast.success('Reservation updated');
+        return reservation;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to update reservation');
+        throw err;
+      }
     },
     [refetch],
   );
 
   const deleteReservation = useCallback(
     async (id: number): Promise<void> => {
-      await api.delete(`/reservations/${id}`);
-      refetch();
-      toast.success('Reservation deleted');
+      try {
+        await api.delete(`/reservations/${id}`);
+        refetch();
+        toast.success('Reservation deleted');
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete reservation');
+      }
     },
     [refetch],
   );

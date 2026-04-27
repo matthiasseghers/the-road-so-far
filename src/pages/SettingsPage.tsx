@@ -25,6 +25,7 @@ export default function SettingsPage({ theme, onThemeChange, onDataWiped }: Sett
   const [activeSection, setActiveSection] = useState<Section>('general');
 
   return (
+    <div className="settings-page-wrap">
     <div className="settings-page">
       {/* Left nav */}
       <nav className="settings-nav" aria-label="Settings navigation">
@@ -49,6 +50,7 @@ export default function SettingsPage({ theme, onThemeChange, onDataWiped }: Sett
         {activeSection === 'templates' && <TemplatesPanel />}
         {activeSection === 'data'      && <DataPanel      onDataWiped={onDataWiped} />}
       </div>
+    </div>
     </div>
   );
 }
