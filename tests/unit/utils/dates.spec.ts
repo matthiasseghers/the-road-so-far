@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   todayISO,
-  today,
   eachDayInRange,
   getDaysBetween,
   isDateInRange,
@@ -13,10 +12,6 @@ describe('todayISO()', () => {
   it('returns a YYYY-MM-DD formatted string', () => {
     const result = todayISO();
     expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  });
-
-  it('matches today() output', () => {
-    expect(todayISO()).toBe(today());
   });
 });
 

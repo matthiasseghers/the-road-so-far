@@ -6,17 +6,22 @@ interface UseCalendarDaysReturn {
   days: CalendarDayRow[];
   byDate: Record<string, CalendarDayRow>;
   isLoading: boolean;
+  error: string | null;
 }
 
 export function useCalendarDays(tripId: number): UseCalendarDaysReturn {
   const [days, setDays] = useState<CalendarDayRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
     setIsLoading(true);
     api.get<CalendarDayRow[]>(`/trips/${tripId}/calendar-days`)
-      .then(data => { setDays(data); setIsLoading(false); })
-      .catch(() => { setIsLoading(false); });
+      .then(data => { setDays(data); setError(null); setIsLoading(false); })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : 'Failed to load calendar days');
+        setIsLoading(false);
+      });
   }, [tripId]);
 
   useEffect(() => { refetch(); }, [refetch]);
@@ -28,5 +33,5 @@ export function useCalendarDays(tripId: number): UseCalendarDaysReturn {
     return map;
   }, [days]);
 
-  return { days, byDate, isLoading };
+  return { days, byDate, isLoading, error };
 }

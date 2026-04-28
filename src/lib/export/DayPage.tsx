@@ -8,8 +8,8 @@ import type { DayWithActivities } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 import { StatusPill, SectionHeading, LodgingStrip, NotesBlock, MapSvg } from './shared';
 import { activityTypeLabel, reservationTypeLabel, buildLodgingStripText, stripTiptapJson } from './helpers';
+import { formatActivityTime } from '@/utils/format';
 import type { GeoPoint } from './helpers';
-import { FEATURES } from '@/lib/features';
 
 const PAD = '20mm';
 
@@ -124,9 +124,6 @@ export function DayPage({ day, dayIndex, totalDays, pageNumber, totalPages, rese
 
   const dayNumStr = String(dayIndex + 1).padStart(2, '0');
 
-  // Reason: FEATURES.PDF_ROUTE_LEGS guards drive duration chip — deferred until routing phase.
-  void FEATURES.PDF_ROUTE_LEGS;
-
   return (
     <Page size="A4" style={{ backgroundColor: theme.pageBg, paddingHorizontal: PAD, paddingTop: PAD, paddingBottom: '15mm', fontFamily: 'Helvetica' }}>
 
@@ -172,7 +169,7 @@ export function DayPage({ day, dayIndex, totalDays, pageNumber, totalPages, rese
               key={act.id}
               title={act.title}
               type={act.activity_type}
-              time={act.timeDisplay()}
+              time={formatActivityTime(act.start_time, act.end_time)}
               location={act.location}
               notes={act.notes}
               isLast={i === activities.length - 1}

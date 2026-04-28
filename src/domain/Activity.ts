@@ -24,16 +24,5 @@ export class Activity {
     return this.data.start_time !== null;
   }
 
-  /**
-   * Returns a display string for the time window.
-   * "HH:MM – HH:MM" if both start and end are set.
-   * "HH:MM" if only start_time is set.
-   * "" if neither is set.
-   */
-  timeDisplay(): string {
-    if (!this.data.start_time) return '';
-    if (this.data.end_time) return `${this.data.start_time} – ${this.data.end_time}`;
-    return this.data.start_time;
-  }
 }
 

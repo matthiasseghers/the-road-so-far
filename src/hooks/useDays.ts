@@ -6,7 +6,7 @@ import type { UpdateDayInput } from '@/db/repositories/days.repo';
 
 interface UseDaysReturn {
   days: DayRow[];
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
   refetch: () => void;
   updateDay: (id: number, input: UpdateDayInput) => Promise<DayRow>;
@@ -14,16 +14,16 @@ interface UseDaysReturn {
 
 export function useDays(tripId: number): UseDaysReturn {
   const [days, setDays] = useState<DayRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refetch = useCallback((): void => {
-    setLoading(true);
+    setIsLoading(true);
     api.get<DayRow[]>(`/days?tripId=${tripId}`)
-      .then(data => { setDays(data); setError(null); setLoading(false); })
+      .then(data => { setDays(data); setError(null); setIsLoading(false); })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : 'Unknown error');
-        setLoading(false);
+        setIsLoading(false);
       });
   }, [tripId]);
 
@@ -41,5 +41,5 @@ export function useDays(tripId: number): UseDaysReturn {
     }
   }, [refetch]);
 
-  return { days, loading, error, refetch, updateDay };
+  return { days, isLoading, error, refetch, updateDay };
 }

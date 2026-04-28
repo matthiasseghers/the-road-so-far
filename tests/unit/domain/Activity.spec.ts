@@ -32,29 +32,6 @@ describe('Activity domain class', () => {
     });
   });
 
-  describe('timeDisplay()', () => {
-    it('returns empty string when both times are null', () => {
-      const a = new Activity(makeRow({ start_time: null, end_time: null }));
-      expect(a.timeDisplay()).toBe('');
-    });
-
-    it('returns only start_time when end_time is null', () => {
-      const a = new Activity(makeRow({ start_time: '09:00', end_time: null }));
-      expect(a.timeDisplay()).toBe('09:00');
-    });
-
-    it('returns start – end when both are set', () => {
-      const a = new Activity(makeRow({ start_time: '09:00', end_time: '10:30' }));
-      expect(a.timeDisplay()).toBe('09:00 – 10:30');
-    });
-
-    it('returns empty string when start_time is null (end_time has no start)', () => {
-      // end_time without start_time should not display anything useful
-      const a = new Activity(makeRow({ start_time: null, end_time: '10:30' }));
-      expect(a.timeDisplay()).toBe('');
-    });
-  });
-
   describe('basic getters', () => {
     it('returns correct id', () => {
       const a = new Activity(makeRow({ id: 42 }));

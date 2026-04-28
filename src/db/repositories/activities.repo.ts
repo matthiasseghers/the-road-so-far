@@ -111,14 +111,17 @@ export function deleteActivity(id: number): void {
   getDb().prepare('DELETE FROM activities WHERE id = ?').run(id);
 }
 
-/** Resets sort_order for activities in a day in the given order. Runs in a transaction. */
-export function reorderActivities(dayId: number, orderedIds: number[]): void {
+/** Resets sort_order for activities in a day in the given order. Runs in a transaction.
+ * Returns the number of rows that matched (to detect out-of-scope IDs). */
+export function reorderActivities(dayId: number, orderedIds: number[]): number {
   const db = getDb();
   const update = db.prepare(
     'UPDATE activities SET sort_order = ? WHERE id = ? AND day_id = ?',
   );
   const txn = db.transaction((ids: number[]) => {
-    ids.forEach((actId, index) => update.run(index, actId, dayId));
+    let matched = 0;
+    ids.forEach((actId, index) => { matched += update.run(index, actId, dayId).changes; });
+    return matched;
   });
-  txn(orderedIds);
+  return txn(orderedIds) as number;
 }

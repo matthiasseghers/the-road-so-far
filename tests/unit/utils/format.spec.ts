@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDateRange, formatDistance, formatDuration, formatProgress } from '@/utils/format';
+import { formatDateRange, formatDistance, formatDuration, formatProgress, formatActivityTime } from '@/utils/format';
 
 describe('formatDateRange()', () => {
   it('omits year from start when same year', () => {
@@ -74,5 +74,23 @@ describe('formatProgress()', () => {
 
   it('rounds to nearest integer', () => {
     expect(formatProgress(62.7)).toBe('63%');
+  });
+});
+
+describe('formatActivityTime()', () => {
+  it('returns empty string when both times are null', () => {
+    expect(formatActivityTime(null, null)).toBe('');
+  });
+
+  it('returns only start_time when end_time is null', () => {
+    expect(formatActivityTime('09:00', null)).toBe('09:00');
+  });
+
+  it('returns start \u2013 end when both are set', () => {
+    expect(formatActivityTime('09:00', '10:30')).toBe('09:00 \u2013 10:30');
+  });
+
+  it('returns empty string when start_time is null regardless of end_time', () => {
+    expect(formatActivityTime(null, '10:30')).toBe('');
   });
 });

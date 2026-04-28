@@ -1,4 +1,4 @@
-import type { RouteLegRow, RouteLegTravelMode } from '@/types/db';
+import type { RouteLegRow, RouteLegTravelMode, LegModeRow } from '@/types/db';
 
 export interface PolylinePoint {
   lat: number;
@@ -83,4 +83,23 @@ export function findLeg(
   // Reason: prefer the requested mode so the chip shows the correct route after sync;
   // fall back to any cached mode while a re-sync for the new mode is in flight.
   return byCoords.find(l => l.travel_mode === mode) ?? byCoords[0] ?? null;
+}
+
+/**
+ * Return the user-selected travel mode for a coord pair, falling back to `fallback`
+ * when no override has been stored. Pure function — no DB access.
+ */
+export function findLegMode(
+  modes: LegModeRow[],
+  fromLat: number, fromLng: number,
+  toLat: number,   toLng: number,
+  fallback: RouteLegTravelMode,
+): RouteLegTravelMode {
+  const found = modes.find(m =>
+    Math.abs(m.from_lat - fromLat) < COORD_EPSILON &&
+    Math.abs(m.from_lng - fromLng) < COORD_EPSILON &&
+    Math.abs(m.to_lat   - toLat)   < COORD_EPSILON &&
+    Math.abs(m.to_lng   - toLng)   < COORD_EPSILON,
+  );
+  return found?.travel_mode ?? fallback;
 }

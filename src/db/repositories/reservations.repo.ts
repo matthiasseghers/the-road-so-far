@@ -1,6 +1,7 @@
 import { getDb } from '../client.js';
 import type { ReservationRow } from '@/types/db';
 import type { CreateReservationInput, UpdateReservationInput } from '@/schemas/reservation.schema';
+import { reservationAutoTitle } from '@/utils/format';
 
 export type { CreateReservationInput, UpdateReservationInput };
 
@@ -13,27 +14,6 @@ export type { CreateReservationInput, UpdateReservationInput };
 export type ReservationResult =
   | { ok: true;  item: ReservationRow }
   | { ok: false; conflict: string };
-
-// ─── Auto-title helper ────────────────────────────────────────────────────────
-
-function deriveTitle(type: string, details: Record<string, string>): string {
-  switch (type) {
-    case 'flight':
-      return `${details['flight_number'] ?? ''} · ${details['depart_airport'] ?? '?'} → ${details['arrive_airport'] ?? '?'}`.trim();
-    case 'lodging':
-      return details['property_name'] ?? 'Lodging';
-    case 'restaurant':
-      return details['restaurant_name'] ?? 'Restaurant';
-    case 'train':
-    case 'bus':
-    case 'ferry':
-      return `${details['from_stop'] ?? '?'} → ${details['to_stop'] ?? '?'}`;
-    case 'rental_car':
-      return `${details['company'] ?? 'Car'} · ${details['pickup_location'] ?? '?'} → ${details['dropoff_location'] ?? '?'}`;
-    default:
-      return details['description'] ?? 'Reservation';
-  }
-}
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -107,7 +87,7 @@ export function createReservation(input: CreateReservationInput): ReservationRow
 
   // Reason: title is derived from details so callers never need to supply it.
   const detailsObj = input.details as Record<string, string>;
-  const title = (input.title != null && input.title.trim() !== '') ? input.title.trim() : deriveTitle(input.type, detailsObj);
+  const title = (input.title != null && input.title.trim() !== '') ? input.title.trim() : reservationAutoTitle(input.type, detailsObj);
 
   const result = db
     .prepare(
@@ -149,7 +129,7 @@ export function updateReservation(id: number, input: UpdateReservationInput): Re
   // Reason: re-derive title when details are being updated.
   const newDetails = input.details !== undefined ? input.details as Record<string, string> : null;
   const newType = input.type ?? cur.type;
-  const derivedTitle = newDetails != null ? deriveTitle(newType, newDetails) : cur.title;
+  const derivedTitle = newDetails != null ? reservationAutoTitle(newType, newDetails) : cur.title;
   const title = (input.title != null && input.title.trim() !== '') ? input.title.trim() : derivedTitle;
 
   db.prepare(

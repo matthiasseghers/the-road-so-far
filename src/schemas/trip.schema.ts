@@ -34,17 +34,5 @@ export const PatchTripSchema = TripBaseSchema.partial().refine(
   { message: 'End date must be after start date', path: ['end_date'] },
 );
 
-// Reason: UpdateTripSchema includes id for cases where the caller passes the full update payload.
-export const UpdateTripSchema = TripBaseSchema.partial().extend({
-  id: z.number().int().positive(),
-}).refine(
-  d => {
-    if (d.start_date && d.end_date) return d.end_date >= d.start_date;
-    return true;
-  },
-  { message: 'End date must be after start date', path: ['end_date'] },
-);
-
 export type CreateTripInput = z.infer<typeof CreateTripSchema>;
 export type PatchTripInput  = z.infer<typeof PatchTripSchema>;
-export type UpdateTripInput = z.infer<typeof UpdateTripSchema>;

@@ -117,6 +117,18 @@ interface FieldDef {
   placeholder?: string;
 }
 
+// Reason: train, bus, and ferry share identical field definitions — only the
+// type key differs. A shared constant keeps them in sync.
+const TRANSIT_FIELDS: FieldDef[] = [
+  { key: 'from_stop', label: 'From', required: true },
+  { key: 'from_date', label: 'Depart date', type: 'date', required: true },
+  { key: 'from_time', label: 'Depart time', type: 'time' },
+  { key: 'to_stop',   label: 'To',   required: true },
+  { key: 'to_date',   label: 'Arrive date', type: 'date', required: true },
+  { key: 'to_time',   label: 'Arrive time', type: 'time' },
+  { key: 'carrier',   label: 'Carrier' },
+];
+
 const RESERVATION_TYPE_FIELDS: Record<ReservationType, FieldDef[]> = {
   lodging: [
     { key: 'property_name',  label: 'Property name',  required: true },
@@ -136,33 +148,9 @@ const RESERVATION_TYPE_FIELDS: Record<ReservationType, FieldDef[]> = {
     { key: 'arrive_date',    label: 'Arrive date',    type: 'date', required: true },
     { key: 'arrive_time',    label: 'Arrive time',    type: 'time' },
   ],
-  train: [
-    { key: 'from_stop', label: 'From', required: true },
-    { key: 'from_date', label: 'Depart date', type: 'date', required: true },
-    { key: 'from_time', label: 'Depart time', type: 'time' },
-    { key: 'to_stop',   label: 'To',   required: true },
-    { key: 'to_date',   label: 'Arrive date', type: 'date', required: true },
-    { key: 'to_time',   label: 'Arrive time', type: 'time' },
-    { key: 'carrier',   label: 'Carrier' },
-  ],
-  bus: [
-    { key: 'from_stop', label: 'From', required: true },
-    { key: 'from_date', label: 'Depart date', type: 'date', required: true },
-    { key: 'from_time', label: 'Depart time', type: 'time' },
-    { key: 'to_stop',   label: 'To',   required: true },
-    { key: 'to_date',   label: 'Arrive date', type: 'date', required: true },
-    { key: 'to_time',   label: 'Arrive time', type: 'time' },
-    { key: 'carrier',   label: 'Carrier' },
-  ],
-  ferry: [
-    { key: 'from_stop', label: 'From', required: true },
-    { key: 'from_date', label: 'Depart date', type: 'date', required: true },
-    { key: 'from_time', label: 'Depart time', type: 'time' },
-    { key: 'to_stop',   label: 'To',   required: true },
-    { key: 'to_date',   label: 'Arrive date', type: 'date', required: true },
-    { key: 'to_time',   label: 'Arrive time', type: 'time' },
-    { key: 'carrier',   label: 'Carrier' },
-  ],
+  train:  TRANSIT_FIELDS,
+  bus:    TRANSIT_FIELDS,
+  ferry:  TRANSIT_FIELDS,
   rental_car: [
     { key: 'company',          label: 'Company',         required: true },
     { key: 'pickup_location',  label: 'Pick-up location', required: true },

@@ -8,15 +8,39 @@ import * as checklistRepo from '../src/db/repositories/checklist.repo.js';
 import * as settingsRepo from '../src/db/repositories/settings.repo.js';
 import * as routeLegsRepo from '../src/db/repositories/route-legs.repo.js';
 import * as legModesRepo from '../src/db/repositories/leg-modes.repo.js';
+import { findLegMode } from '../src/domain/RouteLeg.js';
 import * as calendarRepo from '../src/db/repositories/calendar.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
-import { geocodePlace } from '../src/services/geocoding.service.js';
+import { geocodePlace, GEOCODE_DELAY_MS } from '../src/services/geocoding.service.js';
 import { fetchRouteLeg } from '../src/services/routing.service.js';
 import { CreateTripSchema, PatchTripSchema } from '../src/schemas/trip.schema.js';
 import { CreateActivitySchema, PatchActivitySchema } from '../src/schemas/activity.schema.js';
 import { CreateReservationSchema, UpdateReservationSchema } from '../src/schemas/reservation.schema.js';
 import { CreateChecklistItemSchema, PatchChecklistItemSchema } from '../src/schemas/checklist.schema.js';
 import { z } from 'zod';
+
+// ── Nominatim rate-limit queue ───────────────────────────────────────────────
+// Reason: Nominatim's usage policy requires ≤1 req/s. A single shared promise
+// chain serialises all outbound geocoding calls server-wide and enforces the
+// minimum delay between them, regardless of how many requests arrive concurrently.
+let _geocodeQueue: Promise<void> = Promise.resolve();
+function queuedGeocode(
+  query: string,
+): Promise<{ lat: number; lng: number } | null> {
+  const result = _geocodeQueue.then(
+    () => geocodePlace(query),
+  ).then(coords => {
+    // Reason: enforce the delay AFTER the request completes so back-to-back calls
+    // always wait the full interval regardless of how long the request took.
+    return new Promise<{ lat: number; lng: number } | null>(resolve =>
+      setTimeout(() => resolve(coords), GEOCODE_DELAY_MS),
+    );
+  });
+  // Advance the queue pointer on the delay promise (not the result),
+  // so errors in one call don't stall subsequent queued calls.
+  _geocodeQueue = result.then(() => undefined).catch(() => undefined);
+  return result;
+}
 
 // ── Shared inline schemas (small, single-use, not worth a separate file) ─────
 
@@ -114,7 +138,9 @@ router.patch('/trips/:id', (req: Request, res: Response) => {
 });
 
 router.delete('/trips/:id', (req: Request, res: Response) => {
-  tripsRepo.deleteTrip(Number(req.params['id']));
+  const id = parseInt(req.params['id'] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  tripsRepo.deleteTrip(id);
   res.status(204).send();
 });
 
@@ -177,7 +203,12 @@ router.post('/activities', (req: Request, res: Response) => {
 router.put('/activities/reorder', (req: Request, res: Response) => {
   const parsed = ReorderActivitiesSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  activitiesRepo.reorderActivities(parsed.data.dayId, parsed.data.orderedIds);
+  const matched = activitiesRepo.reorderActivities(parsed.data.dayId, parsed.data.orderedIds);
+  // Reason: 422 when IDs don't all belong to the specified day, preventing silent no-ops.
+  if (matched !== parsed.data.orderedIds.length) {
+    res.status(422).json({ error: 'Some activity IDs do not belong to the specified day' });
+    return;
+  }
   res.status(204).send();
 });
 
@@ -215,7 +246,7 @@ router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
     res.json(activitiesRepo.findActivityById(id));
     return;
   }
-  geocodePlace(parsed.data.location)
+  queuedGeocode(parsed.data.location)
     .then(coords => {
       if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
       activitiesRepo.updateActivityLatLng(id, coords.lat, coords.lng);
@@ -225,7 +256,10 @@ router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
 });
 
 router.delete('/activities/:id', (req: Request, res: Response) => {
-  activitiesRepo.deleteActivity(Number(req.params['id']));
+  const id = parseInt(req.params['id'] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!activitiesRepo.findActivityById(id)) { res.status(404).json({ error: 'Activity not found' }); return; }
+  activitiesRepo.deleteActivity(id);
   res.status(204).send();
 });
 
@@ -273,7 +307,7 @@ router.patch('/reservations/:id/geocode', (req: Request, res: Response) => {
     res.json(reservationsRepo.findById(id));
     return;
   }
-  geocodePlace(parsed.data.location)
+  queuedGeocode(parsed.data.location)
     .then(coords => {
       if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
       reservationsRepo.updateReservationLatLng(id, coords.lat, coords.lng);
@@ -313,7 +347,10 @@ router.patch('/days/:dayId/reorder', (req: Request, res: Response) => {
 });
 
 router.delete('/reservations/:id', (req: Request, res: Response) => {
-  reservationsRepo.deleteReservation(Number(req.params['id']));
+  const id = parseInt(req.params['id'] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!reservationsRepo.findById(id)) { res.status(404).json({ error: 'Reservation not found' }); return; }
+  reservationsRepo.deleteReservation(id);
   res.status(204).send();
 });
 
@@ -345,8 +382,13 @@ router.post('/checklist-items/copy-templates', (req: Request, res: Response) => 
 router.put('/trips/:tripId/checklist/reorder', (req: Request, res: Response) => {
   const parsed = TripReorderSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  const tripId = Number(req.params['tripId']);
-  checklistRepo.reorderChecklistItems(tripId, parsed.data.ids);
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const matched = checklistRepo.reorderChecklistItems(tripId, parsed.data.ids);
+  if (matched !== parsed.data.ids.length) {
+    res.status(422).json({ error: 'Some checklist item IDs do not belong to the specified trip' });
+    return;
+  }
   res.status(204).send();
 });
 
@@ -362,19 +404,24 @@ router.patch('/checklist-items/:id', (req: Request, res: Response) => {
 });
 
 router.delete('/checklist-items/:id', (req: Request, res: Response) => {
-  checklistRepo.deleteChecklistItem(Number(req.params['id']));
+  const id = parseInt(req.params['id'] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  if (!checklistRepo.findChecklistItemById(id)) { res.status(404).json({ error: 'Checklist item not found' }); return; }
+  checklistRepo.deleteChecklistItem(id);
   res.status(204).send();
 });
 
 // ── Checklist RESTful routes ─────────────────────────────────────────────────
 
 router.get('/trips/:tripId/checklist', (req: Request, res: Response) => {
-  const tripId = Number(req.params['tripId']);
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   res.json(checklistRepo.findChecklistItemsByTripId(tripId));
 });
 
 router.post('/trips/:tripId/checklist', (req: Request, res: Response) => {
-  const tripId = Number(req.params['tripId']);
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   const parsed = CreateChecklistItemSchema.safeParse({ ...req.body, trip_id: tripId });
   if (!parsed.success) {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
@@ -417,14 +464,16 @@ router.delete('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
 router.patch('/trips/:tripId/checklist/category/:cat', (req: Request, res: Response) => {
   const parsed = RenameCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  const tripId = Number(req.params['tripId']);
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   const oldCat = decodeURIComponent(req.params['cat'] as string);
   checklistRepo.renameChecklistCategory(tripId, oldCat, parsed.data.name.toLowerCase());
   res.status(204).send();
 });
 
 router.delete('/trips/:tripId/checklist/category/:cat', (req: Request, res: Response) => {
-  const tripId = Number(req.params['tripId']);
+  const tripId = parseInt(req.params['tripId'] as string, 10);
+  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   const cat = decodeURIComponent(req.params['cat'] as string);
   checklistRepo.deleteChecklistItemsByCategory(tripId, cat);
   res.status(204).send();
@@ -499,14 +548,22 @@ router.patch('/template-items/:id', (req: Request, res: Response) => {
 });
 
 router.delete('/template-items/:id', (req: Request, res: Response) => {
-  checklistRepo.deleteTemplateItem(Number(req.params['id']));
+  const id = parseInt(req.params['id'] as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const existing = getDb().prepare('SELECT id FROM template_items WHERE id = ?').get(id);
+  if (!existing) { res.status(404).json({ error: 'Template item not found' }); return; }
+  checklistRepo.deleteTemplateItem(id);
   res.status(204).send();
 });
 
 router.put('/template-items/reorder', (req: Request, res: Response) => {
   const parsed = TemplateReorderSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  checklistRepo.reorderTemplateItems(parsed.data.templateId, parsed.data.ids);
+  const matched = checklistRepo.reorderTemplateItems(parsed.data.templateId, parsed.data.ids);
+  if (matched !== parsed.data.ids.length) {
+    res.status(422).json({ error: 'Some template item IDs do not belong to the specified template' });
+    return;
+  }
   res.status(204).send();
 });
 
@@ -871,19 +928,9 @@ router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response
   // Reason: read per-leg mode overrides so each coord pair can have its own mode.
   // Falls back to 'car' when no override has been set for a pair.
   const storedModes = legModesRepo.getLegModes(tripId);
-  const COORD_EPS = 0.00001;
-  function legMode(from: GeoPoint, to: GeoPoint): 'car' | 'pedestrian' | 'bicycle' {
-    const found = storedModes.find(m =>
-      Math.abs(m.from_lat - from.lat) < COORD_EPS &&
-      Math.abs(m.from_lng - from.lng) < COORD_EPS &&
-      Math.abs(m.to_lat   - to.lat)   < COORD_EPS &&
-      Math.abs(m.to_lng   - to.lng)   < COORD_EPS,
-    );
-    return (found?.travel_mode ?? 'car') as 'car' | 'pedestrian' | 'bicycle';
-  }
 
   async function fetchAndUpsert(from: GeoPoint, to: GeoPoint): Promise<void> {
-    const mode = legMode(from, to);
+    const mode = findLegMode(storedModes, from.lat, from.lng, to.lat, to.lng, 'car');
     const result = await fetchRouteLeg(
       { lat: from.lat, lng: from.lng },
       { lat: to.lat,   lng: to.lng },

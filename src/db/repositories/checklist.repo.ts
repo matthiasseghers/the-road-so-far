@@ -322,27 +322,33 @@ export function deleteTemplateItem(id: number): void {
 /**
  * Bulk-update sort_order for checklist_items within a single trip + category.
  * `ids` must be the full ordered list of IDs for that category.
+ * Returns the number of rows that matched (to detect out-of-scope IDs).
  */
-export function reorderChecklistItems(tripId: number, ids: number[]): void {
+export function reorderChecklistItems(tripId: number, ids: number[]): number {
   const db = getDb();
   const stmt = db.prepare(
     'UPDATE checklist_items SET sort_order = @sort_order WHERE id = @id AND trip_id = @trip_id',
   );
-  db.transaction((orderedIds: number[]) => {
-    orderedIds.forEach((id, idx) => stmt.run({ id, trip_id: tripId, sort_order: idx }));
-  })(ids);
+  return db.transaction((orderedIds: number[]) => {
+    let matched = 0;
+    orderedIds.forEach((id, idx) => { matched += stmt.run({ id, trip_id: tripId, sort_order: idx }).changes; });
+    return matched;
+  })(ids) as number;
 }
 
 /**
  * Bulk-update sort_order for template_items within a single template.
  * `ids` must be the full ordered list of IDs for that template.
+ * Returns the number of rows that matched (to detect out-of-scope IDs).
  */
-export function reorderTemplateItems(templateId: number, ids: number[]): void {
+export function reorderTemplateItems(templateId: number, ids: number[]): number {
   const db = getDb();
   const stmt = db.prepare(
     'UPDATE template_items SET sort_order = @sort_order WHERE id = @id AND template_id = @template_id',
   );
-  db.transaction((orderedIds: number[]) => {
-    orderedIds.forEach((id, idx) => stmt.run({ id, template_id: templateId, sort_order: idx }));
-  })(ids);
+  return db.transaction((orderedIds: number[]) => {
+    let matched = 0;
+    orderedIds.forEach((id, idx) => { matched += stmt.run({ id, template_id: templateId, sort_order: idx }).changes; });
+    return matched;
+  })(ids) as number;
 }

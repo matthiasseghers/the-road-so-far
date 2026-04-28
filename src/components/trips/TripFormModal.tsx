@@ -13,7 +13,7 @@ import { CalendarIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/spinner';
-import { today, dateRangesOverlap } from '@/utils/dates';
+import { todayISO, dateRangesOverlap } from '@/utils/dates';
 import { useTrips } from '@/hooks/useTrips';
 import { CreateTripSchema } from '@/schemas/trip.schema';
 import type { Trip } from '@/types/domain';
@@ -101,7 +101,7 @@ interface TripFormModalProps {
   onClose: () => void;
   /** If provided the modal is in edit mode, otherwise create mode. */
   trip?: Trip;
-  onCreate: (input: CreateTripInput) => Promise<Trip>;
+  onCreate?: (input: CreateTripInput) => Promise<Trip>;
   onUpdate: (id: number, input: UpdateTripInput) => Promise<Trip>;
 }
 
@@ -156,7 +156,7 @@ export default function TripFormModal({
 
   // Reason: fires on every onChange — no blur gate so manual text input also triggers it.
   const pastWarning: string | null =
-    state.end_date && state.end_date < today()
+    state.end_date && state.end_date < todayISO()
       ? "This trip's dates are in the past — is that intentional?"
       : null;
 
@@ -188,7 +188,7 @@ export default function TripFormModal({
       if (isEdit) {
         await onUpdate(trip.id, payload);
       } else {
-        await onCreate(payload);
+        await onCreate?.(payload);
       }
       setOverlapConfirmOpen(false);
       onClose();

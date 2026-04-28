@@ -28,40 +28,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatDate } from '@/utils/dates';
-import { formatDateRange } from '@/utils/format';
+import { formatDateRange, nightCount, formatActivityTime } from '@/utils/format';
+import { sortActivities } from '@/utils/activity';
 import type { Activity, Trip as TripType, TripWithDays, DayWithActivities } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 import type { LodgingDetails } from '@/schemas/reservation.schema';
 import type { ActivityRow } from '@/types/db';
 import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories/activities.repo';
-import type { CreateTripInput, UpdateTripInput } from '@/db/repositories/trips.repo';
+import type { UpdateTripInput } from '@/db/repositories/trips.repo';
+import { findLeg, findLegMode } from '@/domain/RouteLeg';
 import { api } from '@/db/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import ChecklistPanel from '@/components/checklist/ChecklistPanel';
 import TripCalendar from '@/components/calendar/TripCalendar';
 import ExportButton from '@/components/export/ExportButton';
 import { useRouteLegs } from '@/hooks/useRouteLegs';
-import { findLeg } from '@/domain/RouteLeg';
 import { usePreferences } from '@/hooks/usePreferences';
 import type { RouteLegTravelMode, LegModeRow } from '@/types/db';
 
-const COORD_EPS = 0.00001;
-
-/** Return the user-selected mode for a specific leg, falling back to the cached leg's mode. */
-function getLegMode(
-  legModes: LegModeRow[],
-  fromLat: number, fromLng: number,
-  toLat: number,   toLng: number,
-  fallback: RouteLegTravelMode,
-): RouteLegTravelMode {
-  const found = legModes.find(m =>
-    Math.abs(m.from_lat - fromLat) < COORD_EPS &&
-    Math.abs(m.from_lng - fromLng) < COORD_EPS &&
-    Math.abs(m.to_lat   - toLat)   < COORD_EPS &&
-    Math.abs(m.to_lng   - toLng)   < COORD_EPS,
-  );
-  return found?.travel_mode ?? fallback;
-}
 
 const TRAVEL_MODE_ICON: Record<RouteLegTravelMode, LucideIcon> = {
   car:        Car,
@@ -131,19 +115,6 @@ const TABS: { id: TripTab; label: string; icon: JSX.Element }[] = [
   { id: 'map',       label: 'Map',       icon: <Map         size={13} /> },
 ];
 
-function sortActivities(activities: Activity[]): Activity[] {
-  return [...activities].sort((a, b) => {
-    // Activities with a start_time sort before those without
-    if (a.start_time && !b.start_time) return -1;
-    if (!a.start_time && b.start_time) return 1;
-    if (a.start_time && b.start_time) {
-      const cmp = a.start_time.localeCompare(b.start_time);
-      if (cmp !== 0) return cmp;
-    }
-    return a.sort_order - b.sort_order;
-  });
-}
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface TripDetailPageProps {
@@ -171,14 +142,6 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   // cached route leg — used to show the "sync routes" nudge on the itinerary tab.
   const unroutedPairCount = useMemo(() => {
     if (!trip) return 0;
-    function hasLeg(from: { lat: number; lng: number }, to: { lat: number; lng: number }): boolean {
-      return routeLegs.some(
-        l => Math.abs(l.from_lat - from.lat) < COORD_EPS &&
-             Math.abs(l.from_lng - from.lng) < COORD_EPS &&
-             Math.abs(l.to_lat   - to.lat)   < COORD_EPS &&
-             Math.abs(l.to_lng   - to.lng)   < COORD_EPS,
-      );
-    }
     type Geo = { lat: number; lng: number };
     let count = 0;
     for (let idx = 0; idx < trip.days.length; idx++) {
@@ -188,7 +151,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
       const geocoded = ([...acts, ...dayRes] as Array<{ lat?: number | null; lng?: number | null }>)
         .filter((x): x is Geo => x.lat != null && x.lng != null);
       for (let i = 0; i < geocoded.length - 1; i++) {
-        if (!hasLeg(geocoded[i], geocoded[i + 1])) count++;
+        if (!findLeg(routeLegs, geocoded[i], geocoded[i + 1])) count++;
       }
       if (idx < trip.days.length - 1) {
         const lastOfDay = geocoded[geocoded.length - 1] ?? null;
@@ -198,7 +161,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
         const nextGeocoded = ([...nextActs, ...nextRes] as Array<{ lat?: number | null; lng?: number | null }>)
           .filter((x): x is Geo => x.lat != null && x.lng != null);
         const firstOfNext = nextGeocoded[0] ?? null;
-        if (lastOfDay && firstOfNext && !hasLeg(lastOfDay, firstOfNext)) count++;
+        if (lastOfDay && firstOfNext && !findLeg(routeLegs, lastOfDay, firstOfNext)) count++;
       }
     }
     return count;
@@ -217,20 +180,14 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   const [tripEditOpen,       setTripEditOpen]       = useState(false);
   const [deleteConfirmOpen,  setDeleteConfirmOpen]  = useState(false);
 
-  // Reason: TripDetailPage only ever opens TripFormModal in edit mode.
-  async function handleTripCreate(_input: CreateTripInput): Promise<TripType> {
-    throw new Error('Unexpected: create called from TripDetailPage');
-  }
-
   async function handleDeleteTrip(): Promise<void> {
     await deleteTrip();
     onDelete();
   }
 
   async function handleTripUpdate(_id: number, input: UpdateTripInput): Promise<TripType> {
-    const updated = await updateTrip(input);
-    refetch();
-    return updated;
+    // Reason: updateTrip() already fetches /trips/:id/full and calls setTrip(); refetch() would be a redundant second GET.
+    return updateTrip(input);
   }
 
   // ── Day edit modal ────────────────────────────────────────────────────────
@@ -547,7 +504,6 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
         open={tripEditOpen}
         onClose={() => setTripEditOpen(false)}
         trip={trip}
-        onCreate={handleTripCreate}
         onUpdate={handleTripUpdate}
       />
 
@@ -704,12 +660,6 @@ function TripHeader({
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
-function nightsBetween(checkIn: string, checkOut: string): number {
-  const a = new Date(checkIn).getTime();
-  const b = new Date(checkOut).getTime();
-  return Math.max(0, Math.round((b - a) / 86_400_000));
-}
-
 function LodgingCard({
   reservation,
   onEdit,
@@ -721,7 +671,7 @@ function LodgingCard({
 }): JSX.Element {
   const d = reservation.parsedDetails<LodgingDetails>();
   const nights = d.check_in_date && d.check_out_date
-    ? nightsBetween(d.check_in_date, d.check_out_date)
+    ? nightCount(d.check_in_date, d.check_out_date)
     : null;
 
   return (
@@ -1081,7 +1031,7 @@ function ItineraryTab({
             {!isLastDay && interDayLeg && (
               <div className="tdp__leg-chip">
                 <LegChipModePicker
-                  mode={getLegMode(legModes, interDayLeg.from_lat, interDayLeg.from_lng, interDayLeg.to_lat, interDayLeg.to_lng, interDayLeg.travel_mode)}
+                  mode={findLegMode(legModes, interDayLeg.from_lat, interDayLeg.from_lng, interDayLeg.to_lat, interDayLeg.to_lng, interDayLeg.travel_mode)}
                   iconSize={12}
                   onPick={(m) => { void onSetLegMode(interDayLeg.from_lat, interDayLeg.from_lng, interDayLeg.to_lat, interDayLeg.to_lng, m); }}
                 />
@@ -1328,7 +1278,7 @@ function ItineraryDayCard({
                 {intraLeg && (
                   <div className="tdp__leg-chip tdp__leg-chip--intra">
                     <LegChipModePicker
-                      mode={getLegMode(legModes, intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, intraLeg.travel_mode)}
+                      mode={findLegMode(legModes, intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, intraLeg.travel_mode)}
                       iconSize={11}
                       onPick={(m) => { void onSetLegMode(intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, m); }}
                     />
@@ -1358,7 +1308,7 @@ function ItineraryDayCard({
                 {intraLeg && (
                   <div className="tdp__leg-chip tdp__leg-chip--intra">
                     <LegChipModePicker
-                      mode={getLegMode(legModes, intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, intraLeg.travel_mode)}
+                      mode={findLegMode(legModes, intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, intraLeg.travel_mode)}
                       iconSize={11}
                       onPick={(m) => { void onSetLegMode(intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, m); }}
                     />
@@ -1399,7 +1349,7 @@ function ItineraryActivityCard({ activity, number, onEdit, onDelete, onDragStart
   onDragLeave: () => void;
   isDropTarget: 'above' | 'below' | null;
 }): JSX.Element {
-  const timeLabel = activity.timeDisplay() || null;
+  const timeLabel = formatActivityTime(activity.start_time, activity.end_time) || null;
 
   return (
     <div

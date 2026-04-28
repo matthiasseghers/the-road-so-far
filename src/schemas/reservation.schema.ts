@@ -62,47 +62,33 @@ export const TrainDetailsSchema = z.object({
   { message: 'End time must be after start time on the same day', path: ['to_time'] },
 );
 
-export const BusDetailsSchema = z.object({
-  type:      z.literal('bus'),
-  from_stop: z.string().trim().min(1, 'Departure stop is required'),
-  from_date: ISO_DATE,
-  to_stop:   z.string().trim().min(1, 'Arrival stop is required'),
-  to_date:   ISO_DATE,
-  from_time: HH_MM.optional(),
-  to_time:   HH_MM.optional(),
-  carrier:   z.string().trim().optional(),
-}).refine(
-  d => d.to_date >= d.from_date,
-  { message: 'Arrival date must be on or after departure date', path: ['to_date'] },
-).refine(
-  d => {
-    if (d.from_date !== d.to_date) return true;
-    if (!d.from_time || !d.to_time) return true;
-    return d.to_time > d.from_time;
-  },
-  { message: 'End time must be after start time on the same day', path: ['to_time'] },
-);
+// Reason: bus and ferry have identical fields and rules to train — only the type
+// literal differs. A factory keeps them in sync without copy-pasting.
+function makeTransitSchema<T extends 'bus' | 'ferry'>(type: T) {
+  return z.object({
+    type:      z.literal(type),
+    from_stop: z.string().trim().min(1, 'Departure stop is required'),
+    from_date: ISO_DATE,
+    to_stop:   z.string().trim().min(1, 'Arrival stop is required'),
+    to_date:   ISO_DATE,
+    from_time: HH_MM.optional(),
+    to_time:   HH_MM.optional(),
+    carrier:   z.string().trim().optional(),
+  }).refine(
+    d => d.to_date >= d.from_date,
+    { message: 'Arrival date must be on or after departure date', path: ['to_date'] },
+  ).refine(
+    d => {
+      if (d.from_date !== d.to_date) return true;
+      if (!d.from_time || !d.to_time) return true;
+      return d.to_time > d.from_time;
+    },
+    { message: 'End time must be after start time on the same day', path: ['to_time'] },
+  );
+}
 
-export const FerryDetailsSchema = z.object({
-  type:      z.literal('ferry'),
-  from_stop: z.string().trim().min(1, 'Departure stop is required'),
-  from_date: ISO_DATE,
-  to_stop:   z.string().trim().min(1, 'Arrival stop is required'),
-  to_date:   ISO_DATE,
-  from_time: HH_MM.optional(),
-  to_time:   HH_MM.optional(),
-  carrier:   z.string().trim().optional(),
-}).refine(
-  d => d.to_date >= d.from_date,
-  { message: 'Arrival date must be on or after departure date', path: ['to_date'] },
-).refine(
-  d => {
-    if (d.from_date !== d.to_date) return true;
-    if (!d.from_time || !d.to_time) return true;
-    return d.to_time > d.from_time;
-  },
-  { message: 'End time must be after start time on the same day', path: ['to_time'] },
-);
+export const BusDetailsSchema   = makeTransitSchema('bus');
+export const FerryDetailsSchema = makeTransitSchema('ferry');
 
 export const RentalCarDetailsSchema = z.object({
   type:             z.literal('rental_car'),

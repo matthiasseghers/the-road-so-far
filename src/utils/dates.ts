@@ -6,9 +6,6 @@ import {
   isValid,
   isWithinInterval,
 } from 'date-fns';
-import type { DayRow, ActivityRow } from '@/types/db';
-import type { Activity, DayViewModel } from '@/types/domain';
-import { Activity as ActivityClass } from '@/domain/Activity';
 
 // ─── ISO date helpers ─────────────────────────────────────────────────────────
 
@@ -21,13 +18,8 @@ export function eachDayInRange(startDate: string, endDate: string): string[] {
 }
 
 /** Today as YYYY-MM-DD. */
-export function today(): string {
-  return format(new Date(), 'yyyy-MM-dd');
-}
-
-/** Alias for today() — preferred name for use in domain classes and utilities. */
 export function todayISO(): string {
-  return today();
+  return format(new Date(), 'yyyy-MM-dd');
 }
 
 /** Convert a JS Date to YYYY-MM-DD. */
@@ -106,27 +98,4 @@ export function timeAgo(isoDateTime: string): string {
   return `${Math.floor(months / 12)}y ago`;
 }
 
-// ─── Activity view-model assembly ─────────────────────────────────────────────
 
-function toActivity(row: ActivityRow): Activity {
-  return new ActivityClass(row);
-}
-
-/**
- * Groups a flat activities array into the DayViewModel used by DayCard.
- * Activities with start_time sort before those without; secondary sort by sort_order.
- */
-export function buildDayViewModel(day: DayRow, activityRows: ActivityRow[]): DayViewModel {
-  const activities = activityRows
-    .map(toActivity)
-    .sort((a, b) => {
-      if (a.start_time && !b.start_time) return -1;
-      if (!a.start_time && b.start_time) return 1;
-      if (a.start_time && b.start_time) {
-        const cmp = a.start_time.localeCompare(b.start_time);
-        if (cmp !== 0) return cmp;
-      }
-      return a.sort_order - b.sort_order;
-    });
-  return { day, activities };
-}

@@ -1,4 +1,5 @@
 import { format as dateFnsFormat, parseISO, isValid } from 'date-fns';
+import type { ReservationType } from '@/types/db';
 
 // ── Date formatting ───────────────────────────────────────────────────────────
 
@@ -44,4 +45,52 @@ export function formatDuration(seconds: number): string {
 /** Formats a 0-100 progress value as "62%". */
 export function formatProgress(pct: number): string {
   return `${Math.round(pct)}%`;
+}
+
+// ── Night count ───────────────────────────────────────────────────────────────
+
+/** Number of nights between two ISO date strings (check-out minus check-in). */
+export function nightCount(checkIn: string, checkOut: string): number {
+  const a = new Date(checkIn).getTime();
+  const b = new Date(checkOut).getTime();
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+// ── Activity time formatting ──────────────────────────────────────────────────
+
+/**
+ * Returns a display string for an activity's time window.
+ * "HH:MM – HH:MM" if both times are set.
+ * "HH:MM" if only start_time is set.
+ * "" if neither is set.
+ */
+export function formatActivityTime(startTime: string | null, endTime: string | null): string {
+  if (!startTime) return '';
+  if (endTime) return `${startTime} \u2013 ${endTime}`;
+  return startTime;
+}
+
+// ── Reservation auto-title ────────────────────────────────────────────────────
+
+/**
+ * Derives a short display title from a reservation's type and details.
+ * Used both by the Reservation domain class and the repo when persisting a title.
+ */
+export function reservationAutoTitle(type: ReservationType, details: Record<string, string>, fallbackTitle = 'Reservation'): string {
+  switch (type) {
+    case 'flight':
+      return `${details['flight_number'] ?? ''} \u00b7 ${details['depart_airport'] ?? '?'} \u2192 ${details['arrive_airport'] ?? '?'}`.trim();
+    case 'lodging':
+      return details['property_name'] ?? 'Lodging';
+    case 'restaurant':
+      return details['restaurant_name'] ?? 'Restaurant';
+    case 'train':
+    case 'bus':
+    case 'ferry':
+      return `${details['from_stop'] ?? '?'} \u2192 ${details['to_stop'] ?? '?'}`;
+    case 'rental_car':
+      return `${details['company'] ?? 'Car'} \u00b7 ${details['pickup_location'] ?? '?'} \u2192 ${details['dropoff_location'] ?? '?'}`;
+    default:
+      return details['description'] ?? fallbackTitle;
+  }
 }

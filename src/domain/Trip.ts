@@ -43,6 +43,9 @@ export class Trip {
   // ── Domain methods ────────────────────────────────────────────────────────
 
   isOngoing(): boolean {
+    // Reason: archived trips must never appear in the ongoing bucket even if their
+    // dates straddle today — status takes precedence over date arithmetic.
+    if (this.data.status === 'archived') return false;
     if (!this.data.start_date || !this.data.end_date) return false;
     const today = todayISO();
     return this.data.start_date <= today && today <= this.data.end_date;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import { RouteLeg } from '@/domain/RouteLeg';
@@ -8,6 +8,7 @@ interface UseRouteLegsResult {
   legs: RouteLeg[];
   legModes: LegModeRow[];
   isSyncing: boolean;
+  error: string | null;
   sync: () => Promise<void>;
   setLegMode: (fromLat: number, fromLng: number, toLat: number, toLng: number, mode: RouteLegTravelMode) => Promise<void>;
 }
@@ -16,14 +17,18 @@ export function useRouteLegs(tripId: number): UseRouteLegsResult {
   const [rows, setRows]           = useState<RouteLegRow[]>([]);
   const [legModes, setLegModes]   = useState<LegModeRow[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
-    api.get<RouteLegRow[]>(`/trips/${tripId}/route-legs`)
-      .then(setRows)
-      .catch(() => { /* silently — no legs yet */ });
-    api.get<LegModeRow[]>(`/trips/${tripId}/leg-modes`)
-      .then(setLegModes)
-      .catch(() => { /* no modes stored yet */ });
+    setError(null);
+    // Reason: legs and modes are fetched in parallel; a missing-legs error is not
+    // "no legs yet" but a real fetch failure, so we surface it in the error state.
+    Promise.all([
+      api.get<RouteLegRow[]>(`/trips/${tripId}/route-legs`).then(setRows),
+      api.get<LegModeRow[]>(`/trips/${tripId}/leg-modes`).then(setLegModes),
+    ]).catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : 'Failed to load route legs');
+    });
   }, [tripId]);
 
   const sync = useCallback(async () => {
@@ -75,6 +80,8 @@ export function useRouteLegs(tripId: number): UseRouteLegsResult {
     }
   }, [tripId]);
 
-  const legs = rows.map(r => new RouteLeg(r));
-  return { legs, legModes, isSyncing, sync, setLegMode };
+  // Reason: rows changes by reference on every fetch; memoising legs prevents
+  // downstream consumers from re-rendering due to a new array identity.
+  const legs = useMemo(() => rows.map(r => new RouteLeg(r)), [rows]);
+  return { legs, legModes, isSyncing, error, sync, setLegMode };
 }

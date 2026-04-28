@@ -1,5 +1,6 @@
 import type { ReservationRow, ReservationType, ReservationStatus } from '@/types/db';
 import type { LodgingDetails } from '@/schemas/reservation.schema';
+import { reservationAutoTitle } from '@/utils/format';
 
 export class Reservation {
   readonly data: ReservationRow;
@@ -86,22 +87,6 @@ export class Reservation {
    * Used when no explicit title is set, or to show in list views.
    */
   autoTitle(): string {
-    const d = this.parsedDetails<Record<string, string>>();
-    switch (this.data.type) {
-      case 'flight':
-        return `${d['flight_number'] ?? ''} · ${d['depart_airport'] ?? '?'} → ${d['arrive_airport'] ?? '?'}`.trim();
-      case 'lodging':
-        return d['property_name'] ?? 'Lodging';
-      case 'restaurant':
-        return d['restaurant_name'] ?? 'Restaurant';
-      case 'train':
-      case 'bus':
-      case 'ferry':
-        return `${d['from_stop'] ?? '?'} → ${d['to_stop'] ?? '?'}`;
-      case 'rental_car':
-        return `${d['company'] ?? 'Car'} · ${d['pickup_location'] ?? '?'} → ${d['dropoff_location'] ?? '?'}`;
-      default:
-        return d['description'] ?? this.data.title;
-    }
+    return reservationAutoTitle(this.data.type, this.parsedDetails<Record<string, string>>(), this.data.title);
   }
 }
