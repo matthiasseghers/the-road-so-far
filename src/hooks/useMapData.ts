@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { api } from '@/db/api-client';
 import type { ActivityRow, ReservationRow } from '@/types/db';
 import type { RawTripWithDays } from '@/db/repositories/trips.repo';
-import { buildMapData, countDaysMissingLocations } from '@/components/map/mapDataUtils';
-import type { MapPin, MapDay } from '@/components/map/mapDataUtils';
+import { buildMapData, countDaysMissingLocations } from '@/utils/mapData';
+import type { MapPin, MapDay } from '@/utils/mapData';
 
 export type { MapPin, MapDay };
 

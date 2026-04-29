@@ -25,11 +25,10 @@ export default function GeneralPanel({ theme, onThemeChange }: GeneralPanelProps
   const [usage, setUsage]         = useState<UsageStats | null>(null);
 
   useEffect(() => {
-    api.get<Record<string, unknown>>('/settings')
-      .then(settings => {
-        const key = settings['tomtom_api_key'];
-        if (typeof key === 'string') setApiKey(key);
-      })
+    // Reason: load the API key from the dedicated endpoint so the general
+    // GET /settings response doesn’t expose the raw key to the rest of the app.
+    api.get<{ tomtom_api_key: string }>('/settings/tomtom_api_key')
+      .then(({ tomtom_api_key }) => { if (tomtom_api_key) setApiKey(tomtom_api_key); })
       .catch(() => { /* ignore */ });
 
     api.get<UsageStats>('/route-legs/usage')

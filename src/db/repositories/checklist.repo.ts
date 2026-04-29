@@ -145,6 +145,13 @@ export function findTemplateItems(templateId: number): TemplateItemRow[] {
     .all(templateId) as TemplateItemRow[];
 }
 
+export function findTemplateItemById(id: number): TemplateItemRow | null {
+  const row = getDb()
+    .prepare('SELECT * FROM template_items WHERE id = ?')
+    .get(id) as TemplateItemRow | undefined;
+  return row ?? null;
+}
+
 export interface CreateTemplateInput {
   name: string;
   icon_name?: string | null;

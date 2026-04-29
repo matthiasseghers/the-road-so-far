@@ -8,6 +8,7 @@ import * as checklistRepo from '../src/db/repositories/checklist.repo.js';
 import * as settingsRepo from '../src/db/repositories/settings.repo.js';
 import * as routeLegsRepo from '../src/db/repositories/route-legs.repo.js';
 import * as legModesRepo from '../src/db/repositories/leg-modes.repo.js';
+import * as mapRepo from '../src/db/repositories/map.repo.js';
 import { findLegMode } from '../src/domain/RouteLeg.js';
 import * as calendarRepo from '../src/db/repositories/calendar.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
@@ -23,10 +24,18 @@ import { z } from 'zod';
 // Reason: Nominatim's usage policy requires ≤1 req/s. A single shared promise
 // chain serialises all outbound geocoding calls server-wide and enforces the
 // minimum delay between them, regardless of how many requests arrive concurrently.
+const GEOCODE_QUEUE_MAX_DEPTH = 20;
 let _geocodeQueue: Promise<void> = Promise.resolve();
+let _geocodeQueueDepth = 0;
 function queuedGeocode(
   query: string,
 ): Promise<{ lat: number; lng: number } | null> {
+  // Reason: cap the queue so a runaway loop of geocode requests cannot grow the
+  // promise chain indefinitely and exhaust memory.
+  if (_geocodeQueueDepth >= GEOCODE_QUEUE_MAX_DEPTH) {
+    return Promise.reject(new Error('Geocode queue full — try again later'));
+  }
+  _geocodeQueueDepth++;
   const result = _geocodeQueue.then(
     () => geocodePlace(query),
   ).then(coords => {
@@ -35,11 +44,26 @@ function queuedGeocode(
     return new Promise<{ lat: number; lng: number } | null>(resolve =>
       setTimeout(() => resolve(coords), GEOCODE_DELAY_MS),
     );
-  });
+  }).finally(() => { _geocodeQueueDepth--; });
   // Advance the queue pointer on the delay promise (not the result),
   // so errors in one call don't stall subsequent queued calls.
   _geocodeQueue = result.then(() => undefined).catch(() => undefined);
   return result;
+}
+
+// ── Route parameter helpers ───────────────────────────────────────────────────
+
+// Reason: Number() silently returns NaN for non-numeric strings, which
+// better-sqlite3 coerces to NULL — potentially matching unrelated rows.
+// parseInt with guards produces a clean 400 instead.
+// Accepts string | string[] | undefined to cover both req.params and req.query typings.
+// Reason: named parseIdParam (not parseIntParam) because every integer URL param in this
+// router is a SQLite AUTOINCREMENT primary key, which is always a positive integer (≥ 1).
+// Zero and negatives are structurally invalid IDs — rejecting them here is correct.
+function parseIdParam(val: string | string[] | undefined): number | null {
+  const str = Array.isArray(val) ? val[0] : val;
+  const n = parseInt(str ?? '', 10);
+  return isNaN(n) || n <= 0 ? null : n;
 }
 
 // ── Shared inline schemas (small, single-use, not worth a separate file) ─────
@@ -112,24 +136,30 @@ router.post('/trips', (req: Request, res: Response) => {
 });
 
 router.get('/trips/:id/full', (req: Request, res: Response) => {
-  const trip = tripsRepo.findTripWithDays(Number(req.params['id']));
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const trip = tripsRepo.findTripWithDays(id);
   if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
   res.json(trip);
 });
 
 router.get('/trips/:id', (req: Request, res: Response) => {
-  const trip = tripsRepo.findTripById(Number(req.params['id']));
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const trip = tripsRepo.findTripById(id);
   if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
   res.json(trip);
 });
 
 router.patch('/trips/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const parsed = PatchTripSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     return;
   }
-  const trip = tripsRepo.updateTrip(Number(req.params['id']), parsed.data);
+  const trip = tripsRepo.updateTrip(id, parsed.data);
   if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
   if (trip.start_date && trip.end_date) {
     syncDaysForTrip(trip.id, trip.start_date, trip.end_date);
@@ -138,8 +168,8 @@ router.patch('/trips/:id', (req: Request, res: Response) => {
 });
 
 router.delete('/trips/:id', (req: Request, res: Response) => {
-  const id = parseInt(req.params['id'] as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   tripsRepo.deleteTrip(id);
   res.status(204).send();
 });
@@ -147,9 +177,11 @@ router.delete('/trips/:id', (req: Request, res: Response) => {
 // ── Calendar ──────────────────────────────────────────────────────────────────
 
 router.get('/trips/:tripId/calendar-days', (req: Request, res: Response) => {
-  const trip = tripsRepo.findTripById(Number(req.params['tripId']));
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const trip = tripsRepo.findTripById(tripId);
   if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
-  res.json(calendarRepo.getDaysForTrip(Number(req.params['tripId'])));
+  res.json(calendarRepo.getDaysForTrip(tripId));
 });
 
 // ── Days ──────────────────────────────────────────────────────────────────────
@@ -172,7 +204,9 @@ router.patch('/days/:id', (req: Request, res: Response) => {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     return;
   }
-  const day = daysRepo.updateDay(Number(req.params['id']), parsed.data);
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const day = daysRepo.updateDay(id, parsed.data);
   if (!day) { res.status(404).json({ error: 'Day not found' }); return; }
   res.json(day);
 });
@@ -180,10 +214,12 @@ router.patch('/days/:id', (req: Request, res: Response) => {
 // ── Activities ────────────────────────────────────────────────────────────────
 
 router.get('/activities', (req: Request, res: Response) => {
-  if (req.query['dayId']) {
-    res.json(activitiesRepo.findActivitiesByDayId(Number(req.query['dayId'])));
-  } else if (req.query['tripId']) {
-    res.json(activitiesRepo.findActivitiesByTripId(Number(req.query['tripId'])));
+  const dayId  = parseIdParam(req.query['dayId']  as string | undefined);
+  const tripId = parseIdParam(req.query['tripId'] as string | undefined);
+  if (dayId) {
+    res.json(activitiesRepo.findActivitiesByDayId(dayId));
+  } else if (tripId) {
+    res.json(activitiesRepo.findActivitiesByTripId(tripId));
   } else {
     res.status(400).json({ error: 'dayId or tripId query param required' });
   }
@@ -213,15 +249,14 @@ router.put('/activities/reorder', (req: Request, res: Response) => {
 });
 
 router.patch('/activities/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const parsed = PatchActivitySchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     return;
   }
-  const activity = activitiesRepo.updateActivity(
-    Number(req.params['id']),
-    parsed.data,
-  );
+  const activity = activitiesRepo.updateActivity(id, parsed.data);
   if (!activity) { res.status(404).json({ error: 'Activity not found' }); return; }
   res.json(activity);
 });
@@ -235,7 +270,8 @@ const GeocodeBodySchema = z.object({
 });
 
 router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
-  const id = Number(req.params['id']);
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const activity = activitiesRepo.findActivityById(id);
   if (!activity) { res.status(404).json({ error: 'Activity not found' }); return; }
   const parsed = GeocodeBodySchema.safeParse(req.body);
@@ -256,8 +292,8 @@ router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
 });
 
 router.delete('/activities/:id', (req: Request, res: Response) => {
-  const id = parseInt(req.params['id'] as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!activitiesRepo.findActivityById(id)) { res.status(404).json({ error: 'Activity not found' }); return; }
   activitiesRepo.deleteActivity(id);
   res.status(204).send();
@@ -266,10 +302,12 @@ router.delete('/activities/:id', (req: Request, res: Response) => {
 // ── Reservations ──────────────────────────────────────────────────────────
 
 router.get('/reservations', (req: Request, res: Response) => {
-  if (req.query['tripId']) {
-    res.json(reservationsRepo.findAllByTripId(Number(req.query['tripId'])));
-  } else if (req.query['dayId']) {
-    res.json(reservationsRepo.findAllByDayId(Number(req.query['dayId'])));
+  const tripId = parseIdParam(req.query['tripId'] as string | undefined);
+  const dayId  = parseIdParam(req.query['dayId']  as string | undefined);
+  if (tripId) {
+    res.json(reservationsRepo.findAllByTripId(tripId));
+  } else if (dayId) {
+    res.json(reservationsRepo.findAllByDayId(dayId));
   } else {
     res.status(400).json({ error: 'tripId or dayId query param required' });
   }
@@ -291,12 +329,15 @@ router.post('/reservations', (req: Request, res: Response) => {
 });
 
 router.get('/reservations/:id', (req: Request, res: Response) => {
-  const reservation = reservationsRepo.findById(Number(req.params['id']));
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const reservation = reservationsRepo.findById(id);
   if (!reservation) { res.status(404).json({ error: 'Reservation not found' }); return; }
   res.json(reservation);
 });
 router.patch('/reservations/:id/geocode', (req: Request, res: Response) => {
-  const id = Number(req.params['id']);
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const reservation = reservationsRepo.findById(id);
   if (!reservation) { res.status(404).json({ error: 'Reservation not found' }); return; }
   const parsed = GeocodeBodySchema.safeParse(req.body);
@@ -316,13 +357,15 @@ router.patch('/reservations/:id/geocode', (req: Request, res: Response) => {
     .catch(() => res.status(503).json({ error: 'Geocoding failed' }));
 });
 router.patch('/reservations/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const parsed = UpdateReservationSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     return;
   }
 
-  const result = reservationsRepo.updateReservationSafe(Number(req.params['id']), parsed.data);
+  const result = reservationsRepo.updateReservationSafe(id, parsed.data);
   if (result === null) { res.status(404).json({ error: 'Reservation not found' }); return; }
   if (!result.ok) {
     res.status(409).json({ error: 'overlap', conflictingTitle: result.conflict });
@@ -337,18 +380,20 @@ const ReorderItemsSchema = z.object({
 });
 
 router.patch('/days/:dayId/reorder', (req: Request, res: Response) => {
+  const dayId = parseIdParam(req.params['dayId']);
+  if (!dayId) { res.status(400).json({ error: 'Invalid dayId' }); return; }
   const parsed = ReorderItemsSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     return;
   }
-  reservationsRepo.reorderDayItems(Number(req.params['dayId']), parsed.data.items);
+  reservationsRepo.reorderDayItems(dayId, parsed.data.items);
   res.status(204).send();
 });
 
 router.delete('/reservations/:id', (req: Request, res: Response) => {
-  const id = parseInt(req.params['id'] as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!reservationsRepo.findById(id)) { res.status(404).json({ error: 'Reservation not found' }); return; }
   reservationsRepo.deleteReservation(id);
   res.status(204).send();
@@ -380,10 +425,10 @@ router.post('/checklist-items/copy-templates', (req: Request, res: Response) => 
 });
 
 router.put('/trips/:tripId/checklist/reorder', (req: Request, res: Response) => {
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   const parsed = TripReorderSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   const matched = checklistRepo.reorderChecklistItems(tripId, parsed.data.ids);
   if (matched !== parsed.data.ids.length) {
     res.status(422).json({ error: 'Some checklist item IDs do not belong to the specified trip' });
@@ -393,19 +438,21 @@ router.put('/trips/:tripId/checklist/reorder', (req: Request, res: Response) => 
 });
 
 router.patch('/checklist-items/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const parsed = PatchChecklistItemSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
     return;
   }
-  const item = checklistRepo.updateChecklistItem(Number(req.params['id']), parsed.data);
+  const item = checklistRepo.updateChecklistItem(id, parsed.data);
   if (!item) { res.status(404).json({ error: 'Checklist item not found' }); return; }
   res.json(item);
 });
 
 router.delete('/checklist-items/:id', (req: Request, res: Response) => {
-  const id = parseInt(req.params['id'] as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   if (!checklistRepo.findChecklistItemById(id)) { res.status(404).json({ error: 'Checklist item not found' }); return; }
   checklistRepo.deleteChecklistItem(id);
   res.status(204).send();
@@ -414,14 +461,14 @@ router.delete('/checklist-items/:id', (req: Request, res: Response) => {
 // ── Checklist RESTful routes ─────────────────────────────────────────────────
 
 router.get('/trips/:tripId/checklist', (req: Request, res: Response) => {
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   res.json(checklistRepo.findChecklistItemsByTripId(tripId));
 });
 
 router.post('/trips/:tripId/checklist', (req: Request, res: Response) => {
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   const parsed = CreateChecklistItemSchema.safeParse({ ...req.body, trip_id: tripId });
   if (!parsed.success) {
     res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
@@ -432,8 +479,9 @@ router.post('/trips/:tripId/checklist', (req: Request, res: Response) => {
 });
 
 router.patch('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
-  const tripId = Number(req.params['tripId']);
-  const id = Number(req.params['id']);
+  const tripId = parseIdParam(req.params['tripId']);
+  const id = parseIdParam(req.params['id']);
+  if (!tripId || !id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const existing = checklistRepo.findChecklistItemById(id);
   if (!existing || existing.trip_id !== tripId) {
     res.status(404).json({ error: 'Checklist item not found' });
@@ -449,8 +497,9 @@ router.patch('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
 });
 
 router.delete('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
-  const tripId = Number(req.params['tripId']);
-  const id = Number(req.params['id']);
+  const tripId = parseIdParam(req.params['tripId']);
+  const id = parseIdParam(req.params['id']);
+  if (!tripId || !id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const existing = checklistRepo.findChecklistItemById(id);
   if (!existing || existing.trip_id !== tripId) {
     res.status(404).json({ error: 'Checklist item not found' });
@@ -464,17 +513,19 @@ router.delete('/trips/:tripId/checklist/:id', (req: Request, res: Response) => {
 router.patch('/trips/:tripId/checklist/category/:cat', (req: Request, res: Response) => {
   const parsed = RenameCategorySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
-  const oldCat = decodeURIComponent(req.params['cat'] as string);
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  // Reason: Express already URL-decodes path params; a second decodeURIComponent would
+  // double-decode sequences like %25 → % → wrong character.
+  const oldCat = req.params['cat'] as string;
   checklistRepo.renameChecklistCategory(tripId, oldCat, parsed.data.name.toLowerCase());
   res.status(204).send();
 });
 
 router.delete('/trips/:tripId/checklist/category/:cat', (req: Request, res: Response) => {
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
-  const cat = decodeURIComponent(req.params['cat'] as string);
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const cat = req.params['cat'] as string;
   checklistRepo.deleteChecklistItemsByCategory(tripId, cat);
   res.status(204).send();
 });
@@ -498,25 +549,28 @@ router.post('/checklist-templates', (req: Request, res: Response) => {
 });
 
 router.get('/checklist-templates/:id', (req: Request, res: Response) => {
-  const template = checklistRepo.findTemplateById(Number(req.params['id']));
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const template = checklistRepo.findTemplateById(id);
   if (!template) { res.status(404).json({ error: 'Template not found' }); return; }
   res.json(template);
 });
 
 router.patch('/checklist-templates/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const parsed = TemplatePatchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  const template = checklistRepo.updateTemplate(
-    Number(req.params['id']),
-    parsed.data,
-  );
+  const template = checklistRepo.updateTemplate(id, parsed.data);
   if (!template) { res.status(404).json({ error: 'Template not found' }); return; }
   res.json(template);
 });
 
 router.delete('/checklist-templates/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   try {
-    checklistRepo.deleteTemplate(Number(req.params['id']));
+    checklistRepo.deleteTemplate(id);
     res.status(204).send();
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });
@@ -537,20 +591,19 @@ router.post('/template-items', (req: Request, res: Response) => {
 });
 
 router.patch('/template-items/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
   const parsed = TemplateItemPatchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
-  const item = checklistRepo.updateTemplateItem(
-    Number(req.params['id']),
-    parsed.data,
-  );
+  const item = checklistRepo.updateTemplateItem(id, parsed.data);
   if (!item) { res.status(404).json({ error: 'Template item not found' }); return; }
   res.json(item);
 });
 
 router.delete('/template-items/:id', (req: Request, res: Response) => {
-  const id = parseInt(req.params['id'] as string, 10);
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return; }
-  const existing = getDb().prepare('SELECT id FROM template_items WHERE id = ?').get(id);
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const existing = checklistRepo.findTemplateItemById(id);
   if (!existing) { res.status(404).json({ error: 'Template item not found' }); return; }
   checklistRepo.deleteTemplateItem(id);
   res.status(204).send();
@@ -572,63 +625,35 @@ router.put('/template-items/reorder', (req: Request, res: Response) => {
 // Reason: returns all geocoded activities + reservations across all trips in one
 // flat list so the global MapPage can render without per-trip fetch loops.
 router.get('/map/pins', (_req: Request, res: Response) => {
-  const db = getDb();
-
-  const activities = db.prepare(`
-    SELECT a.id, a.title, a.start_time, a.lat, a.lng,
-           t.id   AS trip_id,
-           t.title AS trip_title,
-           d.date  AS day_date
-    FROM   activities a
-    JOIN   days d  ON d.id  = a.day_id
-    JOIN   trips t ON t.id  = d.trip_id
-    WHERE  a.lat IS NOT NULL AND a.lng IS NOT NULL
-  `).all() as Array<{
-    id: number; title: string; start_time: string | null;
-    lat: number; lng: number;
-    trip_id: number; trip_title: string; day_date: string;
-  }>;
-
-  const reservations = db.prepare(`
-    SELECT r.id, r.title, r.type, r.lat, r.lng,
-           t.id    AS trip_id,
-           t.title AS trip_title,
-           d.date  AS day_date
-    FROM   reservations r
-    JOIN   trips t ON t.id = r.trip_id
-    LEFT JOIN days d ON d.id = r.day_id
-    WHERE  r.lat IS NOT NULL AND r.lng IS NOT NULL
-  `).all() as Array<{
-    id: number; title: string; type: string;
-    lat: number; lng: number;
-    trip_id: number; trip_title: string; day_date: string | null;
-  }>;
-
-  // Reason: include trip metadata so the client can show date ranges in the legend
-  // without a second round-trip. Ordered by start_date for consistent palette assignment.
-  const trips = db.prepare(`
-    SELECT DISTINCT t.id, t.title, t.start_date, t.end_date
-    FROM   trips t
-    WHERE  t.id IN (
-      SELECT DISTINCT trip_id FROM activities   WHERE lat IS NOT NULL AND lng IS NOT NULL
-      UNION
-      SELECT DISTINCT trip_id FROM reservations WHERE lat IS NOT NULL AND lng IS NOT NULL
-    )
-    ORDER BY t.start_date
-  `).all() as Array<{ id: number; title: string; start_date: string | null; end_date: string | null }>;
-
-  res.json({ activities, reservations, trips });
+  res.json(mapRepo.getMapPins());
 });
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
 router.get('/settings', (_req: Request, res: Response) => {
-  res.json(settingsRepo.getAllSettings());
+  const settings = settingsRepo.getAllSettings();
+  // Reason: the raw TomTom API key must not be returned to the browser in the
+  // general settings payload — components that only need to know whether a key
+  // is configured should use `has_tomtom_api_key`. Only the Settings panel calls
+  // GET /settings/tomtom_api_key to load the key for display/editing purposes.
+  res.json({
+    ...settings,
+    tomtom_api_key:     '',
+    has_tomtom_api_key: settings.tomtom_api_key.length > 0,
+  });
+});
+
+// Reason: dedicated route so the Settings panel can pre-fill the API key input.
+// Separated from GET /settings so other consumers never receive the raw key.
+// Must be declared before PUT /settings/:key to avoid being caught as a param match.
+router.get('/settings/tomtom_api_key', (_req: Request, res: Response) => {
+  const { tomtom_api_key } = settingsRepo.getAllSettings();
+  res.json({ tomtom_api_key });
 });
 
 // Reason: whitelist prevents arbitrary keys from being written to the settings table
 // by non-browser HTTP clients that bypass the frontend's fixed set of setting keys.
-const ALLOWED_SETTING_KEYS = ['theme', 'distance_unit', 'date_format', 'time_areas', 'tomtom_api_key'] as const;
+const ALLOWED_SETTING_KEYS = ['theme', 'date_format', 'time_areas', 'tomtom_api_key'] as const;
 type AllowedSettingKey = typeof ALLOWED_SETTING_KEYS[number];
 
 router.put('/settings/:key', (req: Request, res: Response) => {
@@ -667,7 +692,8 @@ router.get('/export/all', (_req: Request, res: Response) => {
 
 // Per-trip .trippack export — same shape as /export/all but scoped to one trip.
 router.get('/trips/:tripId/export/trippack', (req: Request, res: Response) => {
-  const tripId = Number(req.params['tripId']);
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   const trip = tripsRepo.findTripById(tripId);
   if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
   res.json({
@@ -903,16 +929,7 @@ router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response
   // Reason: union activities + reservations so every geocoded point in the day
   // is considered, regardless of type. Reservations offset by 1000 to sort after activities.
   type GeoPoint = { day_id: number; date: string; sort_order: number; lat: number; lng: number };
-  const points = db.prepare(`
-    SELECT a.day_id, d.date, a.sort_order, a.lat, a.lng
-    FROM   activities a JOIN days d ON d.id = a.day_id
-    WHERE  a.trip_id = ? AND a.lat IS NOT NULL AND a.lng IS NOT NULL
-    UNION ALL
-    SELECT r.day_id, d.date, r.sort_order + 1000 AS sort_order, r.lat, r.lng
-    FROM   reservations r JOIN days d ON d.id = r.day_id
-    WHERE  r.trip_id = ? AND r.lat IS NOT NULL AND r.lng IS NOT NULL
-    ORDER  BY date, sort_order
-  `).all(tripId, tripId) as GeoPoint[];
+  const points = routeLegsRepo.getGeoPointsForTrip(tripId) as GeoPoint[];
 
   // Group into map of date → ordered points
   const byDate = new Map<string, GeoPoint[]>();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDateRange, formatDistance, formatDuration, formatProgress, formatActivityTime } from '@/utils/format';
+import { formatDateRange, formatDistance, formatDuration, formatProgress, formatActivityTime, formatTripDateRange } from '@/utils/format';
 
 describe('formatDateRange()', () => {
   it('omits year from start when same year', () => {
@@ -92,5 +92,25 @@ describe('formatActivityTime()', () => {
 
   it('returns empty string when start_time is null regardless of end_time', () => {
     expect(formatActivityTime(null, '10:30')).toBe('');
+  });
+});
+
+describe('formatTripDateRange()', () => {
+  it('returns null when start is null', () => {
+    expect(formatTripDateRange(null, null)).toBeNull();
+  });
+
+  it('returns long date when only start is provided', () => {
+    expect(formatTripDateRange('2025-06-01', null)).toBe('1 Jun 2025');
+  });
+
+  it('omits year from start when same year as end', () => {
+    const result = formatTripDateRange('2025-06-01', '2025-06-14');
+    expect(result).toBe('1 Jun \u2013 14 Jun 2025');
+  });
+
+  it('includes year on both sides when cross-year', () => {
+    const result = formatTripDateRange('2024-12-28', '2025-01-04');
+    expect(result).toBe('28 Dec 2024 \u2013 4 Jan 2025');
   });
 });

@@ -1,6 +1,15 @@
 import { getDb } from '../client.js';
 import type { RouteLegRow, RouteLegTravelMode } from '@/types/db';
 
+/** TomTom Routing API free-tier daily call cap. */
+const TOMTOM_ROUTING_DAILY_LIMIT = 2_500;
+
+/**
+ * Reservations are offset by this value in sort_order so they appear after
+ * activities when both share the same day and neither has an explicit position.
+ */
+const RESERVATION_SORT_OFFSET = 1_000;
+
 export function getByTrip(tripId: number): RouteLegRow[] {
   return getDb()
     .prepare('SELECT * FROM route_legs WHERE trip_id = ? ORDER BY id')
@@ -57,5 +66,31 @@ export function getUsageStats(): RouteLegUsageStats {
   const db = getDb();
   const today = (db.prepare(`SELECT COUNT(*) FROM route_legs WHERE date(fetched_at) = date('now')`).pluck().get() as number) ?? 0;
   const total = (db.prepare('SELECT COUNT(*) FROM route_legs').pluck().get() as number) ?? 0;
-  return { today, total, dailyLimit: 2_500 };
+  return { today, total, dailyLimit: TOMTOM_ROUTING_DAILY_LIMIT };
+}
+
+export interface GeoPoint {
+  day_id: number;
+  date: string;
+  sort_order: number;
+  lat: number;
+  lng: number;
+}
+
+/**
+ * Returns all geocoded activity + reservation points for a trip, ordered by
+ * date then sort_order. Reservations are offset by 1000 so they sort after
+ * same-day activities.
+ */
+export function getGeoPointsForTrip(tripId: number): GeoPoint[] {
+  return getDb().prepare(`
+    SELECT a.day_id, d.date, a.sort_order, a.lat, a.lng
+    FROM   activities a JOIN days d ON d.id = a.day_id
+    WHERE  a.trip_id = ? AND a.lat IS NOT NULL AND a.lng IS NOT NULL
+    UNION ALL
+    SELECT r.day_id, d.date, r.sort_order + ${RESERVATION_SORT_OFFSET} AS sort_order, r.lat, r.lng
+    FROM   reservations r JOIN days d ON d.id = r.day_id
+    WHERE  r.trip_id = ? AND r.lat IS NOT NULL AND r.lng IS NOT NULL
+    ORDER  BY date, sort_order
+  `).all(tripId, tripId) as GeoPoint[];
 }

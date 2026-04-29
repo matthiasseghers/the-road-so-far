@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMapData, countDaysMissingLocations, TYPE_COLORS } from '@/components/map/mapDataUtils';
+import { buildMapData, countDaysMissingLocations, TYPE_COLORS } from '@/utils/mapData';
 import type { ActivityRow, ReservationRow, DayRow } from '@/types/db';
 
 // ── Factories ─────────────────────────────────────────────────────────────────

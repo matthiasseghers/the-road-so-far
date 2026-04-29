@@ -50,7 +50,6 @@ export interface TimeAreaConfig {
 
 export interface AppSettings {
   theme: Theme;
-  distance_unit: DistanceUnit;
   date_format: DateFormat;
   time_areas: Record<string, TimeAreaConfig>;
   tomtom_api_key: string;

@@ -16,6 +16,24 @@ export function formatDateRange(start: string, end: string): string {
   return `${dateFnsFormat(s, startFmt)} – ${dateFnsFormat(e, 'd MMM yyyy')}`;
 }
 
+/**
+ * Formats a trip date range for legend/sidebar display.
+ * "3 Jan – 14 Jan 2026" (same year, year omitted from start)
+ * "28 Dec 2025 – 4 Jan 2026" (cross-year)
+ * Returns null when start is null.
+ */
+export function formatTripDateRange(start: string | null, end: string | null): string | null {
+  if (!start) return null;
+  const s = parseISO(`${start}T12:00:00`);
+  if (!isValid(s)) return null;
+  if (!end) return dateFnsFormat(s, 'd MMM yyyy');
+  const e = parseISO(`${end}T12:00:00`);
+  if (!isValid(e)) return dateFnsFormat(s, 'd MMM yyyy');
+  const sameYear = s.getFullYear() === e.getFullYear();
+  const startFmt = sameYear ? 'd MMM' : 'd MMM yyyy';
+  return `${dateFnsFormat(s, startFmt)} \u2013 ${dateFnsFormat(e, 'd MMM yyyy')}`;
+}
+
 // ── Distance formatting ───────────────────────────────────────────────────────
 
 /** Formats metres as "1,234 km" or "767 mi". */

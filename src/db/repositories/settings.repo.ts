@@ -3,7 +3,6 @@ import type { SettingRow } from '@/types/db';
 import type {
   AppSettings,
   Theme,
-  DistanceUnit,
   DateFormat,
   TimeAreaConfig,
 } from '@/types/domain';
@@ -39,7 +38,6 @@ export function getAllSettings(): AppSettings {
   // Reason: provide safe defaults so callers never need to null-check settings
   return {
     theme: (map.get('theme') ?? 'dark') as Theme,
-    distance_unit: (map.get('distance_unit') ?? 'km') as DistanceUnit,
     date_format: (map.get('date_format') ?? 'DD MMM YYYY') as DateFormat,
     time_areas: (map.get('time_areas') ?? {}) as Record<string, TimeAreaConfig>,
     tomtom_api_key: (map.get('tomtom_api_key') ?? '') as string,

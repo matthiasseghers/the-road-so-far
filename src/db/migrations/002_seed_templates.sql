@@ -37,7 +37,6 @@ INSERT OR IGNORE INTO template_items (template_id, label, category, sort_order) 
 -- Default settings
 INSERT OR IGNORE INTO settings (key, value) VALUES
   ('theme',         '"dark"'),
-  ('distance_unit', '"km"'),
   ('date_format',   '"DD MMM YYYY"'),
   ('time_areas',    '{"morning":{"label":"Morning","start":6,"end":12},"noon":{"label":"Noon","start":12,"end":13},"afternoon":{"label":"Afternoon","start":13,"end":17},"evening":{"label":"Evening","start":17,"end":20},"night":{"label":"Night","start":20,"end":24},"anytime":{"label":"Anytime","start":0,"end":24}}'),
   ('tomtom_api_key','""');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMapData } from '@/components/map/mapDataUtils';
+import { buildMapData } from '@/utils/mapData';
 import type { ActivityRow, ReservationRow, DayRow } from '@/types/db';
 
 // Minimal factories
