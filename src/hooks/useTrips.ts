@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import { Trip } from '@/domain/Trip';
@@ -69,11 +69,16 @@ export function useTrips(): UseTripsReturn {
     }
   }, [refetch]);
 
+  // Reason: memoize derived buckets so consumers don't re-filter on every render.
+  const ongoing  = useMemo(() => trips.filter(t => t.isOngoing()),  [trips]);
+  const upcoming = useMemo(() => trips.filter(t => t.isUpcoming()), [trips]);
+  const past     = useMemo(() => trips.filter(t => t.isPast()),     [trips]);
+
   return {
     trips,
-    ongoing:  trips.filter(t => t.isOngoing()),
-    upcoming: trips.filter(t => t.isUpcoming()),
-    past:     trips.filter(t => t.isPast()),
+    ongoing,
+    upcoming,
+    past,
     isLoading,
     error,
     refetch,

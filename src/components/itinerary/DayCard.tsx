@@ -2,7 +2,7 @@ import { Plus, ChevronDown, CalendarPlus } from 'lucide-react';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Button } from '@/components/ui/button';
 import { formatDate, todayISO } from '@/utils/dates';
-import { buildDayViewModel } from '@/utils/activity';
+import { sortActivities } from '@/utils/activity';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import ActivityItem from './ActivityItem';
 import type { DayWithActivities } from '@/types/domain';
@@ -17,11 +17,11 @@ interface DayCardProps {
 }
 
 export default function DayCard({ day, onAddActivity, onEditActivity, onDeleteActivity }: DayCardProps): JSX.Element {
-  const vm = buildDayViewModel(day, day.activities);
+  const activities = sortActivities(day.activities);
 
-  const timedActivities = vm.activities.filter(a => a.hasTime());
-  const untimedActivities = vm.activities.filter(a => !a.hasTime());
-  const isEmpty = vm.activities.length === 0;
+  const timedActivities = activities.filter(a => a.hasTime());
+  const untimedActivities = activities.filter(a => !a.hasTime());
+  const isEmpty = activities.length === 0;
 
   // Reason: both day.date and todayISO() are YYYY-MM-DD strings — direct comparison is timezone-safe.
   const isToday = day.date === todayISO();

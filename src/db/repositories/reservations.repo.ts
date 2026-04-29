@@ -46,29 +46,25 @@ export function findLodgingOverlap(
   checkOutDate: string,
   excludeId?: number,
 ): ReservationRow | null {
-  const db = getDb();
-  // Reason: fetch all lodging for this trip then check overlap in JS,
-  // since dates are stored inside the JSON details column.
-  const rows = db
-    .prepare(`SELECT * FROM reservations WHERE trip_id = ? AND type = 'lodging'${excludeId != null ? ' AND id != ?' : ''}`)
-    .all(excludeId != null ? [tripId, excludeId] : [tripId]) as ReservationRow[];
+  // Reason: push date comparison into SQL via json_extract so only the single
+  // conflicting row is returned instead of loading all lodging rows into JS.
+  // Overlap condition: existing check_in < new check_out AND existing check_out > new check_in.
+  // Strict inequality so back-to-back lodgings on the same date are allowed.
+  const sql = `
+    SELECT * FROM reservations
+    WHERE  trip_id = ?
+    AND    type    = 'lodging'
+    AND    json_extract(details, '$.check_out_date') > ?
+    AND    json_extract(details, '$.check_in_date')  < ?
+    ${excludeId != null ? 'AND id != ?' : ''}
+    LIMIT 1
+  `;
+  const params: unknown[] = excludeId != null
+    ? [tripId, checkInDate, checkOutDate, excludeId]
+    : [tripId, checkInDate, checkOutDate];
 
-  for (const row of rows) {
-    let d: Record<string, string>;
-    // Reason: guard against malformed JSON so a corrupt row doesn't abort the overlap check.
-    try {
-      d = JSON.parse(row.details) as Record<string, string>;
-    } catch {
-      continue;
-    }
-    const ci = d['check_in_date'];
-    const co = d['check_out_date'];
-    if (!ci || !co) continue;
-    // Reason: check-out on the same date as the next check-in is NOT an overlap.
-    // Use strict inequality so back-to-back lodgings on the same date are allowed.
-    if (checkInDate < co && checkOutDate > ci) return row;
-  }
-  return null;
+  const row = getDb().prepare(sql).get(...params) as ReservationRow | undefined;
+  return row ?? null;
 }
 
 // ─── Mutations ────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDateRange, formatDistance, formatDuration, formatProgress, formatActivityTime, formatTripDateRange } from '@/utils/format';
+import { formatDateRange, formatDistance, formatDuration, formatProgress, formatActivityTime, formatTripDateRange, nightCount } from '@/utils/format';
 
 describe('formatDateRange()', () => {
   it('omits year from start when same year', () => {
@@ -112,5 +112,38 @@ describe('formatTripDateRange()', () => {
   it('includes year on both sides when cross-year', () => {
     const result = formatTripDateRange('2024-12-28', '2025-01-04');
     expect(result).toBe('28 Dec 2024 \u2013 4 Jan 2025');
+  });
+});
+
+describe('nightCount()', () => {
+  it('returns correct night count', () => {
+    expect(nightCount('2025-06-10', '2025-06-15')).toBe(5);
+  });
+
+  it('returns 0 for same-day check-in/check-out', () => {
+    expect(nightCount('2025-06-10', '2025-06-10')).toBe(0);
+  });
+
+  it('returns 0 when check-out is before check-in', () => {
+    expect(nightCount('2025-06-15', '2025-06-10')).toBe(0);
+  });
+
+  it('returns 1 for an overnight stay', () => {
+    expect(nightCount('2025-06-10', '2025-06-11')).toBe(1);
+  });
+});
+
+describe('formatDistance() — additional cases', () => {
+  it('formats a fractional km correctly', () => {
+    // 1500m = 1.5 km
+    const result = formatDistance(1500, 'km');
+    expect(result).toBe('1.5 km');
+  });
+
+  it('formats large distances in km', () => {
+    const result = formatDistance(10_000_000, 'km');
+    expect(result).toContain('km');
+    // 10 000 km — locale formatting may vary; just verify it contains the unit
+    expect(result.length).toBeGreaterThan(3);
   });
 });

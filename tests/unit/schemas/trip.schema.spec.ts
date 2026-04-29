@@ -106,4 +106,41 @@ describe('PatchTripSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('skips date refinement when only start_date is provided', () => {
+    // Without end_date there is nothing to compare — should pass.
+    const result = PatchTripSchema.safeParse({ start_date: '2025-10-01' });
+    expect(result.success).toBe(true);
+  });
+
+  it('skips date refinement when only end_date is provided', () => {
+    const result = PatchTripSchema.safeParse({ end_date: '2025-10-01' });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts equal start_date and end_date', () => {
+    const result = PatchTripSchema.safeParse({
+      start_date: '2025-10-01',
+      end_date: '2025-10-01',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('reports error on end_date path when dates are inverted', () => {
+    const result = PatchTripSchema.safeParse({
+      start_date: '2025-10-15',
+      end_date: '2025-10-01',
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors['end_date']).toBeDefined();
+    }
+  });
+
+  it('accepts valid status values', () => {
+    const statuses = ['draft', 'planning', 'confirmed', 'ready', 'completed', 'archived'] as const;
+    for (const status of statuses) {
+      expect(PatchTripSchema.safeParse({ status }).success).toBe(true);
+    }
+  });
 });

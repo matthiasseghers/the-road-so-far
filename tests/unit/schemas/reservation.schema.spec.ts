@@ -7,6 +7,7 @@ import {
   FerryDetailsSchema,
   RentalCarDetailsSchema,
   CreateReservationSchema,
+  UpdateReservationSchema,
 } from '@/schemas/reservation.schema';
 
 // ── LodgingDetailsSchema ──────────────────────────────────────────────────────
@@ -251,6 +252,39 @@ describe('CreateReservationSchema', () => {
         check_out_date: '2025-06-10',
       },
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ── UpdateReservationSchema ───────────────────────────────────────────────────
+
+describe('UpdateReservationSchema', () => {
+  it('leaves status undefined when not provided so repo falls back to DB value', () => {
+    const result = UpdateReservationSchema.safeParse({ id: 1 });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.status).toBeUndefined();
+  });
+
+  it('leaves cost_currency undefined when not provided so repo falls back to DB value', () => {
+    const result = UpdateReservationSchema.safeParse({ id: 1 });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.cost_currency).toBeUndefined();
+  });
+
+  it('preserves explicit status when provided', () => {
+    const result = UpdateReservationSchema.safeParse({ id: 1, status: 'confirmed' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.status).toBe('confirmed');
+  });
+
+  it('preserves explicit cost_currency when provided', () => {
+    const result = UpdateReservationSchema.safeParse({ id: 1, cost_currency: 'USD' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.cost_currency).toBe('USD');
+  });
+
+  it('fails when id is missing', () => {
+    const result = UpdateReservationSchema.safeParse({ status: 'confirmed' });
     expect(result.success).toBe(false);
   });
 });

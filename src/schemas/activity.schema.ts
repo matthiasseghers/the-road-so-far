@@ -26,9 +26,17 @@ export const CreateActivitySchema = ActivityBaseSchema
     { message: 'end_time requires start_time', path: ['end_time'] },
   );
 
+// Reason: .partial() on a field with .default() returns the default (not undefined)
+// when the field is omitted, causing the repo's `?? cur.field` guard to always
+// use the default instead of the current DB value. Extend after .partial() to
+// strip the defaults for patch-only fields so omission correctly means "no change".
 export const PatchActivitySchema = ActivityBaseSchema
   .omit({ trip_id: true })
   .partial()
+  .extend({
+    sort_order:    z.number().int().optional(),
+    activity_type: ActivityTypeSchema.optional(),
+  })
   .refine(
     d => !(d.end_time && !d.start_time),
     { message: 'end_time requires start_time', path: ['end_time'] },

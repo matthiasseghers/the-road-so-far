@@ -164,6 +164,7 @@ export default function TripsPage({ onNavigate, newTripOpen = false, onNewTripOp
         open={formOpen}
         onClose={handleCloseForm}
         trip={editingTrip}
+        allTrips={trips}
         onCreate={createTrip}
         onUpdate={updateTrip}
       />

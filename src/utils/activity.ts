@@ -1,6 +1,4 @@
-import type { DayRow, ActivityRow } from '@/types/db';
-import type { Activity, DayViewModel } from '@/types/domain';
-import { Activity as ActivityClass } from '@/domain/Activity';
+import type { Activity } from '@/types/domain';
 
 // ─── Activity sorting ─────────────────────────────────────────────────────────
 
@@ -19,15 +17,4 @@ export function sortActivities(activities: Activity[]): Activity[] {
     }
     return a.sort_order - b.sort_order;
   });
-}
-
-// ─── Activity view-model assembly ─────────────────────────────────────────────
-
-/**
- * Groups a flat ActivityRow array into the DayViewModel used by DayCard.
- * Wraps each row in an Activity domain instance and sorts via sortActivities.
- */
-export function buildDayViewModel(day: DayRow, activityRows: ActivityRow[]): DayViewModel {
-  const activities = sortActivities(activityRows.map(r => new ActivityClass(r)));
-  return { day, activities };
 }

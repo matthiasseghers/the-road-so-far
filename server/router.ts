@@ -187,7 +187,7 @@ router.get('/trips/:tripId/calendar-days', (req: Request, res: Response) => {
 // ── Days ──────────────────────────────────────────────────────────────────────
 
 router.get('/days', (req: Request, res: Response) => {
-  const tripId = Number(req.query['tripId']);
+  const tripId = parseIdParam(req.query['tripId'] as string | undefined);
   if (!tripId) { res.status(400).json({ error: 'tripId query param required' }); return; }
   res.json(daysRepo.findDaysByTripId(tripId));
 });
@@ -401,22 +401,9 @@ router.delete('/reservations/:id', (req: Request, res: Response) => {
 
 // ── Checklist items ───────────────────────────────────────────────────────────
 
-router.get('/checklist-items', (req: Request, res: Response) => {
-  const tripId = Number(req.query['tripId']);
-  if (!tripId) { res.status(400).json({ error: 'tripId query param required' }); return; }
-  res.json(checklistRepo.findChecklistItemsByTripId(tripId));
-});
-
-router.post('/checklist-items', (req: Request, res: Response) => {
-  const parsed = CreateChecklistItemSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
-    return;
-  }
-  const item = checklistRepo.createChecklistItem(parsed.data);
-  res.status(201).json(item);
-});
-
+// Reason: POST /checklist-items/copy-templates is kept here (rather than moving
+// to /trips/:tripId/checklist/copy-templates) because it accepts a tripId in the
+// body and copies multiple templates in one call — no natural parent resource.
 router.post('/checklist-items/copy-templates', (req: Request, res: Response) => {
   const parsed = CopyTemplatesSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
@@ -434,27 +421,6 @@ router.put('/trips/:tripId/checklist/reorder', (req: Request, res: Response) => 
     res.status(422).json({ error: 'Some checklist item IDs do not belong to the specified trip' });
     return;
   }
-  res.status(204).send();
-});
-
-router.patch('/checklist-items/:id', (req: Request, res: Response) => {
-  const id = parseIdParam(req.params['id']);
-  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
-  const parsed = PatchChecklistItemSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
-    return;
-  }
-  const item = checklistRepo.updateChecklistItem(id, parsed.data);
-  if (!item) { res.status(404).json({ error: 'Checklist item not found' }); return; }
-  res.json(item);
-});
-
-router.delete('/checklist-items/:id', (req: Request, res: Response) => {
-  const id = parseIdParam(req.params['id']);
-  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
-  if (!checklistRepo.findChecklistItemById(id)) { res.status(404).json({ error: 'Checklist item not found' }); return; }
-  checklistRepo.deleteChecklistItem(id);
   res.status(204).send();
 });
 
@@ -578,7 +544,7 @@ router.delete('/checklist-templates/:id', (req: Request, res: Response) => {
 });
 
 router.get('/template-items', (req: Request, res: Response) => {
-  const templateId = Number(req.query['templateId']);
+  const templateId = parseIdParam(req.query['templateId'] as string | undefined);
   if (!templateId) { res.status(400).json({ error: 'templateId query param required' }); return; }
   res.json(checklistRepo.findTemplateItems(templateId));
 });
@@ -864,14 +830,14 @@ router.get('/route-legs/usage', (_req: Request, res: Response) => {
 });
 
 router.get('/trips/:tripId/route-legs', (req: Request, res: Response) => {
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   res.json(routeLegsRepo.getByTrip(tripId));
 });
 
 router.get('/trips/:tripId/leg-modes', (req: Request, res: Response) => {
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
   res.json(legModesRepo.getLegModes(tripId));
 });
 
@@ -885,8 +851,8 @@ const SetLegModeSchema = z.object({
 
 // Reason: POST rather than PATCH because this is an upsert on the primary key.
 router.post('/trips/:tripId/leg-modes', async (req: Request, res: Response) => {
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
 
   const parsed = SetLegModeSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
@@ -918,8 +884,11 @@ router.post('/trips/:tripId/leg-modes', async (req: Request, res: Response) => {
 });
 
 router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response) => {
-  const tripId = parseInt(req.params['tripId'] as string, 10);
-  if (isNaN(tripId)) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  const tripIdRaw = parseIdParam(req.params['tripId']);
+  if (!tripIdRaw) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+  // Reason: reassign to a const so TypeScript narrows the type to `number` inside
+  // nested async functions where the outer null-guard narrowing does not carry through.
+  const tripId: number = tripIdRaw;
 
   const { tomtom_api_key: apiKey } = settingsRepo.getAllSettings();
   if (!apiKey) { res.status(422).json({ error: 'no_api_key' }); return; }
@@ -951,7 +920,7 @@ router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response
     const result = await fetchRouteLeg(
       { lat: from.lat, lng: from.lng },
       { lat: to.lat,   lng: to.lng },
-      apiKey as string,
+      apiKey,
       mode,
     );
     if (!result) return;

@@ -88,5 +88,23 @@ describe('PatchActivitySchema', () => {
     const result = PatchActivitySchema.safeParse({ end_time: '15:00', start_time: null });
     expect(result.success).toBe(false);
   });
+
+  it('leaves sort_order undefined when not provided so repo falls back to DB value', () => {
+    const result = PatchActivitySchema.safeParse({ title: 'Test' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.sort_order).toBeUndefined();
+  });
+
+  it('leaves activity_type undefined when not provided so repo falls back to DB value', () => {
+    const result = PatchActivitySchema.safeParse({ title: 'Test' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.activity_type).toBeUndefined();
+  });
+
+  it('preserves explicit sort_order when provided', () => {
+    const result = PatchActivitySchema.safeParse({ sort_order: 5 });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.sort_order).toBe(5);
+  });
 });
 

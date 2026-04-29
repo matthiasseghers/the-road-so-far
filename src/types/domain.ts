@@ -30,12 +30,6 @@ export interface DayWithActivities extends DayRow {
   activities: Activity[];
 }
 
-// Activities grouped by day for rendering (used by DayCard / buildDayViewModel)
-export interface DayViewModel {
-  day: DayRow;
-  activities: Activity[];
-}
-
 // ─── Settings domain ──────────────────────────────────────────────────────────
 
 export type DistanceUnit = 'km' | 'mi';

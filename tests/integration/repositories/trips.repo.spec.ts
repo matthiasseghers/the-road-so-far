@@ -11,9 +11,10 @@ vi.mock('@/db/client', () => ({
 }));
 
 // Import repo AFTER mock is in place
-const { findAllTrips, findTripById, createTrip, updateTrip, deleteTrip } = await import(
+const { findAllTrips, findTripById, findTripWithDays, createTrip, updateTrip, deleteTrip } = await import(
   '@/db/repositories/trips.repo'
 );
+const { syncDaysForTrip } = await import('@/services/days.service');
 
 describe('trips repository', () => {
   beforeEach(() => {
@@ -63,6 +64,17 @@ describe('trips repository', () => {
       expect(trips).toHaveLength(2);
       expect(trips[0]?.day_count).toBe(0);
       expect(trips[0]?.activity_count).toBe(0);
+    });
+
+    it('returns accurate day_count and activity_count after sync', () => {
+      // Reason: validates the LEFT JOIN + GROUP BY introduced in Batch 3 —
+      // correlated subqueries were replaced and must still produce correct counts.
+      const trip = createTrip({ title: 'Counted', start_date: '2025-08-01', end_date: '2025-08-03' });
+      syncDaysForTrip(trip.id, '2025-08-01', '2025-08-03'); // 3 days
+      const [found] = findAllTrips().filter(t => t.id === trip.id);
+      expect(found?.day_count).toBe(3);
+      // No activities inserted yet
+      expect(found?.activity_count).toBe(0);
     });
 
     it('orders by start_date ascending', () => {
@@ -118,6 +130,57 @@ describe('trips repository', () => {
       const trip = createTrip({ title: 'Delete Twice', start_date: '2025-10-01', end_date: '2025-10-05' });
       deleteTrip(trip.id);
       expect(() => deleteTrip(trip.id)).not.toThrow();
+    });
+  });
+
+  describe('findTripWithDays()', () => {
+    it('returns null for a non-existent trip', () => {
+      expect(findTripWithDays(9999)).toBeNull();
+    });
+
+    it('returns trip with empty days array when no days are synced', () => {
+      const trip = createTrip({ title: 'No Days', start_date: '2025-11-01', end_date: '2025-11-03' });
+      const result = findTripWithDays(trip.id);
+      expect(result).not.toBeNull();
+      expect(result?.days).toEqual([]);
+    });
+
+    it('returns trip with correct number of days after sync', () => {
+      const trip = createTrip({ title: 'With Days', start_date: '2025-11-01', end_date: '2025-11-05' });
+      syncDaysForTrip(trip.id, '2025-11-01', '2025-11-05');
+      const result = findTripWithDays(trip.id);
+      expect(result?.days).toHaveLength(5);
+    });
+
+    it('returns days in ascending date order', () => {
+      const trip = createTrip({ title: 'Ordered', start_date: '2025-12-01', end_date: '2025-12-03' });
+      syncDaysForTrip(trip.id, '2025-12-01', '2025-12-03');
+      const dates = findTripWithDays(trip.id)?.days.map(d => d.date) ?? [];
+      expect(dates).toEqual([...dates].sort());
+    });
+
+    it('returns activities nested under their day', () => {
+      const trip = createTrip({ title: 'Act Trip', start_date: '2025-12-10', end_date: '2025-12-12' });
+      syncDaysForTrip(trip.id, '2025-12-10', '2025-12-12');
+      const result = findTripWithDays(trip.id)!;
+      const day = result.days[0]!;
+      // Insert an activity directly via DB so we don't need the activities repo
+      db.prepare(
+        `INSERT INTO activities (trip_id, day_id, title, activity_type, sort_order) VALUES (?, ?, ?, ?, ?)`,
+      ).run(trip.id, day.id, 'Museum', 'cultural', 0);
+
+      const refreshed = findTripWithDays(trip.id)!;
+      expect(refreshed.days[0]?.activities).toHaveLength(1);
+      expect(refreshed.days[0]?.activities[0]?.title).toBe('Museum');
+    });
+
+    it('returns empty activities array for days with no activities', () => {
+      const trip = createTrip({ title: 'Empty Acts', start_date: '2025-12-20', end_date: '2025-12-22' });
+      syncDaysForTrip(trip.id, '2025-12-20', '2025-12-22');
+      const result = findTripWithDays(trip.id)!;
+      for (const day of result.days) {
+        expect(day.activities).toEqual([]);
+      }
     });
   });
 });

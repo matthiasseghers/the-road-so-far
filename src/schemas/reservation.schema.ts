@@ -159,10 +159,18 @@ const ReservationBaseSchema = z.object({
 
 export const CreateReservationSchema = ReservationBaseSchema;
 
+// Reason: .partial() on fields with .default() returns the default (not undefined)
+// when the field is omitted, causing the repo's `?? cur.field` guard to use the
+// default value instead of the current DB value. Extend after .partial() to
+// strip the defaults for status and cost_currency so omission means "no change".
 export const UpdateReservationSchema = ReservationBaseSchema
   .omit({ trip_id: true })
   .partial()
-  .extend({ id: z.number().int().positive() });
+  .extend({
+    id:            z.number().int().positive(),
+    status:        z.enum(['pending', 'confirmed', 'cancelled']).optional(),
+    cost_currency: z.string().length(3).optional(),
+  });
 
 // ── Inferred types ────────────────────────────────────────────────────────────
 

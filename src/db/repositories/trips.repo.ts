@@ -37,14 +37,17 @@ function parseTrip(row: TripRow & { day_count?: number; activity_count?: number 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export function findAllTrips(): ParsedTripRow[] {
+  // Reason: LEFT JOIN + GROUP BY is a single scan instead of two correlated
+  // subqueries per trip row, which degrades linearly with trip count.
   const rows = getDb()
     .prepare(`
       SELECT t.*,
-        (SELECT COUNT(*) FROM days d WHERE d.trip_id = t.id) AS day_count,
-        (SELECT COUNT(*) FROM activities a
-           JOIN days d ON a.day_id = d.id
-           WHERE d.trip_id = t.id) AS activity_count
+        COUNT(DISTINCT d.id) AS day_count,
+        COUNT(a.id)          AS activity_count
       FROM trips t
+      LEFT JOIN days d        ON d.trip_id = t.id
+      LEFT JOIN activities a  ON a.day_id  = d.id
+      GROUP BY t.id
       ORDER BY t.start_date ASC NULLS LAST, t.created_at ASC
     `)
     .all() as Array<TripRow & { day_count: number; activity_count: number }>;
@@ -68,14 +71,26 @@ export function findTripWithDays(id: number): RawTripWithDays | null {
     .prepare('SELECT * FROM days WHERE trip_id = ? ORDER BY date ASC')
     .all(id) as DayRow[];
 
-  const days: RawDayWithActivities[] = dayRows.map(day => {
-    const actRows = db
-      .prepare(
-        'SELECT * FROM activities WHERE day_id = ? ORDER BY start_time ASC NULLS LAST, sort_order ASC',
-      )
-      .all(day.id) as ActivityRow[];
-    return { ...day, activities: actRows };
-  });
+  // Reason: one bulk fetch for all activities in the trip, then group by day_id
+  // in JS — avoids N+1 queries (one per day) that were here before.
+  const allActRows = db
+    .prepare(
+      'SELECT * FROM activities WHERE trip_id = ? ORDER BY start_time ASC NULLS LAST, sort_order ASC',
+    )
+    .all(id) as ActivityRow[];
+
+  const actsByDayId = new Map<number, ActivityRow[]>();
+  for (const a of allActRows) {
+    if (a.day_id == null) continue;
+    const bucket = actsByDayId.get(a.day_id) ?? [];
+    bucket.push(a);
+    actsByDayId.set(a.day_id, bucket);
+  }
+
+  const days: RawDayWithActivities[] = dayRows.map(day => ({
+    ...day,
+    activities: actsByDayId.get(day.id) ?? [],
+  }));
 
   return { ...parseTrip(tripRow), days };
 }

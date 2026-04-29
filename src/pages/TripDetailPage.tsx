@@ -10,6 +10,7 @@ import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbS
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { useTrip } from '@/hooks/useTrip';
+import { useTrips } from '@/hooks/useTrips';
 import { useReservations } from '@/hooks/useReservations';
 import { useMapData } from '@/hooks/useMapData';
 import { Activity as ActivityClass } from '@/domain/Activity';
@@ -127,6 +128,10 @@ interface TripDetailPageProps {
 
 export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailPageProps): JSX.Element {
   const { trip, isLoading, error, refetch, updateTrip, deleteTrip } = useTrip(tripId);
+  // Reason: allTrips is passed to TripFormModal for the date-overlap check.
+  // Fetching here (rather than inside TripFormModal) avoids a redundant useTrips call
+  // from a modal that is always mounted even when closed.
+  const { trips: allTrips } = useTrips();
   const {
     reservations,
     lodgingsForDate,
@@ -504,6 +509,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
         open={tripEditOpen}
         onClose={() => setTripEditOpen(false)}
         trip={trip}
+        allTrips={allTrips}
         onUpdate={handleTripUpdate}
       />
 

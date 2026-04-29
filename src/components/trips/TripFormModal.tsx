@@ -14,7 +14,6 @@ import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Spinner } from '@/components/ui/spinner';
 import { todayISO, dateRangesOverlap } from '@/utils/dates';
-import { useTrips } from '@/hooks/useTrips';
 import { CreateTripSchema } from '@/schemas/trip.schema';
 import type { Trip } from '@/types/domain';
 import type { TripStatus } from '@/types/db';
@@ -101,6 +100,8 @@ interface TripFormModalProps {
   onClose: () => void;
   /** If provided the modal is in edit mode, otherwise create mode. */
   trip?: Trip;
+  /** All trips from the parent hook — used for date-overlap detection. */
+  allTrips: Trip[];
   onCreate?: (input: CreateTripInput) => Promise<Trip>;
   onUpdate: (id: number, input: UpdateTripInput) => Promise<Trip>;
 }
@@ -109,12 +110,10 @@ export default function TripFormModal({
   open,
   onClose,
   trip,
+  allTrips,
   onCreate,
   onUpdate,
 }: TripFormModalProps): JSX.Element {
-  // Reason: fetch all trips internally so the overlap check works in every context
-  // (TripsPage and TripDetailPage) without prop drilling.
-  const { trips: allTrips } = useTrips();
   const [state, dispatch] = useReducer(formReducer, buildInitialState(trip));
   const isEdit = trip !== undefined;
 
