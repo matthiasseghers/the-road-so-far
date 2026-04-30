@@ -6,12 +6,39 @@ import { format, parseISO } from 'date-fns';
 import type { PdfTheme } from './theme';
 import type { DayWithActivities } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
-import { StatusPill, SectionHeading, LodgingStrip, NotesBlock, MapSvg } from './shared';
+import { StatusPill, SectionHeading, LodgingStrip, NotesBlock, MapPinOverlay } from './shared';
 import { activityTypeLabel, reservationTypeLabel, buildLodgingStripText, stripTiptapJson } from './helpers';
+import type { StaticMapData } from './helpers';
 import { formatActivityTime } from '@/utils/format';
-import type { GeoPoint } from './helpers';
 
 const PAD = '20mm';
+
+// ── Travel leg types (exported so pdf.tsx and PdfExportModal can share them) ──
+
+export interface PdfLeg {
+  mode:         string;   // 'car' | 'pedestrian' | 'bicycle'
+  duration:     string;   // pre-formatted, e.g. "1h 23m"
+  distance:     string;   // pre-formatted, e.g. "87.3 km"
+  from:         string;   // name of the origin point
+  to:           string;   // name of the destination point
+  fromLocation: string | null;
+  toLocation:   string | null;
+}
+
+export interface DayLegSummary {
+  legs:          PdfLeg[];
+  totalDuration: string;
+  totalDistance: string;
+}
+
+function modeLabel(mode: string): string {
+  switch (mode) {
+    case 'car':        return 'By car';
+    case 'pedestrian': return 'On foot';
+    case 'bicycle':    return 'By bike';
+    default:           return 'Travel';
+  }
+}
 
 // ── Timeline item ─────────────────────────────────────────────────────────────
 
@@ -106,21 +133,18 @@ interface DayPageProps {
   totalDays:    number;
   pageNumber:   number;
   totalPages:   number;
-  reservations: Reservation[]; // all trip reservations
-  lodgings:     Reservation[]; // pre-filtered lodging reservations
+  reservations: Reservation[];
+  lodgings:     Reservation[];
   theme:        PdfTheme;
+  staticMap?:   StaticMapData;
+  legSummary?:  DayLegSummary;
 }
 
-export function DayPage({ day, dayIndex, totalDays, pageNumber, totalPages, reservations, lodgings, theme }: DayPageProps): JSX.Element {
+export function DayPage({ day, dayIndex, totalDays, pageNumber, totalPages, reservations, lodgings, theme, staticMap, legSummary }: DayPageProps): JSX.Element {
   const activities   = day.activities ?? [];
   const dayRes       = reservations.filter(r => !r.isLodging() && r.day_id === day.id);
   const dayLodgings  = lodgings.filter(r => r.coversDay(day.date));
   const noteText     = stripTiptapJson(day.notes);
-
-  // Build geocoded points for the day map (activities + lodging with lat/lng).
-  const mapPoints: GeoPoint[] = activities
-    .filter(a => a.lat !== null && a.lng !== null)
-    .map(a => ({ lat: a.lat!, lng: a.lng!, label: a.title }));
 
   const dayNumStr = String(dayIndex + 1).padStart(2, '0');
 
@@ -181,24 +205,71 @@ export function DayPage({ day, dayIndex, totalDays, pageNumber, totalPages, rese
               No activities planned for this day.
             </Text>
           )}
+
+          {/* ── Travel section ── */}
+          {legSummary != null && legSummary.legs.length > 0 && (
+            <View style={{ marginTop: '5mm' }}>
+              <SectionHeading label="Travel" theme={theme} />
+              {legSummary.legs.map((leg, i) => (
+                <View key={i} style={{ paddingVertical: 3, paddingHorizontal: 4, backgroundColor: i % 2 === 0 ? theme.surface : 'transparent', borderRadius: 2, marginBottom: 1 }}>
+                  {/* From > To with optional locations */}
+                  <View style={{ flexDirection: 'row', marginBottom: 1.5 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: theme.dark }}>{leg.from}</Text>
+                      {leg.fromLocation != null && leg.fromLocation.length > 0 && (
+                        <Text style={{ fontSize: 6.5, color: theme.muted, fontFamily: 'Helvetica-Oblique' }}>{leg.fromLocation}</Text>
+                      )}
+                    </View>
+                    <Text style={{ fontSize: 8, color: theme.accent, fontFamily: 'Helvetica-Bold', paddingHorizontal: 4, paddingTop: 1 }}>{'>'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: theme.dark }}>{leg.to}</Text>
+                      {leg.toLocation != null && leg.toLocation.length > 0 && (
+                        <Text style={{ fontSize: 6.5, color: theme.muted, fontFamily: 'Helvetica-Oblique' }}>{leg.toLocation}</Text>
+                      )}
+                    </View>
+                  </View>
+                  {/* Mode + stats row */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 3, height: 8, backgroundColor: theme.accent, borderRadius: 1.5, marginRight: 5 }} />
+                    <Text style={{ fontSize: 7.5, color: theme.accent, fontFamily: 'Helvetica-Bold', width: '16mm', letterSpacing: 0.2 }}>
+                      {modeLabel(leg.mode)}
+                    </Text>
+                    <Text style={{ fontSize: 7.5, color: theme.dark, fontFamily: 'Helvetica-Bold', flex: 1 }}>
+                      {leg.duration}
+                    </Text>
+                    <Text style={{ fontSize: 7.5, color: theme.muted }}>
+                      {leg.distance}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              {legSummary.legs.length > 1 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, paddingTop: 3, borderTopWidth: 0.5, borderTopColor: theme.line, paddingHorizontal: 4 }}>
+                  <View style={{ width: 3, marginRight: 5 }} />
+                  <Text style={{ fontSize: 7, color: theme.vmuted, fontFamily: 'Helvetica-Bold', width: '16mm', letterSpacing: 0.3, textTransform: 'uppercase' }}>
+                    Total
+                  </Text>
+                  <Text style={{ fontSize: 7, color: theme.dark, fontFamily: 'Helvetica-Bold', flex: 1 }}>
+                    {legSummary.totalDuration}
+                  </Text>
+                  <Text style={{ fontSize: 7, color: theme.muted }}>
+                    {legSummary.totalDistance}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
 
-        {/* RIGHT (40%): Map + bookings + notes */}
+        {/* RIGHT (40%): Day map + bookings + notes */}
         <View style={{ flex: 4 }}>
-          {mapPoints.length >= 2 && (
-            <>
-              <View style={{ borderBottomWidth: 2, borderBottomColor: theme.dark, paddingBottom: 1.5, marginBottom: '4mm' }}>
-                <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', letterSpacing: 1, color: theme.vmuted, textTransform: 'uppercase' }}>
-                  Today's Locations
-                </Text>
-              </View>
-              <MapSvg points={mapPoints} theme={theme} />
-            </>
+          {/* Day map — 400×200 image displayed at 90pt height in the right column. */}
+          {staticMap != null && (
+            <MapPinOverlay staticMap={staticMap} theme={theme} height={90} />
           )}
-
           {dayRes.length > 0 && (
             <>
-              <View style={{ borderBottomWidth: 2, borderBottomColor: theme.dark, paddingBottom: 1.5, marginBottom: '4mm', marginTop: mapPoints.length >= 2 ? '3mm' : 0 }}>
+              <View style={{ borderBottomWidth: 2, borderBottomColor: theme.dark, paddingBottom: 1.5, marginBottom: '4mm' }}>
                 <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', letterSpacing: 1, color: theme.vmuted, textTransform: 'uppercase' }}>
                   Bookings
                 </Text>

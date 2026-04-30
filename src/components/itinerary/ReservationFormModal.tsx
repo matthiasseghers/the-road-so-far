@@ -132,7 +132,6 @@ const TRANSIT_FIELDS: FieldDef[] = [
 const RESERVATION_TYPE_FIELDS: Record<ReservationType, FieldDef[]> = {
   lodging: [
     { key: 'property_name',  label: 'Property name',  required: true },
-    { key: 'location',       label: 'Location',        required: true },
     { key: 'check_in_date',  label: 'Check-in date',  type: 'date', required: true },
     { key: 'check_in_time',  label: 'Check-in time',  type: 'time' },
     { key: 'check_out_date', label: 'Check-out date', type: 'date', required: true },
@@ -163,7 +162,6 @@ const RESERVATION_TYPE_FIELDS: Record<ReservationType, FieldDef[]> = {
   ],
   restaurant: [
     { key: 'restaurant_name', label: 'Restaurant name', required: true },
-    { key: 'location',        label: 'Location',         required: true },
     { key: 'date',            label: 'Date',             type: 'date', required: true },
     { key: 'time',            label: 'Time',             type: 'time', required: true },
     { key: 'party_size',      label: 'Party size',       type: 'number' },

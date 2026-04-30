@@ -42,11 +42,18 @@ export interface TimeAreaConfig {
   end: number;   // hour (0–23)
 }
 
+export type GeocodingProviderName = 'nominatim' | 'tomtom';
+export type RoutingProviderName   = 'tomtom';
+export type MapsProviderName      = 'tomtom';
+
 export interface AppSettings {
   theme: Theme;
   date_format: DateFormat;
   time_areas: Record<string, TimeAreaConfig>;
   tomtom_api_key: string;
+  geocoding_provider: GeocodingProviderName;
+  routing_provider:   RoutingProviderName;
+  maps_provider:      MapsProviderName;
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────

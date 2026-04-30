@@ -1,11 +1,11 @@
 // Shared PDF primitive components used by both CoverPage and DayPage.
 // All components receive `theme` — never hardcode colours here.
 
-import { View, Text, Svg, Circle, Line, Rect, G, Text as SvgText } from '@react-pdf/renderer';
+import { View, Text, Svg, Circle, Line, Rect, G, Text as SvgText, Image } from '@react-pdf/renderer';
 import { StyleSheet } from '@react-pdf/renderer';
 import type { PdfTheme } from './theme';
-import { projectPoints } from './helpers';
-import type { GeoPoint } from './helpers';
+import { projectPoints, projectToMapPixels } from './helpers';
+import type { GeoPoint, StaticMapData } from './helpers';
 
 // ── Style factories (called with theme at runtime) ────────────────────────────
 // Reason: react-pdf StyleSheet.create() doesn't accept dynamic values, so we
@@ -101,6 +101,55 @@ export function LodgingStrip({ text, theme }: LodgingStripProps): JSX.Element {
       <Text style={{ fontSize: 8.5, color: theme.accent, padding: '2mm', paddingLeft: 4 }}>
         {'\u2022  '}{text}
       </Text>
+    </View>
+  );
+}
+
+// ── MapPinOverlay ─────────────────────────────────────────────────────────────
+// Renders a TomTom static map image with numbered SVG pin markers precisely
+// overlaid using Web Mercator projection matching TomTom's tile coordinate system.
+
+interface MapPinOverlayProps {
+  staticMap: StaticMapData;
+  theme:     PdfTheme;
+  height:    number;  // fixed display height in pt
+}
+
+export function MapPinOverlay({ staticMap, theme, height }: MapPinOverlayProps): JSX.Element {
+  const { dataUrl, meta, points } = staticMap;
+  const projected = projectToMapPixels(points, meta);
+
+  return (
+    <View style={{ width: '100%', height, border: `0.5 solid ${theme.line}`, borderRadius: 3, overflow: 'hidden', marginBottom: 5, position: 'relative' }}>
+      <Image src={dataUrl} style={{ width: '100%', height: '100%' }} />
+      {/* Reason: absolutely-positioned View + Svg overlay lets us draw pins at
+          precise Mercator-projected pixel positions on top of the raster image.
+          The viewBox matches the image's original pixel dimensions so coordinates
+          align correctly at any display scale. */}
+      {projected.length > 0 && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <Svg viewBox={`0 0 ${meta.imgW} ${meta.imgH}`} width="100%" height="100%">
+            {projected.map((pt, i) => (
+              <G key={i}>
+                {/* Drop shadow */}
+                <Circle cx={pt.x + 1} cy={pt.y + 1} r={10} fill="rgba(0,0,0,0.25)" />
+                {/* Pin body */}
+                <Circle cx={pt.x} cy={pt.y} r={10} fill={theme.accent} />
+                {/* Number */}
+                <SvgText
+                  x={pt.x}
+                  y={pt.y + 4}
+                  textAnchor="middle"
+                  style={{ fontSize: 9, fontFamily: 'Helvetica-Bold' }}
+                  fill="white"
+                >
+                  {String(i + 1)}
+                </SvgText>
+              </G>
+            ))}
+          </Svg>
+        </View>
+      )}
     </View>
   );
 }

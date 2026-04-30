@@ -138,10 +138,10 @@ export default function IcsExportModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onClose} type="button">
+          <Button variant="outline" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button size="sm" onClick={handleExport} disabled={exporting} type="button">
+          <Button onClick={handleExport} disabled={exporting} type="button">
             <Calendar size={14} />
             {exporting ? 'Exporting\u2026' : 'Export .ics'}
           </Button>

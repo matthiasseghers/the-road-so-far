@@ -4,21 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { Spinner } from '@/components/ui/spinner';
 import { Check, MapPin } from 'lucide-react';
+import { api } from '@/db/api-client';
+import type { AutocompleteSuggestion } from '@/services/providers/types';
 
 type GeocodeStatus = 'idle' | 'loading' | 'ok' | 'not_found' | 'error';
-
-interface Suggestion {
-  name: string;
-  context: string;
-  lat: number;
-  lng: number;
-}
-
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
-}
 
 export interface LocationFieldProps {
   value: string;
@@ -31,29 +20,21 @@ export interface LocationFieldProps {
 const DEBOUNCE_MS = 400;
 const MIN_QUERY_LEN = 2;
 
-function parseSuggestion(r: NominatimResult): Suggestion {
-  const parts = r.display_name.split(', ');
-  return {
-    name:    parts.slice(0, 2).join(', '),
-    context: parts.slice(2, 4).join(', '),
-    lat:     parseFloat(r.lat),
-    lng:     parseFloat(r.lon),
-  };
-}
-
-async function fetchNominatim(query: string): Promise<Suggestion[]> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=0`;
+// Reason: autocomplete is proxied through Express so API keys never leave the
+// server, regardless of which geocoding provider is active.
+async function fetchAutocomplete(query: string): Promise<AutocompleteSuggestion[]> {
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'TheRoadSoFar/1.0' } });
-    if (!res.ok) return [];
-    return ((await res.json()) as NominatimResult[]).map(parseSuggestion);
+    const { suggestions } = await api.get<{ suggestions: AutocompleteSuggestion[] }>(
+      `/geocode/autocomplete?q=${encodeURIComponent(query)}`,
+    );
+    return suggestions;
   } catch {
     return [];
   }
 }
 
 // Reason: self-contained autocomplete so no parent form needs to know about
-// Nominatim — only `onCoordinates` fires when a suggestion is selected.
+// the active geocoding provider — only `onCoordinates` fires when a suggestion is selected.
 export default function LocationField({
   value,
   onChange,
@@ -61,7 +42,7 @@ export default function LocationField({
   status = 'idle',
 }: LocationFieldProps): JSX.Element {
   const inputId          = useId();
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<AutocompleteSuggestion[]>([]);
   const [open, setOpen]               = useState(false);
   const [isFetching, setIsFetching]   = useState(false);
   // Reason: skip the fetch triggered by setting value after a suggestion is selected.
@@ -81,7 +62,7 @@ export default function LocationField({
     }
     debounceRef.current = setTimeout(() => {
       setIsFetching(true);
-      fetchNominatim(value).then(results => {
+      fetchAutocomplete(value).then(results => {
         setSuggestions(results);
         setOpen(results.length > 0);
         setIsFetching(false);
@@ -91,7 +72,7 @@ export default function LocationField({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [value]);
 
-  function selectSuggestion(s: Suggestion): void {
+  function selectSuggestion(s: AutocompleteSuggestion): void {
     skipNextFetchRef.current = true;
     onChange(s.name);
     onCoordinates?.(s.lat, s.lng);

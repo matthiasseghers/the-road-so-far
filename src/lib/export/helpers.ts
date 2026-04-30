@@ -84,6 +84,53 @@ function extractText(nodes: unknown[]): string {
 
 export interface GeoPoint { lat: number; lng: number; label: string; }
 
+// ── Static map overlay types ──────────────────────────────────────────────────
+
+/** Viewport parameters returned by the server static-map-image endpoint. */
+export interface MapMeta {
+  centerLat: number;
+  centerLng: number;
+  zoom:      number;
+  imgW:      number;
+  imgH:      number;
+}
+
+/** A pre-fetched static map ready for PDF rendering: image + viewport + point list. */
+export interface StaticMapData {
+  dataUrl: string;
+  meta:    MapMeta;
+  points:  { lat: number; lng: number }[];
+}
+
+/**
+ * Projects lat/lng coordinates to pixel positions within the static map image
+ * using Web Mercator (EPSG:3857), matching TomTom's tile coordinate system.
+ * The resulting (x, y) values are in the image's original pixel space (0..imgW, 0..imgH),
+ * matching the SVG viewBox so pins align with map features regardless of display scale.
+ */
+export function projectToMapPixels(
+  pts:  { lat: number; lng: number }[],
+  meta: MapMeta,
+): Array<{ x: number; y: number }> {
+  const TILE_SIZE = 256;
+  const scale = TILE_SIZE * Math.pow(2, meta.zoom);
+
+  function mercX(lng: number): number {
+    return ((lng + 180) / 360) * scale;
+  }
+  function mercY(lat: number): number {
+    const sinLat = Math.sin(lat * Math.PI / 180);
+    return (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale;
+  }
+
+  const cx = mercX(meta.centerLng);
+  const cy = mercY(meta.centerLat);
+  return pts.map(p => ({
+    x: mercX(p.lng) - cx + meta.imgW / 2,
+    y: mercY(p.lat) - cy + meta.imgH / 2,
+  }));
+}
+
 interface Bounds { minLat: number; maxLat: number; minLng: number; maxLng: number; }
 
 function computeBounds(pts: GeoPoint[]): Bounds {

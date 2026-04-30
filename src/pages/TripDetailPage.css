@@ -233,10 +233,14 @@
   gap: 12px;
 }
 
-/* Reason: map must fill the full remaining height without scroll or padding. */
+/* Reason: map must fill the full remaining height without scroll or padding.
+   z-index: 0 creates a stacking context that stays below Radix portals (dialogs,
+   popovers) which are appended to document.body and paint on top of the page. */
 .tdp__content--map {
   overflow: hidden;
   padding: 0;
+  z-index: 0;
+  position: relative;
 }
 
 /* ── Geocode indicator (DayEditModal) ────────────────────────── */
@@ -881,6 +885,20 @@
   margin-top: 1px;
 }
 
+.tdp__day-travel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: 99px;
+  padding: 2px 8px 2px 6px;
+}
+
 /* ── Drag drop indicators ────────────────────────────────────── */
 
 .act--drop-above {
@@ -986,23 +1004,31 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   overflow: hidden;
-  position: relative;
 }
 
 .tdp__lc-header {
-  padding: 10px 12px 8px;
+  padding: 10px 10px 8px 12px;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tdp__lc-name-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .tdp__lc-name {
   font-size: 13.5px;
   font-weight: var(--fw-medium);
   color: var(--text-primary);
-  flex: 1;
-  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tdp__lc-loc {
@@ -1011,6 +1037,7 @@
   gap: 3px;
   font-size: 11.5px;
   color: var(--text-secondary);
+  padding: 0 12px 8px;
 }
 
 .tdp__lc-dates {
@@ -1082,19 +1109,8 @@
 .tdp__lc-cost { font-weight: var(--fw-medium); }
 
 .tdp__lc-actions {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.tdp__lodging-card:hover .tdp__lc-actions {
-  opacity: 1;
-}
-
-@media (hover: none) {
-  .tdp__lc-actions { opacity: 1; }
+  display: flex;
+  flex-shrink: 0;
 }
 
 /* ── Route leg distance chip (between day cards in the itinerary) ────────── */

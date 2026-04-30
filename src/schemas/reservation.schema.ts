@@ -9,7 +9,7 @@ const HH_MM    = z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM');
 export const LodgingDetailsSchema = z.object({
   type:           z.literal('lodging'),
   property_name:  z.string().trim().min(1, 'Property name is required'),
-  location:       z.string().trim().min(1, 'Location is required'),
+  location:       z.string().trim().optional(),
   check_in_date:  ISO_DATE,
   check_out_date: ISO_DATE,
   check_in_time:  HH_MM.optional(),
@@ -115,7 +115,7 @@ export const RentalCarDetailsSchema = z.object({
 export const RestaurantDetailsSchema = z.object({
   type:            z.literal('restaurant'),
   restaurant_name: z.string().trim().min(1, 'Restaurant name is required'),
-  location:        z.string().trim().min(1, 'Location is required'),
+  location:        z.string().trim().optional(),
   date:            ISO_DATE,
   time:            HH_MM,
   party_size:      z.coerce.number().int().positive().optional(),

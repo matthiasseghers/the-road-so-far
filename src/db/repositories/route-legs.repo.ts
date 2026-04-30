@@ -1,9 +1,6 @@
 import { getDb } from '../client.js';
 import type { RouteLegRow, RouteLegTravelMode } from '@/types/db';
 
-/** TomTom Routing API free-tier daily call cap. */
-const TOMTOM_ROUTING_DAILY_LIMIT = 2_500;
-
 /**
  * Reservations are offset by this value in sort_order so they appear after
  * activities when both share the same day and neither has an explicit position.
@@ -53,28 +50,76 @@ export function upsertLeg(data: UpsertLegInput): RouteLegRow {
   `).get(data.trip_id, data.from_lat, data.from_lng, data.to_lat, data.to_lng, data.travel_mode) as RouteLegRow;
 }
 
-export interface RouteLegUsageStats {
-  /** Legs fetched today (UTC date). Each = 1 TomTom API call. */
-  today: number;
-  /** Total cached legs across all trips. */
-  total: number;
-  /** TomTom free tier daily limit for the Routing API. */
-  dailyLimit: number;
-}
-
-export function getUsageStats(): RouteLegUsageStats {
-  const db = getDb();
-  const today = (db.prepare(`SELECT COUNT(*) FROM route_legs WHERE date(fetched_at) = date('now')`).pluck().get() as number) ?? 0;
-  const total = (db.prepare('SELECT COUNT(*) FROM route_legs').pluck().get() as number) ?? 0;
-  return { today, total, dailyLimit: TOMTOM_ROUTING_DAILY_LIMIT };
-}
-
 export interface GeoPoint {
   day_id: number;
   date: string;
   sort_order: number;
   lat: number;
   lng: number;
+}
+
+export interface ExpectedLeg {
+  from_lat: number;
+  from_lng: number;
+  to_lat:   number;
+  to_lng:   number;
+}
+
+/**
+ * Computes the ordered sequence of (from → to) leg pairs for a trip based on
+ * the current geocoded points. This is the ground truth for what legs *should*
+ * exist — sync uses it to decide what to fetch and what to delete.
+ */
+export function computeExpectedLegs(tripId: number): ExpectedLeg[] {
+  const points = getGeoPointsForTrip(tripId);
+  const byDate = new Map<string, GeoPoint[]>();
+  for (const p of points) {
+    const list = byDate.get(p.date) ?? [];
+    list.push(p);
+    byDate.set(p.date, list);
+  }
+  const dates = [...byDate.keys()].sort();
+  const legs: ExpectedLeg[] = [];
+
+  for (const date of dates) {
+    const dayPts = byDate.get(date)!;
+    for (let i = 0; i < dayPts.length - 1; i++) {
+      legs.push({ from_lat: dayPts[i].lat, from_lng: dayPts[i].lng, to_lat: dayPts[i + 1].lat, to_lng: dayPts[i + 1].lng });
+    }
+  }
+  for (let i = 0; i < dates.length - 1; i++) {
+    const last  = byDate.get(dates[i])!.at(-1)!;
+    const first = byDate.get(dates[i + 1])![0];
+    legs.push({ from_lat: last.lat, from_lng: last.lng, to_lat: first.lat, to_lng: first.lng });
+  }
+  return legs;
+}
+
+/**
+ * Deletes stored legs whose (from, to) pair is no longer in the expected set.
+ * Returns the number of legs deleted.
+ */
+export function deleteOrphanLegs(tripId: number, expectedLegs: ExpectedLeg[]): number {
+  const db = getDb();
+  const stored = db
+    .prepare('SELECT id, from_lat, from_lng, to_lat, to_lng FROM route_legs WHERE trip_id = ?')
+    .all(tripId) as { id: number; from_lat: number; from_lng: number; to_lat: number; to_lng: number }[];
+
+  const expectedSet = new Set(
+    expectedLegs.map(l => `${l.from_lat},${l.from_lng},${l.to_lat},${l.to_lng}`),
+  );
+
+  const orphanIds = stored
+    .filter(s => !expectedSet.has(`${s.from_lat},${s.from_lng},${s.to_lat},${s.to_lng}`))
+    .map(s => s.id);
+
+  if (orphanIds.length === 0) return 0;
+
+  // Reason: better-sqlite3 doesn't support array params; use a parameterised
+  // placeholder list built from the known-safe integer IDs.
+  const placeholders = orphanIds.map(() => '?').join(',');
+  db.prepare(`DELETE FROM route_legs WHERE id IN (${placeholders})`).run(...orphanIds);
+  return orphanIds.length;
 }
 
 /**

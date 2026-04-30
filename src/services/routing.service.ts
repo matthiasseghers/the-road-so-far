@@ -1,55 +1,21 @@
-// Server-side TomTom Routing API v1 wrapper.
+// Routing service — provider-agnostic adapter.
 // Runs in Express — never imported by the React frontend.
-// Reason: API key must never reach the browser; all TomTom calls go through the server.
+// Reason: to swap routing providers (e.g. Google Maps, HERE), change the one
+// import below and ensure the new provider implements RoutingProvider.
 
-import type { TomTomRouteResponse } from '@/types/api';
+import { tomtomRouting } from './providers/tomtom.js';
+import type { RouteLegResult, TravelMode } from './providers/types.js';
 
-export interface RouteLegResult {
-  distance_m: number;
-  duration_s: number;
-  /** JSON-serialised {lat, lng}[] polyline. */
-  polyline: string;
-}
+export type { RouteLegResult };
 
-/**
- * Fetches a driving route between two geocoded points via TomTom Routing API.
- * Returns null if the API key is missing, the request fails, or no route is found.
- */
-export async function fetchRouteLeg(
-  from: { lat: number; lng: number },
-  to:   { lat: number; lng: number },
+// Reason: single assignment makes the active provider easy to find and swap.
+const provider = tomtomRouting;
+
+export function fetchRouteLeg(
+  from:   { lat: number; lng: number },
+  to:     { lat: number; lng: number },
   apiKey: string,
-  mode: 'car' | 'pedestrian' | 'bicycle' = 'car',
+  mode:   TravelMode = 'car',
 ): Promise<RouteLegResult | null> {
-  if (!apiKey) return null;
-
-  const url = [
-    'https://api.tomtom.com/routing/1/calculateRoute/',
-    `${from.lat},${from.lng}:${to.lat},${to.lng}`,
-    `/json?key=${encodeURIComponent(apiKey)}&travelMode=${mode}`,
-  ].join('');
-
-  let data: TomTomRouteResponse;
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'TheRoadSoFar/1.0' },
-    });
-    if (!res.ok) return null;
-    data = (await res.json()) as TomTomRouteResponse;
-  } catch {
-    return null;
-  }
-
-  const route = data.routes?.[0];
-  if (!route) return null;
-
-  const points = route.legs.flatMap(leg =>
-    leg.points.map(p => ({ lat: p.latitude, lng: p.longitude })),
-  );
-
-  return {
-    distance_m: route.summary.lengthInMeters,
-    duration_s: route.summary.travelTimeInSeconds,
-    polyline:   JSON.stringify(points),
-  };
+  return provider.fetchRouteLeg(from, to, apiKey, mode);
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { geocodePlace, GEOCODE_DELAY_MS } from '@/services/geocoding.service';
+import { geocodePlace } from '@/services/geocoding.service';
+import { nominatimGeocoding } from '@/services/providers/nominatim';
 
 beforeEach(() => {
   vi.unstubAllGlobals();
@@ -67,8 +68,8 @@ describe('geocodePlace()', () => {
   });
 });
 
-describe('GEOCODE_DELAY_MS', () => {
-  it('is at least 1100ms (Nominatim rate limit requirement)', () => {
-    expect(GEOCODE_DELAY_MS).toBeGreaterThanOrEqual(1_100);
+describe('Nominatim rate limit', () => {
+  it('rateLimitMs is at least 1100ms per Nominatim usage policy', () => {
+    expect(nominatimGeocoding.rateLimitMs).toBeGreaterThanOrEqual(1_100);
   });
 });

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { MapPin as MapPinIcon, Route, Loader2 } from 'lucide-react';
+import { MapPin as MapPinIcon, Route, Loader2, AlertTriangle } from 'lucide-react';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import './TripMap.css';
 import type { MapPin, MapDay } from '@/utils/mapData';
 import { TYPE_COLORS, TYPE_LABELS, resolveTypeColors } from '@/utils/mapData';
 import type { RouteLeg } from '@/domain/RouteLeg';
+import type { ExpectedLeg } from '@/db/repositories/route-legs.repo';
 import { createPinIcon } from '@/lib/leafletMapUtils';
 import BoundsFitter from '@/components/common/BoundsFitter';
 import { patchLeafletDefaultIcon } from '@/lib/leafletIconFix';
@@ -20,17 +21,19 @@ export type { MapPin, MapDay };
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface TripMapProps {
-  pins: MapPin[];
-  mapDays: MapDay[];
-  routeLegs?: RouteLeg[];
+  pins:          MapPin[];
+  mapDays:       MapDay[];
+  routeLegs?:    RouteLeg[];
+  expectedLegs?: ExpectedLeg[];
+  isStale?:      boolean;
   missingCount?: number;
-  isSyncing?: boolean;
+  isSyncing?:    boolean;
   onSyncRoutes?: () => void;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function TripMap({ pins, mapDays, routeLegs = [], missingCount = 0, isSyncing = false, onSyncRoutes }: TripMapProps): JSX.Element {
+export default function TripMap({ pins, mapDays, routeLegs = [], expectedLegs = [], isStale = false, missingCount = 0, isSyncing = false, onSyncRoutes }: TripMapProps): JSX.Element {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const visiblePins = useMemo(
@@ -43,34 +46,53 @@ export default function TripMap({ pins, mapDays, routeLegs = [], missingCount = 
   const colors = resolveTypeColors();
 
   const positions: [number, number][] = visiblePins.map(p => [p.lat, p.lng]);
-  // Reason: if multiple modes are cached for the same coord pair, keep the most
-  // recently fetched to avoid drawing duplicate/overlapping polylines on the map.
-  const dedupedLegs = useMemo(() => {
+  // Reason: build a lookup from coord-pair key → stored RouteLeg so expected
+  // legs can find their polyline in O(1). Dedup by latest fetched_at when
+  // multiple travel modes exist for the same pair.
+  const legByKey = useMemo(() => {
     const best = new Map<string, RouteLeg>();
     for (const leg of routeLegs) {
       const key = `${leg.from_lat},${leg.from_lng},${leg.to_lat},${leg.to_lng}`;
       const prev = best.get(key);
       if (!prev || leg.fetched_at > prev.fetched_at) best.set(key, leg);
     }
-    return [...best.values()];
+    return best;
   }, [routeLegs]);
 
-  // Reason: only draw legs whose both endpoints appear among the currently visible pins.
-  // This makes routes show correctly on single-day views (intra-day legs only) as well as
-  // the all-days view (inter-day + intra-day). Inter-day legs disappear when one endpoint
-  // is on a different day — which is correct behaviour.
-  const visibleLegs = useMemo(() => {
-    const pinCoords = new Set(visiblePins.map(p => `${p.lat},${p.lng}`));
-    return dedupedLegs.filter(
-      leg =>
-        pinCoords.has(`${leg.from_lat},${leg.from_lng}`) &&
-        pinCoords.has(`${leg.to_lat},${leg.to_lng}`),
-    );
-  }, [dedupedLegs, visiblePins]);
+  // Reason: drive rendering from expectedLegs (ground truth) not stored legs.
+  // Each expected leg is either:
+  //   - synced:   has a stored polyline → draw solid road route
+  //   - unsynced: not yet fetched       → draw dashed straight line
+  // Only show legs whose both endpoints are among currently visible pins.
+  const pinCoords = useMemo(
+    () => new Set(visiblePins.map(p => `${p.lat},${p.lng}`)),
+    [visiblePins],
+  );
 
-  const hasVisibleRoutes = visibleLegs.length > 0;
-  // Reason: fall back to a dashed line connecting visible pins in order when no routes cover them.
-  const showPolyline = visiblePins.length > 1 && !hasVisibleRoutes;
+  const { syncedLegs, unsyncedLegs } = useMemo(() => {
+    const synced:   { leg: RouteLeg;    from: [number,number]; to: [number,number] }[] = [];
+    const unsynced: { from: [number,number]; to: [number,number] }[]                  = [];
+
+    for (const el of expectedLegs) {
+      const fromVisible = pinCoords.has(`${el.from_lat},${el.from_lng}`);
+      const toVisible   = pinCoords.has(`${el.to_lat},${el.to_lng}`);
+      if (!fromVisible || !toVisible) continue;
+
+      const key = `${el.from_lat},${el.from_lng},${el.to_lat},${el.to_lng}`;
+      const stored = legByKey.get(key);
+      if (stored) {
+        synced.push({ leg: stored, from: [el.from_lat, el.from_lng], to: [el.to_lat, el.to_lng] });
+      } else {
+        unsynced.push({ from: [el.from_lat, el.from_lng], to: [el.to_lat, el.to_lng] });
+      }
+    }
+    return { syncedLegs: synced, unsyncedLegs: unsynced };
+  }, [expectedLegs, legByKey, pinCoords]);
+
+  const hasExpectedLegs = expectedLegs.length > 0;
+  // Reason: fall back to a simple pin-order dashed line only when there are no
+  // expected legs at all (trip has no geo points synced yet).
+  const showFallbackPolyline = visiblePins.length > 1 && !hasExpectedLegs;
 
   // Types present in visible pins (for legend)
   const presentTypes = useMemo(
@@ -122,14 +144,18 @@ export default function TripMap({ pins, mapDays, routeLegs = [], missingCount = 
         )}
         {onSyncRoutes && (
           <Button
-            variant="outline"
+            variant={isStale ? 'default' : 'outline'}
             size="sm"
             className="ml-auto h-7 text-xs"
             onClick={onSyncRoutes}
             disabled={isSyncing}
           >
-            {isSyncing ? <Loader2 size={12} className="animate-spin" /> : <Route size={12} />}
-            {isSyncing ? 'Syncing…' : 'Sync routes'}
+            {isSyncing
+              ? <Loader2 size={12} className="animate-spin" />
+              : isStale
+                ? <AlertTriangle size={12} />
+                : <Route size={12} />}
+            {isSyncing ? 'Syncing…' : isStale ? 'Routes outdated — sync' : 'Sync routes'}
           </Button>
         )}
       </div>
@@ -170,18 +196,28 @@ export default function TripMap({ pins, mapDays, routeLegs = [], missingCount = 
             </Marker>
           ))}
 
-          {showPolyline && (
+          {/* Fallback: no geo points at all — connect pins in display order */}
+          {showFallbackPolyline && (
             <Polyline
               positions={visiblePins.map(p => [p.lat, p.lng] as [number, number])}
               pathOptions={{ color: '#7C3AED', weight: 2, opacity: 0.6, dashArray: '6 5' }}
             />
           )}
 
-          {/* Real TomTom road polylines — filtered to endpoints visible in current day selection */}
-          {visibleLegs.map((leg, i) => (
+          {/* Unsynced expected legs — dashed straight line (not yet fetched from TomTom) */}
+          {unsyncedLegs.map((el, i) => (
             <Polyline
-              key={i}
-              positions={leg.points().map(p => [p.lat, p.lng] as [number, number])}
+              key={`u-${i}`}
+              positions={[el.from, el.to]}
+              pathOptions={{ color: '#7C3AED', weight: 2, opacity: 0.55, dashArray: '6 5' }}
+            />
+          ))}
+
+          {/* Synced expected legs — solid TomTom road polyline */}
+          {syncedLegs.map((sl, i) => (
+            <Polyline
+              key={`s-${i}`}
+              positions={sl.leg.points().map(p => [p.lat, p.lng] as [number, number])}
               pathOptions={{ color: '#7C3AED', weight: 4, opacity: 0.85 }}
             />
           ))}
@@ -196,12 +232,12 @@ export default function TripMap({ pins, mapDays, routeLegs = [], missingCount = 
                 <span>{TYPE_LABELS[type]}</span>
               </div>
             ))}
-            {showPolyline && (
+            {(showFallbackPolyline || unsyncedLegs.length > 0) && (
               <div className="trip-map__legend-row">
                 <svg width="20" height="4" className="trip-map__legend-line">
                   <line x1="0" y1="2" x2="20" y2="2" stroke={colors.restaurant} strokeWidth="2" strokeDasharray="4 3" />
                 </svg>
-                <span>Lodging route</span>
+                <span>Route not yet synced</span>
               </div>
             )}
           </div>

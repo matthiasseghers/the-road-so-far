@@ -3,28 +3,41 @@ import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import { RouteLeg } from '@/domain/RouteLeg';
 import type { RouteLegRow, LegModeRow, RouteLegTravelMode } from '@/types/db';
+import type { ExpectedLeg } from '@/db/repositories/route-legs.repo';
+
+interface RouteLegsResponse {
+  legs:         RouteLegRow[];
+  expectedLegs: ExpectedLeg[];
+  isStale:      boolean;
+}
 
 interface UseRouteLegsResult {
-  legs: RouteLeg[];
-  legModes: LegModeRow[];
-  isSyncing: boolean;
-  error: string | null;
-  sync: () => Promise<void>;
-  setLegMode: (fromLat: number, fromLng: number, toLat: number, toLng: number, mode: RouteLegTravelMode) => Promise<void>;
+  legs:         RouteLeg[];
+  expectedLegs: ExpectedLeg[];
+  isStale:      boolean;
+  legModes:     LegModeRow[];
+  isSyncing:    boolean;
+  error:        string | null;
+  sync:         () => Promise<void>;
+  setLegMode:   (fromLat: number, fromLng: number, toLat: number, toLng: number, mode: RouteLegTravelMode) => Promise<void>;
 }
 
 export function useRouteLegs(tripId: number): UseRouteLegsResult {
-  const [rows, setRows]           = useState<RouteLegRow[]>([]);
-  const [legModes, setLegModes]   = useState<LegModeRow[]>([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [rows,         setRows]         = useState<RouteLegRow[]>([]);
+  const [expectedLegs, setExpectedLegs] = useState<ExpectedLeg[]>([]);
+  const [isStale,      setIsStale]      = useState(false);
+  const [legModes,     setLegModes]     = useState<LegModeRow[]>([]);
+  const [isSyncing,    setIsSyncing]    = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
 
   useEffect(() => {
     setError(null);
-    // Reason: legs and modes are fetched in parallel; a missing-legs error is not
-    // "no legs yet" but a real fetch failure, so we surface it in the error state.
     Promise.all([
-      api.get<RouteLegRow[]>(`/trips/${tripId}/route-legs`).then(setRows),
+      api.get<RouteLegsResponse>(`/trips/${tripId}/route-legs`).then(r => {
+        setRows(r.legs);
+        setExpectedLegs(r.expectedLegs);
+        setIsStale(r.isStale);
+      }),
       api.get<LegModeRow[]>(`/trips/${tripId}/leg-modes`).then(setLegModes),
     ]).catch((e: unknown) => {
       setError(e instanceof Error ? e.message : 'Failed to load route legs');
@@ -34,18 +47,25 @@ export function useRouteLegs(tripId: number): UseRouteLegsResult {
   const sync = useCallback(async () => {
     setIsSyncing(true);
     try {
-      const result = await api.post<{ synced: number; legs: RouteLegRow[] }>(
+      const result = await api.post<{ synced: number; deleted: number; legs: RouteLegRow[] }>(
         `/trips/${tripId}/route-legs/sync`,
         {},
       );
-      setRows(result.legs);
+      // Reason: after sync re-fetch expectedLegs + isStale from the server so the
+      // map immediately reflects the post-sync state without a full page reload.
+      const fresh = await api.get<RouteLegsResponse>(`/trips/${tripId}/route-legs`);
+      setRows(fresh.legs);
+      setExpectedLegs(fresh.expectedLegs);
+      setIsStale(fresh.isStale);
+
       if (result.synced > 0) {
         toast.success(`Synced ${result.synced} route leg${result.synced !== 1 ? 's' : ''}`);
+      } else if (result.deleted > 0) {
+        toast.success(`Removed ${result.deleted} outdated leg${result.deleted !== 1 ? 's' : ''}`);
       } else {
-        toast.info('No new legs to sync — add geocoded locations to activities first');
+        toast.info('Routes are up to date');
       }
     } catch (err) {
-      // Reason: ApiError with status 422 means no API key is configured.
       if (err instanceof Error && err.message.includes('no_api_key')) {
         toast.error('Add your TomTom API key in Settings → General first');
       } else {
@@ -80,8 +100,6 @@ export function useRouteLegs(tripId: number): UseRouteLegsResult {
     }
   }, [tripId]);
 
-  // Reason: rows changes by reference on every fetch; memoising legs prevents
-  // downstream consumers from re-rendering due to a new array identity.
   const legs = useMemo(() => rows.map(r => new RouteLeg(r)), [rows]);
-  return { legs, legModes, isSyncing, error, sync, setLegMode };
+  return { legs, expectedLegs, isStale, legModes, isSyncing, error, sync, setLegMode };
 }

@@ -6,9 +6,9 @@ import { format, parseISO } from 'date-fns';
 import type { PdfTheme } from './theme';
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
-import { StatusPill, HRule, NotesBlock } from './shared';
+import { StatusPill, HRule, NotesBlock, MapPinOverlay } from './shared';
 import { stripTiptapJson, projectPoints } from './helpers';
-import type { GeoPoint } from './helpers';
+import type { GeoPoint, StaticMapData } from './helpers';
 
 // ── Page-level layout constants (mm) ─────────────────────────────────────────
 const PAD = '20mm';
@@ -80,9 +80,10 @@ interface CoverPageProps {
   reservations: Reservation[];
   theme:        PdfTheme;
   generated:    Date;
+  staticMap?:   StaticMapData;
 }
 
-export function CoverPage({ trip, reservations, theme, generated }: CoverPageProps): JSX.Element {
+export function CoverPage({ trip, reservations, theme, generated, staticMap }: CoverPageProps): JSX.Element {
   const days      = trip.days ?? [];
   const lodgings  = reservations.filter(r => r.isLodging());
   const dayCount  = trip.durationDays();
@@ -131,8 +132,15 @@ export function CoverPage({ trip, reservations, theme, generated }: CoverPagePro
 
       <HRule theme={theme} marginV={14} />
 
-      {/* ── Trip route map (only if lodgings are geocoded) ── */}
-      <CoverRouteMap reservations={reservations} theme={theme} />
+      {/* ── Trip route map ── */}
+      {/* Prefer the real TomTom static map with Mercator-projected pin overlay;
+          fall back to the SVG schematic when no API key / no geocoded points. */}
+      {staticMap != null ? (
+        // Cover: 800×200 image displayed at 120pt height (full content width banner).
+        <MapPinOverlay staticMap={staticMap} theme={theme} height={120} />
+      ) : (
+        <CoverRouteMap reservations={reservations} theme={theme} />
+      )}
 
       {/* ── Two-column body ── */}
       <View style={{ flexDirection: 'row', gap: '6mm' }}>

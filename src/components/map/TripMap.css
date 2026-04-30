@@ -40,6 +40,10 @@
 .trip-map__container {
   flex: 1;
   position: relative;
+  /* Reason: isolation:isolate confines Leaflet's internal z-index stack so its
+     tile and vector panes (z-index 200–600) cannot escape to compete with Radix
+     dialog portals rendered on document.body. */
+  isolation: isolate;
   overflow: hidden;
 }
 

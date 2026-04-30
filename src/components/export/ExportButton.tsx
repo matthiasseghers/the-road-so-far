@@ -3,8 +3,8 @@ import { FileDown, Calendar, Package } from 'lucide-react';
 import JSZip from 'jszip';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { generateTripPDF } from '@/lib/export/pdf';
 import IcsExportModal from './IcsExportModal';
+import PdfExportModal from './PdfExportModal';
 import { api } from '@/db/api-client';
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
@@ -25,28 +25,9 @@ function safeFilename(title: string): string {
 }
 
 export default function ExportButton({ trip, reservations }: ExportButtonProps): JSX.Element {
-  const [exportingPdf, setExportingPdf] = useState(false);
+  const [pdfModalOpen,  setPdfModalOpen]  = useState(false);
   const [exportingPack, setExportingPack] = useState(false);
-  const [icsModalOpen, setIcsModalOpen] = useState(false);
-
-  async function handlePdf(): Promise<void> {
-    setExportingPdf(true);
-    try {
-      const blob     = await generateTripPDF(trip, reservations);
-      const filename = `${safeFilename(trip.title)}-itinerary.pdf`;
-      const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href     = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('PDF exported');
-    } catch {
-      toast.error('Failed to generate PDF');
-    } finally {
-      setExportingPdf(false);
-    }
-  }
+  const [icsModalOpen,  setIcsModalOpen]  = useState(false);
 
   async function handleTrippack(): Promise<void> {
     setExportingPack(true);
@@ -75,12 +56,11 @@ export default function ExportButton({ trip, reservations }: ExportButtonProps):
         <Button
           variant="outline"
           size="sm"
-          onClick={() => { void handlePdf(); }}
-          disabled={exportingPdf}
+          onClick={() => setPdfModalOpen(true)}
           type="button"
         >
           <FileDown size={15} />
-          {exportingPdf ? 'Exporting\u2026' : 'Export PDF'}
+          Export PDF
         </Button>
         <Button
           variant="outline"
@@ -103,6 +83,13 @@ export default function ExportButton({ trip, reservations }: ExportButtonProps):
         </Button>
       </div>
 
+      <PdfExportModal
+        open={pdfModalOpen}
+        onClose={() => setPdfModalOpen(false)}
+        trip={trip}
+        reservations={reservations}
+        safeFilename={safeFilename}
+      />
       <IcsExportModal
         open={icsModalOpen}
         onClose={() => setIcsModalOpen(false)}

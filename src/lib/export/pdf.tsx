@@ -9,6 +9,8 @@ import { THEME_WARM } from './theme';
 import type { PdfTheme } from './theme';
 import { CoverPage } from './CoverPage';
 import { DayPage } from './DayPage';
+import type { DayLegSummary } from './DayPage';
+import type { StaticMapData } from './helpers';
 
 // Re-export pure helpers so existing tests continue to import from '@/lib/export/pdf'.
 export {
@@ -24,10 +26,13 @@ export { THEME_WARM, THEME_PRINT } from './theme';
 // ── Document component ────────────────────────────────────────────────────────
 
 interface FullItineraryPDFProps {
-  trip:         TripWithDays;
-  reservations: Reservation[];
-  theme:        PdfTheme;
-  generated:    Date;
+  trip:              TripWithDays;
+  reservations:      Reservation[];
+  theme:             PdfTheme;
+  generated:         Date;
+  staticMap?:        StaticMapData;
+  dayStaticMaps?:    Record<number, StaticMapData>;
+  dayLegSummaries?:  Record<number, DayLegSummary>;
 }
 
 /**
@@ -35,7 +40,7 @@ interface FullItineraryPDFProps {
  * Adding a new export type (e.g. SummaryPDF) = new component that picks from
  * CoverPage / DayPage / any future section component.
  */
-function FullItineraryPDF({ trip, reservations, theme, generated }: FullItineraryPDFProps): JSX.Element {
+function FullItineraryPDF({ trip, reservations, theme, generated, staticMap, dayStaticMaps, dayLegSummaries }: FullItineraryPDFProps): JSX.Element {
   const days    = trip.days ?? [];
   const lodgings = reservations.filter(r => r.isLodging());
   // +1 for cover page; used by DayPage footers.
@@ -52,6 +57,7 @@ function FullItineraryPDF({ trip, reservations, theme, generated }: FullItinerar
         reservations={reservations}
         theme={theme}
         generated={generated}
+        staticMap={staticMap}
       />
       {days.map((day, i) => (
         <DayPage
@@ -64,6 +70,8 @@ function FullItineraryPDF({ trip, reservations, theme, generated }: FullItinerar
           reservations={reservations}
           lodgings={lodgings}
           theme={theme}
+          staticMap={dayStaticMaps?.[day.id]}
+          legSummary={dayLegSummaries?.[day.id]}
         />
       ))}
     </Document>
@@ -79,9 +87,12 @@ function FullItineraryPDF({ trip, reservations, theme, generated }: FullItinerar
  * @param theme - Defaults to THEME_WARM. Pass THEME_PRINT for ink-efficient output.
  */
 export async function generateTripPDF(
-  trip:         TripWithDays,
-  reservations: Reservation[],
-  theme:        PdfTheme = THEME_WARM,
+  trip:              TripWithDays,
+  reservations:      Reservation[],
+  theme:             PdfTheme = THEME_WARM,
+  staticMap?:        StaticMapData,
+  dayStaticMaps?:    Record<number, StaticMapData>,
+  dayLegSummaries?:  Record<number, DayLegSummary>,
 ): Promise<Blob> {
   const doc = (
     <FullItineraryPDF
@@ -89,6 +100,9 @@ export async function generateTripPDF(
       reservations={reservations}
       theme={theme}
       generated={new Date()}
+      staticMap={staticMap}
+      dayStaticMaps={dayStaticMaps}
+      dayLegSummaries={dayLegSummaries}
     />
   );
   return pdf(doc).toBlob();

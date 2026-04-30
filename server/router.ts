@@ -12,44 +12,14 @@ import * as mapRepo from '../src/db/repositories/map.repo.js';
 import { findLegMode } from '../src/domain/RouteLeg.js';
 import * as calendarRepo from '../src/db/repositories/calendar.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
-import { geocodePlace, GEOCODE_DELAY_MS } from '../src/services/geocoding.service.js';
+import { geocodePlace, autocomplete } from '../src/services/geocoding.service.js';
 import { fetchRouteLeg } from '../src/services/routing.service.js';
+import { fetchStaticMapImage, deriveZoom } from '../src/services/maps.service.js';
 import { CreateTripSchema, PatchTripSchema } from '../src/schemas/trip.schema.js';
 import { CreateActivitySchema, PatchActivitySchema } from '../src/schemas/activity.schema.js';
 import { CreateReservationSchema, UpdateReservationSchema } from '../src/schemas/reservation.schema.js';
 import { CreateChecklistItemSchema, PatchChecklistItemSchema } from '../src/schemas/checklist.schema.js';
 import { z } from 'zod';
-
-// ── Nominatim rate-limit queue ───────────────────────────────────────────────
-// Reason: Nominatim's usage policy requires ≤1 req/s. A single shared promise
-// chain serialises all outbound geocoding calls server-wide and enforces the
-// minimum delay between them, regardless of how many requests arrive concurrently.
-const GEOCODE_QUEUE_MAX_DEPTH = 20;
-let _geocodeQueue: Promise<void> = Promise.resolve();
-let _geocodeQueueDepth = 0;
-function queuedGeocode(
-  query: string,
-): Promise<{ lat: number; lng: number } | null> {
-  // Reason: cap the queue so a runaway loop of geocode requests cannot grow the
-  // promise chain indefinitely and exhaust memory.
-  if (_geocodeQueueDepth >= GEOCODE_QUEUE_MAX_DEPTH) {
-    return Promise.reject(new Error('Geocode queue full — try again later'));
-  }
-  _geocodeQueueDepth++;
-  const result = _geocodeQueue.then(
-    () => geocodePlace(query),
-  ).then(coords => {
-    // Reason: enforce the delay AFTER the request completes so back-to-back calls
-    // always wait the full interval regardless of how long the request took.
-    return new Promise<{ lat: number; lng: number } | null>(resolve =>
-      setTimeout(() => resolve(coords), GEOCODE_DELAY_MS),
-    );
-  }).finally(() => { _geocodeQueueDepth--; });
-  // Advance the queue pointer on the delay promise (not the result),
-  // so errors in one call don't stall subsequent queued calls.
-  _geocodeQueue = result.then(() => undefined).catch(() => undefined);
-  return result;
-}
 
 // ── Route parameter helpers ───────────────────────────────────────────────────
 
@@ -276,13 +246,13 @@ router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
   if (!activity) { res.status(404).json({ error: 'Activity not found' }); return; }
   const parsed = GeocodeBodySchema.safeParse(req.body);
   if (!parsed.success) { res.status(422).json({ error: 'Location is required for geocoding' }); return; }
-  // Reason: skip Nominatim round-trip when client already has coordinates from autocomplete.
+  // Reason: skip geocoding round-trip when client already has coordinates from autocomplete.
   if (parsed.data.lat !== undefined && parsed.data.lng !== undefined) {
     activitiesRepo.updateActivityLatLng(id, parsed.data.lat, parsed.data.lng);
     res.json(activitiesRepo.findActivityById(id));
     return;
   }
-  queuedGeocode(parsed.data.location)
+  geocodePlace(parsed.data.location)
     .then(coords => {
       if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
       activitiesRepo.updateActivityLatLng(id, coords.lat, coords.lng);
@@ -342,13 +312,13 @@ router.patch('/reservations/:id/geocode', (req: Request, res: Response) => {
   if (!reservation) { res.status(404).json({ error: 'Reservation not found' }); return; }
   const parsed = GeocodeBodySchema.safeParse(req.body);
   if (!parsed.success) { res.status(422).json({ error: 'Location is required for geocoding' }); return; }
-  // Reason: skip Nominatim round-trip when client already has coordinates from autocomplete.
+  // Reason: skip geocoding round-trip when client already has coordinates from autocomplete.
   if (parsed.data.lat !== undefined && parsed.data.lng !== undefined) {
     reservationsRepo.updateReservationLatLng(id, parsed.data.lat, parsed.data.lng);
     res.json(reservationsRepo.findById(id));
     return;
   }
-  queuedGeocode(parsed.data.location)
+  geocodePlace(parsed.data.location)
     .then(coords => {
       if (!coords) { res.status(503).json({ error: 'Geocoding returned no results' }); return; }
       reservationsRepo.updateReservationLatLng(id, coords.lat, coords.lng);
@@ -586,6 +556,18 @@ router.put('/template-items/reorder', (req: Request, res: Response) => {
   res.status(204).send();
 });
 
+// ── Geocoding autocomplete proxy ─────────────────────────────────────────────
+
+// Reason: proxying through Express keeps API keys server-side — the browser
+// never sees the TomTom key, regardless of which geocoding provider is active.
+router.get('/geocode/autocomplete', (req: Request, res: Response) => {
+  const q = (req.query['q'] as string | undefined)?.trim() ?? '';
+  if (q.length < 2) { res.json({ suggestions: [] }); return; }
+  autocomplete(q)
+    .then(suggestions => res.json({ suggestions }))
+    .catch(() => res.json({ suggestions: [] }));
+});
+
 // ── Global map ───────────────────────────────────────────────────────────────
 
 // Reason: returns all geocoded activities + reservations across all trips in one
@@ -619,7 +601,7 @@ router.get('/settings/tomtom_api_key', (_req: Request, res: Response) => {
 
 // Reason: whitelist prevents arbitrary keys from being written to the settings table
 // by non-browser HTTP clients that bypass the frontend's fixed set of setting keys.
-const ALLOWED_SETTING_KEYS = ['theme', 'date_format', 'time_areas', 'tomtom_api_key'] as const;
+const ALLOWED_SETTING_KEYS = ['theme', 'date_format', 'time_areas', 'tomtom_api_key', 'geocoding_provider', 'routing_provider', 'maps_provider'] as const;
 type AllowedSettingKey = typeof ALLOWED_SETTING_KEYS[number];
 
 router.put('/settings/:key', (req: Request, res: Response) => {
@@ -825,14 +807,21 @@ router.post('/import/trippack', (req: Request, res: Response) => {
 
 // ── Route legs ────────────────────────────────────────────────────────────────
 
-router.get('/route-legs/usage', (_req: Request, res: Response) => {
-  res.json(routeLegsRepo.getUsageStats());
-});
-
 router.get('/trips/:tripId/route-legs', (req: Request, res: Response) => {
   const tripId = parseIdParam(req.params['tripId']);
   if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
-  res.json(routeLegsRepo.getByTrip(tripId));
+
+  const legs         = routeLegsRepo.getByTrip(tripId);
+  const expectedLegs = routeLegsRepo.computeExpectedLegs(tripId);
+
+  // Reason: a trip is stale when the expected leg set differs from what's stored.
+  // Compares on (from, to) coords only — travel_mode changes are handled by setLegMode.
+  const storedKeys   = new Set(legs.map(l => `${l.from_lat},${l.from_lng},${l.to_lat},${l.to_lng}`));
+  const expectedKeys = new Set(expectedLegs.map(l => `${l.from_lat},${l.from_lng},${l.to_lat},${l.to_lng}`));
+  const isStale = legs.some(l => !expectedKeys.has(`${l.from_lat},${l.from_lng},${l.to_lat},${l.to_lng}`))
+               || expectedLegs.some(l => !storedKeys.has(`${l.from_lat},${l.from_lng},${l.to_lat},${l.to_lng}`));
+
+  res.json({ legs, expectedLegs, isStale });
 });
 
 router.get('/trips/:tripId/leg-modes', (req: Request, res: Response) => {
@@ -886,8 +875,6 @@ router.post('/trips/:tripId/leg-modes', async (req: Request, res: Response) => {
 router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response) => {
   const tripIdRaw = parseIdParam(req.params['tripId']);
   if (!tripIdRaw) { res.status(400).json({ error: 'Invalid tripId' }); return; }
-  // Reason: reassign to a const so TypeScript narrows the type to `number` inside
-  // nested async functions where the outer null-guard narrowing does not carry through.
   const tripId: number = tripIdRaw;
 
   const { tomtom_api_key: apiKey } = settingsRepo.getAllSettings();
@@ -895,39 +882,39 @@ router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response
 
   const db = getDb();
 
-  // Reason: union activities + reservations so every geocoded point in the day
-  // is considered, regardless of type. Reservations offset by 1000 to sort after activities.
-  type GeoPoint = { day_id: number; date: string; sort_order: number; lat: number; lng: number };
-  const points = routeLegsRepo.getGeoPointsForTrip(tripId) as GeoPoint[];
+  // Reason: compute the ground-truth expected leg set from current geo points,
+  // then delete any stored legs that are no longer expected (orphans from
+  // removed/reordered activities), and only call TomTom for legs not yet cached.
+  const expectedLegs = routeLegsRepo.computeExpectedLegs(tripId);
+  const deleted = routeLegsRepo.deleteOrphanLegs(tripId, expectedLegs);
 
-  // Group into map of date → ordered points
-  const byDate = new Map<string, GeoPoint[]>();
-  for (const p of points) {
-    const list = byDate.get(p.date) ?? [];
-    list.push(p);
-    byDate.set(p.date, list);
-  }
+  // Build a set of already-cached leg keys so we skip TomTom calls for them.
+  const cachedLegs = routeLegsRepo.getByTrip(tripId);
+  const storedModes = legModesRepo.getLegModes(tripId);
+  const cachedKeys = new Set(
+    cachedLegs.map(l => `${l.from_lat},${l.from_lng},${l.to_lat},${l.to_lng},${l.travel_mode}`),
+  );
 
-  const dates = [...byDate.keys()].sort();
   let synced = 0;
 
-  // Reason: read per-leg mode overrides so each coord pair can have its own mode.
-  // Falls back to 'car' when no override has been set for a pair.
-  const storedModes = legModesRepo.getLegModes(tripId);
+  for (const expected of expectedLegs) {
+    const mode = findLegMode(storedModes, expected.from_lat, expected.from_lng, expected.to_lat, expected.to_lng, 'car');
+    const cacheKey = `${expected.from_lat},${expected.from_lng},${expected.to_lat},${expected.to_lng},${mode}`;
 
-  async function fetchAndUpsert(from: GeoPoint, to: GeoPoint): Promise<void> {
-    const mode = findLegMode(storedModes, from.lat, from.lng, to.lat, to.lng, 'car');
+    // Reason: leg already cached with the right travel mode — skip TomTom call.
+    if (cachedKeys.has(cacheKey)) continue;
+
     const result = await fetchRouteLeg(
-      { lat: from.lat, lng: from.lng },
-      { lat: to.lat,   lng: to.lng },
+      { lat: expected.from_lat, lng: expected.from_lng },
+      { lat: expected.to_lat,   lng: expected.to_lng },
       apiKey,
       mode,
     );
-    if (!result) return;
+    if (!result) continue;
     routeLegsRepo.upsertLeg({
       trip_id:     tripId,
-      from_lat:    from.lat, from_lng: from.lng,
-      to_lat:      to.lat,   to_lng:   to.lng,
+      from_lat:    expected.from_lat, from_lng: expected.from_lng,
+      to_lat:      expected.to_lat,   to_lng:   expected.to_lng,
       distance_m:  result.distance_m,
       duration_s:  result.duration_s,
       polyline:    result.polyline,
@@ -936,29 +923,103 @@ router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response
     synced++;
   }
 
-  for (const date of dates) {
-    const dayPts = byDate.get(date)!;
-    // Reason: intra-day legs — route between every consecutive geocoded pair within the day
-    // so single-day trips (or any day with multiple geocoded activities) get routing too.
-    for (let j = 0; j < dayPts.length - 1; j++) {
-      await fetchAndUpsert(dayPts[j], dayPts[j + 1]);
-    }
-  }
+  const finalLegs = routeLegsRepo.getByTrip(tripId);
 
-  for (let i = 0; i < dates.length - 1; i++) {
-    const fromPoints = byDate.get(dates[i])!;
-    const toPoints   = byDate.get(dates[i + 1])!;
-    // Reason: inter-day leg — from the last geocoded point of day N to the first of day N+1.
-    await fetchAndUpsert(fromPoints[fromPoints.length - 1], toPoints[0]);
-  }
-
-  // Update the trip's cached total distance
-  if (synced > 0) {
-    const legs = routeLegsRepo.getByTrip(tripId);
-    const totalM = legs.reduce((sum, l) => sum + l.distance_m, 0);
+  if (synced > 0 || deleted > 0) {
+    const totalM = finalLegs.reduce((sum, l) => sum + l.distance_m, 0);
     db.prepare(`UPDATE trips SET distance_total_m = ?, distance_synced_at = datetime('now') WHERE id = ?`)
       .run(totalM, tripId);
   }
 
-  res.json({ synced, legs: routeLegsRepo.getByTrip(tripId) });
+  res.json({ synced, deleted, legs: finalLegs });
+});
+
+// ── Static map image for PDF export ──────────────────────────────────────────
+
+// Returns the number of geocoded points in the trip — used by the export modal
+// to show a warning when some activities/reservations have no location.
+router.get('/trips/:tripId/geo-point-counts', (req: Request, res: Response) => {
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+
+  const activities   = activitiesRepo.findActivitiesByTripId(tripId);
+  const reservations = reservationsRepo.findAllByTripId(tripId);
+
+  const totalActivities   = activities.length;
+  const geocodedActivities = activities.filter(a => a.lat !== null && a.lng !== null).length;
+  const totalReservations  = reservations.length;
+  const geocodedReservations = reservations.filter(r => r.lat !== null && r.lng !== null).length;
+
+  res.json({
+    activities:          totalActivities,
+    geocodedActivities,
+    reservations:        totalReservations,
+    geocodedReservations,
+    totalPoints:         totalActivities + totalReservations,
+    geocodedPoints:      geocodedActivities + geocodedReservations,
+  });
+});
+router.get('/trips/:tripId/static-map-image', async (req: Request, res: Response) => {
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+
+  const { tomtom_api_key: apiKey } = settingsRepo.getAllSettings();
+  if (!apiKey) { res.json({ dataUrl: null, mapParams: null }); return; }
+
+  // Optional: filter to a single day's points; default to all trip points.
+  const dayIdRaw = req.query['dayId'];
+  const dayId = dayIdRaw != null ? Number(dayIdRaw) : null;
+
+  // Optional: image dimensions — caller can request a size matching the display target.
+  const imgW = Math.min(800, Math.max(100, Number(req.query['w'] ?? 800)));
+  const imgH = Math.min(600, Math.max(100, Number(req.query['h'] ?? 320)));
+
+  const allActivities   = activitiesRepo.findActivitiesByTripId(tripId);
+  const allReservations = reservationsRepo.findAllByTripId(tripId);
+
+  // Reason: when filtering by day, include only that day's activities + non-lodging
+  // reservations. Lodging reservations span multiple days and don't meaningfully
+  // represent a single day's map.
+  const acts = (dayId != null ? allActivities.filter(a => a.day_id === dayId) : allActivities)
+    .filter(a => a.lat !== null && a.lng !== null)
+    .map(a => ({ lat: a.lat as number, lng: a.lng as number }));
+  const res_ = (dayId != null
+    ? allReservations.filter(r => r.day_id === dayId && r.type !== 'lodging')
+    : allReservations)
+    .filter(r => r.lat !== null && r.lng !== null)
+    .map(r => ({ lat: r.lat as number, lng: r.lng as number }));
+
+  const geoPoints = [...acts, ...res_];
+  if (geoPoints.length < 1) { res.json({ dataUrl: null, mapParams: null }); return; }
+
+  const lats = geoPoints.map(p => p.lat);
+  const lngs = geoPoints.map(p => p.lng);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+
+  // Reason: pad the bounding box by 20% so no pins sit on the very edge.
+  // Use a minimum span of 0.05° (~5 km) so a single-point trip still gets a useful zoom.
+  const latSpan = Math.max(maxLat - minLat, 0.05);
+  const lngSpan = Math.max(maxLng - minLng, 0.05);
+  const latPad = latSpan * 0.2;
+  const lngPad = lngSpan * 0.2;
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLng = (minLng + maxLng) / 2;
+  const latSpanPadded = latSpan + 2 * latPad;
+  const lngSpanPadded = lngSpan + 2 * lngPad;
+
+  // Reason: derive zoom via the maps service so all pins fit within the image.
+  const zoom = deriveZoom(latSpanPadded, lngSpanPadded, imgW, imgH);
+
+  const result = await fetchStaticMapImage(
+    { centerLat, centerLng, zoom, imgW, imgH },
+    apiKey,
+  );
+  if (!result) { res.json({ dataUrl: null, mapParams: null }); return; }
+
+  // Reason: return mapParams alongside the image so the client can overlay
+  // precisely-projected SVG pins using Mercator math without a second request.
+  res.json({ dataUrl: result.dataUrl, mapParams: { centerLat, centerLng, zoom, imgW, imgH } });
 });

@@ -30,9 +30,9 @@ describe('LodgingDetailsSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('fails when location is missing', () => {
+  it('accepts lodging without location (location is optional)', () => {
     const result = LodgingDetailsSchema.safeParse({ ...validLodging, location: undefined });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('fails when check_in_date is missing', () => {

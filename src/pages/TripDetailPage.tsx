@@ -29,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatDate } from '@/utils/dates';
-import { formatDateRange, nightCount, formatActivityTime } from '@/utils/format';
+import { formatDateRange, nightCount, formatActivityTime, formatDuration, formatDistance } from '@/utils/format';
 import { sortActivities } from '@/utils/activity';
 import type { Activity, Trip as TripType, TripWithDays, DayWithActivities } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
@@ -140,37 +140,19 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
     deleteReservation,
   } = useReservations(tripId);
   const { pins, mapDays, missingCount, refetch: refetchMapData } = useMapData(tripId);
-  const { legs: routeLegs, legModes, isSyncing: isRouteSyncing, sync: syncRoutes, setLegMode } = useRouteLegs(tripId);
+  const { legs: routeLegs, expectedLegs, isStale: routesStale, legModes, isSyncing: isRouteSyncing, sync: syncRoutes, setLegMode } = useRouteLegs(tripId);
   const { distanceUnit } = usePreferences();
 
-  // Reason: count geocoded consecutive pairs (intra-day and inter-day) that have no
-  // cached route leg — used to show the "sync routes" nudge on the itinerary tab.
+  // Reason: expectedLegs is the server-authoritative set of pairs that should exist;
+  // routeLegs is what's cached. The difference is what still needs syncing.
   const unroutedPairCount = useMemo(() => {
-    if (!trip) return 0;
-    type Geo = { lat: number; lng: number };
-    let count = 0;
-    for (let idx = 0; idx < trip.days.length; idx++) {
-      const day = trip.days[idx];
-      const acts = sortActivities(day.activities);
-      const dayRes = reservations.filter(r => r.day_id === day.id);
-      const geocoded = ([...acts, ...dayRes] as Array<{ lat?: number | null; lng?: number | null }>)
-        .filter((x): x is Geo => x.lat != null && x.lng != null);
-      for (let i = 0; i < geocoded.length - 1; i++) {
-        if (!findLeg(routeLegs, geocoded[i], geocoded[i + 1])) count++;
-      }
-      if (idx < trip.days.length - 1) {
-        const lastOfDay = geocoded[geocoded.length - 1] ?? null;
-        const nextDay = trip.days[idx + 1];
-        const nextActs = sortActivities(nextDay.activities);
-        const nextRes = reservations.filter(r => r.day_id === nextDay.id);
-        const nextGeocoded = ([...nextActs, ...nextRes] as Array<{ lat?: number | null; lng?: number | null }>)
-          .filter((x): x is Geo => x.lat != null && x.lng != null);
-        const firstOfNext = nextGeocoded[0] ?? null;
-        if (lastOfDay && firstOfNext && !findLeg(routeLegs, lastOfDay, firstOfNext)) count++;
-      }
-    }
-    return count;
-  }, [trip, reservations, routeLegs]);
+    const cachedKeys = new Set(
+      routeLegs.map(l => `${l.from_lat},${l.from_lng},${l.to_lat},${l.to_lng}`),
+    );
+    return expectedLegs.filter(
+      el => !cachedKeys.has(`${el.from_lat},${el.from_lng},${el.to_lat},${el.to_lng}`),
+    ).length;
+  }, [expectedLegs, routeLegs]);
 
   const [activeTab, setActiveTab] = useState<TripTab>('overview');
 
@@ -490,6 +472,8 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
             pins={pins}
             mapDays={mapDays}
             routeLegs={routeLegs}
+            expectedLegs={expectedLegs}
+            isStale={routesStale}
             missingCount={missingCount}
             isSyncing={isRouteSyncing}
             onSyncRoutes={() => void syncRoutes()}
@@ -683,12 +667,24 @@ function LodgingCard({
   return (
     <div className="tdp__lodging-card">
       <div className="tdp__lc-header">
-        <div className="tdp__lc-name">{d.property_name ?? reservation.title}</div>
-        <div className="tdp__lc-loc"><MapPin size={10} /><span>{d.location}</span></div>
-        <Badge className={`tdp__status-badge tdp__status-badge--${reservation.status}`}>
-          {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-        </Badge>
+        <div className="tdp__lc-name-block">
+          <div className="tdp__lc-name">{d.property_name ?? reservation.title}</div>
+          <Badge className={`tdp__status-badge tdp__status-badge--${reservation.status}`}>
+            {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+          </Badge>
+        </div>
+        <div className="tdp__lc-actions">
+          <Button variant="ghost" size="icon-xs" onClick={() => onEdit(reservation)} type="button" aria-label={`Edit ${reservation.title}`}>
+            <Pencil size={11} />
+          </Button>
+          <Button variant="ghost" size="icon-xs" className="hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete(reservation.id, reservation.title)} type="button" aria-label={`Delete ${reservation.title}`}>
+            <Trash2 size={11} />
+          </Button>
+        </div>
       </div>
+      {(reservation.location ?? d.location) && (
+        <div className="tdp__lc-loc"><MapPin size={10} /><span>{reservation.location ?? d.location}</span></div>
+      )}
       <div className="tdp__lc-dates">
         <div className="tdp__lc-date-col">
           <div className="tdp__lc-date-lbl">Check-in</div>
@@ -717,14 +713,6 @@ function LodgingCard({
           )}
         </div>
       )}
-      <div className="tdp__act-actions tdp__lc-actions">
-        <Button variant="ghost" size="icon-xs" onClick={() => onEdit(reservation)} type="button" aria-label={`Edit ${reservation.title}`}>
-          <Pencil size={11} />
-        </Button>
-        <Button variant="ghost" size="icon-xs" className="hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete(reservation.id, reservation.title)} type="button" aria-label={`Delete ${reservation.title}`}>
-          <Trash2 size={11} />
-        </Button>
-      </div>
     </div>
   );
 }
@@ -753,7 +741,7 @@ function OverviewTabSection({ title, icon, items, emptyMsg, onAdd, addLabel, onE
       <div className="tdp__section-head">
         <span className="tdp__section-title">{icon}{title}</span>
         {onAdd && (
-          <Button size="xs" variant="outline" onClick={onAdd} type="button">
+          <Button size="sm" variant="outline" onClick={onAdd} type="button">
             {addLabel ?? '+ Add'}
           </Button>
         )}
@@ -810,7 +798,7 @@ function OverviewTab({ trip, reservations, onAddEntry, onAddLodging, onEditReser
       <div className="tdp__section-card">
         <div className="tdp__section-head">
           <span className="tdp__section-title"><BedDouble size={14} />Lodging</span>
-          <Button size="xs" variant="outline" onClick={onAddLodging} type="button">
+          <Button size="sm" variant="outline" onClick={onAddLodging} type="button">
             + Add lodging
           </Button>
         </div>
@@ -868,8 +856,8 @@ function OverviewTab({ trip, reservations, onAddEntry, onAddLodging, onEditReser
         <div className="tdp__section-head">
           <span className="tdp__section-title"><NotebookPen size={14} />Trip notes</span>
           {!editingNotes && (
-            <Button size="xs" variant="ghost" onClick={() => setEditingNotes(true)} type="button">
-              <Pencil size={11} /> Edit
+            <Button size="sm" variant="ghost" onClick={() => setEditingNotes(true)} type="button">
+              <Pencil size={13} /> Edit
             </Button>
           )}
         </div>
@@ -887,11 +875,11 @@ function OverviewTab({ trip, reservations, onAddEntry, onAddLodging, onEditReser
                 }}
               />
               <div className="tdp__notes-actions">
-                <Button size="xs" variant="outline" onClick={handleCancelNotes} type="button" disabled={isSavingNotes}>
-                  <X size={11} /> Cancel
+                <Button size="sm" variant="outline" onClick={handleCancelNotes} type="button" disabled={isSavingNotes}>
+                  <X size={13} /> Cancel
                 </Button>
-                <Button size="xs" variant="default" onClick={() => { void handleSaveNotes(); }} type="button" disabled={isSavingNotes}>
-                  <Check size={11} /> Save
+                <Button size="sm" variant="default" onClick={() => { void handleSaveNotes(); }} type="button" disabled={isSavingNotes}>
+                  <Check size={13} /> Save
                 </Button>
               </div>
             </div>
@@ -982,8 +970,8 @@ function ItineraryTab({
         <div className="tdp__route-nudge">
           <Route size={13} />
           <span>{unroutedPairCount} segment{unroutedPairCount !== 1 ? 's' : ''} not yet routed</span>
-          <Button size="xs" variant="outline" onClick={onSyncRoutes} disabled={isSyncing} type="button">
-            {isSyncing ? <><Loader2 size={11} className="animate-spin" />Syncing…</> : 'Sync routes'}
+          <Button size="sm" variant="outline" onClick={onSyncRoutes} disabled={isSyncing} type="button">
+            {isSyncing ? <><Loader2 size={13} className="animate-spin" />Syncing…</> : 'Sync routes'}
           </Button>
         </div>
       )}
@@ -1003,7 +991,27 @@ function ItineraryTab({
         const geocodedInNext = [...nextActivities, ...nextReservations].filter(x => x.lat != null);
         const lastOfDay  = geocodedInDay[geocodedInDay.length - 1] ?? null;
         const firstOfNext = geocodedInNext[0] ?? null;
-        const interDayLeg = !isLastDay ? findLeg(routeLegs, lastOfDay, firstOfNext) : null;
+        // Reason: resolve the travel mode for the inter-day leg before calling findLeg
+        // so that after a mode change the correct cached leg is returned (not the old one).
+        const interDayMode = (lastOfDay?.lat != null && lastOfDay?.lng != null && firstOfNext?.lat != null && firstOfNext?.lng != null)
+          ? findLegMode(legModes, lastOfDay.lat, lastOfDay.lng, firstOfNext.lat, firstOfNext.lng, 'car')
+          : 'car';
+        const interDayLeg = !isLastDay ? findLeg(routeLegs, lastOfDay, firstOfNext, interDayMode) : null;
+
+        // Reason: sum all route legs whose from-point belongs to this day's geocoded
+        // points. This captures intra-day legs + the departing inter-day leg, giving
+        // a "total travel departing from this day" summary.
+        const dayLegs = geocodedInDay.length > 0
+          ? routeLegs.filter(leg =>
+              geocodedInDay.some(p =>
+                Math.abs(leg.from_lat - p.lat!) < 1e-5 &&
+                Math.abs(leg.from_lng - p.lng!) < 1e-5,
+              ),
+            )
+          : [];
+        const legSummary = dayLegs.length > 0
+          ? { distance_m: dayLegs.reduce((s, l) => s + l.distance_m, 0), duration_s: dayLegs.reduce((s, l) => s + l.duration_s, 0) }
+          : null;
 
         return (
           <React.Fragment key={day.id}>
@@ -1023,6 +1031,7 @@ function ItineraryTab({
                 routeLegs={routeLegs}
                 legModes={legModes}
                 distanceUnit={distanceUnit}
+                legSummary={legSummary}
                 onEditDay={() => onEditDay(day)}
                 onAddActivity={() => onAddActivity(day.id)}
                 onAddReservation={() => onAddReservation(day.id)}
@@ -1066,6 +1075,7 @@ interface ItineraryDayCardProps {
   routeLegs: import('@/domain/RouteLeg').RouteLeg[];
   legModes: LegModeRow[];
   distanceUnit: 'km' | 'mi';
+  legSummary: { distance_m: number; duration_s: number } | null;
   onEditDay: () => void;
   onAddActivity: () => void;
   onAddReservation: () => void;
@@ -1118,6 +1128,7 @@ function ItineraryDayCard({
   routeLegs,
   legModes,
   distanceUnit,
+  legSummary,
   onEditDay,
   onAddActivity,
   onAddReservation,
@@ -1199,6 +1210,14 @@ function ItineraryDayCard({
             : <div className="tdp__day-title tdp__day-title--empty">No title — tap ✏ to add</div>
           }
           {day.subtitle && <div className="tdp__day-subtitle">{day.subtitle}</div>}
+          {legSummary && (
+            <div className="tdp__day-travel">
+              <Route size={10} />
+              <span>{formatDuration(legSummary.duration_s)}</span>
+              <span className="tdp__leg-chip-sep">·</span>
+              <span>{formatDistance(legSummary.distance_m, distanceUnit)}</span>
+            </div>
+          )}
         </div>
         <div className="tdp__day-header-actions">
           <Button variant="ghost" size="icon-xs" onClick={onEditDay} type="button" aria-label="Edit day">
@@ -1261,8 +1280,15 @@ function ItineraryDayCard({
             return { lat: r?.lat ?? null, lng: r?.lng ?? null };
           };
           const nextItem = combinedItems[itemIdx + 1] ?? null;
+          // Reason: resolve the travel mode for the intra-day leg before calling findLeg
+          // so that after a mode change the correct cached leg is returned (not the old one).
+          const fromCoords = resolveLatLng(item);
+          const toCoords = nextItem ? resolveLatLng(nextItem) : null;
+          const intraMode = (fromCoords.lat != null && fromCoords.lng != null && toCoords?.lat != null && toCoords?.lng != null)
+            ? findLegMode(legModes, fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng, 'car')
+            : 'car';
           const intraLeg = nextItem
-            ? findLeg(routeLegs, resolveLatLng(item), resolveLatLng(nextItem))
+            ? findLeg(routeLegs, fromCoords, toCoords, intraMode)
             : null;
 
           if (item.itemType === 'activity') {
@@ -1588,7 +1614,7 @@ function DayEditModal({
           </div>
         </form>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button variant="default" onClick={() => { void document.querySelector<HTMLFormElement>('#day-edit-form')?.requestSubmit(); }} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
           </Button>

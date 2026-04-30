@@ -5,6 +5,9 @@ import type {
   Theme,
   DateFormat,
   TimeAreaConfig,
+  GeocodingProviderName,
+  RoutingProviderName,
+  MapsProviderName,
 } from '@/types/domain';
 
 // ─── Low-level get / set ──────────────────────────────────────────────────────
@@ -37,9 +40,12 @@ export function getAllSettings(): AppSettings {
 
   // Reason: provide safe defaults so callers never need to null-check settings
   return {
-    theme: (map.get('theme') ?? 'dark') as Theme,
-    date_format: (map.get('date_format') ?? 'DD MMM YYYY') as DateFormat,
-    time_areas: (map.get('time_areas') ?? {}) as Record<string, TimeAreaConfig>,
-    tomtom_api_key: (map.get('tomtom_api_key') ?? '') as string,
+    theme:              (map.get('theme') ?? 'dark') as Theme,
+    date_format:        (map.get('date_format') ?? 'DD MMM YYYY') as DateFormat,
+    time_areas:         (map.get('time_areas') ?? {}) as Record<string, TimeAreaConfig>,
+    tomtom_api_key:     (map.get('tomtom_api_key') ?? '') as string,
+    geocoding_provider: (map.get('geocoding_provider') ?? 'nominatim') as GeocodingProviderName,
+    routing_provider:   (map.get('routing_provider') ?? 'tomtom') as RoutingProviderName,
+    maps_provider:      (map.get('maps_provider') ?? 'tomtom') as MapsProviderName,
   };
 }
