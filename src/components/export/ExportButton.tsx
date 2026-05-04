@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import { FileDown, Calendar, Package } from 'lucide-react';
 import JSZip from 'jszip';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import IcsExportModal from './IcsExportModal';
-import PdfExportModal from './PdfExportModal';
+// Reason: @react-pdf/renderer is ~700 KB; split into its own chunk and only
+// downloaded when the user first opens the PDF export modal.
+const PdfExportModal = lazy(() => import('./PdfExportModal'));
 import { api } from '@/db/api-client';
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
@@ -83,13 +85,17 @@ export default function ExportButton({ trip, reservations }: ExportButtonProps):
         </Button>
       </div>
 
-      <PdfExportModal
-        open={pdfModalOpen}
-        onClose={() => setPdfModalOpen(false)}
-        trip={trip}
-        reservations={reservations}
-        safeFilename={safeFilename}
-      />
+      <Suspense fallback={null}>
+        {pdfModalOpen && (
+          <PdfExportModal
+            open={pdfModalOpen}
+            onClose={() => setPdfModalOpen(false)}
+            trip={trip}
+            reservations={reservations}
+            safeFilename={safeFilename}
+          />
+        )}
+      </Suspense>
       <IcsExportModal
         open={icsModalOpen}
         onClose={() => setIcsModalOpen(false)}

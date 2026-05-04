@@ -67,6 +67,59 @@ export function findLodgingOverlap(
   return row ?? null;
 }
 
+/**
+ * Returns the lodging reservation that covers a given night for the trip, or
+ * null if none. "Night of date" means check_in_date <= date < check_out_date —
+ * strict upper bound so a check-out day is not counted as a staying night.
+ */
+export function getLodgingForNight(tripId: number, date: string): ReservationRow | null {
+  const row = getDb().prepare(`
+    SELECT * FROM reservations
+    WHERE  trip_id = ?
+    AND    type    = 'lodging'
+    AND    json_extract(details, '$.check_in_date')  <= ?
+    AND    json_extract(details, '$.check_out_date') >  ?
+    LIMIT 1
+  `).get(tripId, date, date) as ReservationRow | undefined;
+  return row ?? null;
+}
+
+export interface LodgingDayAnchor {
+  day_id:         number;
+  date:           string;
+  check_in_date:  string;
+  check_out_date: string;
+  lat:            number;
+  lng:            number;
+}
+
+/**
+ * Returns one row per (lodging, day) pair where the lodging covers that day.
+ * "Covers" uses the night-of semantics for overnight days (check_in <= date <
+ * check_out) PLUS check-in day itself — so callers get both the arriving day
+ * and all overnight days in a single query.
+ *
+ * Used by the route-leg graph to inject lodgings as silent anchor points
+ * without needing a day_id FK on the reservation.
+ */
+export function getLodgingDayAnchors(tripId: number): LodgingDayAnchor[] {
+  return getDb().prepare(`
+    SELECT d.id  AS day_id,
+           d.date,
+           json_extract(r.details, '$.check_in_date')  AS check_in_date,
+           json_extract(r.details, '$.check_out_date') AS check_out_date,
+           r.lat, r.lng
+    FROM   reservations r
+    JOIN   days d ON d.trip_id = r.trip_id
+           AND d.date >= json_extract(r.details, '$.check_in_date')
+           AND d.date <  json_extract(r.details, '$.check_out_date')
+    WHERE  r.trip_id = ?
+    AND    r.type    = 'lodging'
+    AND    r.lat     IS NOT NULL
+    AND    r.lng     IS NOT NULL
+  `).all(tripId) as LodgingDayAnchor[];
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export function createReservation(input: CreateReservationInput): ReservationRow {

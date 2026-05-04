@@ -11,8 +11,19 @@ const app = express();
 // Referrer-Policy, etc.) with a single middleware call.
 app.use(helmet());
 
-// Reason: restrict CORS to Vite dev server only — this bridge is never public-facing
-app.use(cors({ origin: 'http://localhost:5173' }));
+// Reason: all three distribution targets need CORS — Vite dev, Tauri macOS/Linux, Tauri Windows.
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',   // Vite dev
+  'tauri://localhost',       // Tauri macOS/Linux
+  'http://localhost:1420',   // Tauri Windows
+];
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) cb(null, true);
+    else cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Reason: a broad rate limit guards against runaway local scripts and accidental

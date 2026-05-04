@@ -1,18 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import { Trip } from '@/domain/Trip';
 import { Activity } from '@/domain/Activity';
 import type { TripData } from '@/domain/Trip';
 import type { TripWithDays, DayWithActivities } from '@/types/domain';
-import type { ActivityRow, DayRow } from '@/types/db';
-import type { UpdateTripInput } from '@/db/repositories/trips.repo';
-
-// Raw shape returned by GET /trips/:id/full before domain class wrapping.
-interface RawTripFull {
-  days: Array<DayRow & { activities: ActivityRow[] }>;
-  [key: string]: unknown;
-}
+import type { UpdateTripInput, RawTripWithDays } from '@/db/repositories/trips.repo';
 
 interface UseTripReturn {
   trip: TripWithDays | null;
@@ -23,7 +16,11 @@ interface UseTripReturn {
   deleteTrip: () => Promise<void>;
 }
 
-function buildTripWithDays(raw: RawTripFull): TripWithDays {
+// Reason: exported so useMapData can reference the same type when registering
+// a query under the shared ['trip', id] key — prevents type divergence.
+export type { RawTripWithDays };
+
+export function buildTripWithDays(raw: RawTripWithDays): TripWithDays {
   const days: DayWithActivities[] = raw.days.map(day => ({
     ...day,
     activities: day.activities.map(a => new Activity(a)),
@@ -34,36 +31,62 @@ function buildTripWithDays(raw: RawTripFull): TripWithDays {
 }
 
 export function useTrip(id: number): UseTripReturn {
-  const [trip, setTrip] = useState<TripWithDays | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const refetch = useCallback((): void => {
-    setIsLoading(true);
-    api.get<RawTripFull>(`/trips/${id}/full`)
-      .then(raw => { setTrip(buildTripWithDays(raw)); setError(null); setIsLoading(false); })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : 'Unknown error');
-        setIsLoading(false);
-      });
-  }, [id]);
+  const { data, isLoading, error, refetch: rqRefetch } = useQuery({
+    queryKey: ['trip', id],
+    queryFn: () => api.get<RawTripWithDays>(`/trips/${id}/full`),
+    staleTime: 30_000,
+    select: buildTripWithDays,
+  });
 
-  useEffect(() => { refetch(); }, [refetch]);
+  const trip = data ?? null;
+  const refetch = (): void => { void rqRefetch(); };
 
-  const updateTrip = useCallback(async (input: UpdateTripInput): Promise<TripWithDays> => {
-    await api.patch(`/trips/${id}`, input);
-    const raw = await api.get<RawTripFull>(`/trips/${id}/full`);
-    const updated = buildTripWithDays(raw);
-    setTrip(updated);
-    toast.success('Trip updated');
-    return updated;
-  }, [id]);
+  const updateMutation = useMutation({
+    // Reason: PATCH then re-fetch full trip so the cache is populated with the
+    // server-authoritative shape (day list, activity counts, etc.) in one step.
+    mutationFn: async (input: UpdateTripInput): Promise<RawTripWithDays> => {
+      await api.patch<void>(`/trips/${id}`, input);
+      return api.get<RawTripWithDays>(`/trips/${id}/full`);
+    },
+    onSuccess: (raw) => {
+      // Reason: setQueryData rather than invalidate avoids a redundant GET —
+      // we already have the fresh payload from mutationFn.
+      queryClient.setQueryData<RawTripWithDays>(['trip', id], raw);
+      // Reason: the trips list shows stale title/dates/status until ['trips'] is invalidated.
+      void queryClient.invalidateQueries({ queryKey: ['trips'] });
+      toast.success('Trip updated');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to update trip');
+    },
+  });
 
-  const deleteTrip = useCallback(async (): Promise<void> => {
-    await api.delete(`/trips/${id}`);
-    setTrip(null);
-    toast.success('Trip deleted');
-  }, [id]);
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete<void>(`/trips/${id}`),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['trip', id] });
+      void queryClient.invalidateQueries({ queryKey: ['trips'] });
+      toast.success('Trip deleted');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete trip');
+    },
+  });
 
-  return { trip, isLoading, error, refetch, updateTrip, deleteTrip };
+  const updateTrip = async (input: UpdateTripInput): Promise<TripWithDays> => {
+    const raw = await updateMutation.mutateAsync(input);
+    return buildTripWithDays(raw);
+  };
+
+  const deleteTrip = async (): Promise<void> => {
+    try {
+      await deleteMutation.mutateAsync();
+    } catch {
+      // onError already shows the toast; swallow to match original behaviour.
+    }
+  };
+
+  return { trip, isLoading, error: error ? error.message : null, refetch, updateTrip, deleteTrip };
 }

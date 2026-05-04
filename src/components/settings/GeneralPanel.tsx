@@ -1,14 +1,11 @@
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { usePreferences } from '@/hooks/usePreferences';
+import { useThemeContext } from '@/context/ThemeContext';
 import type { Theme } from '@/types/domain';
 
-interface GeneralPanelProps {
-  theme: Theme;
-  onThemeChange: (t: Theme) => void;
-}
-
-export default function GeneralPanel({ theme, onThemeChange }: GeneralPanelProps): JSX.Element {
+export default function GeneralPanel(): JSX.Element {
+  const { theme, setTheme } = useThemeContext();
   const { distanceUnit, currency, setDistanceUnit, setCurrency } = usePreferences();
 
   return (
@@ -25,7 +22,7 @@ export default function GeneralPanel({ theme, onThemeChange }: GeneralPanelProps
               className={`theme-card${theme === mode ? ' theme-card--active' : ''}`}
               aria-pressed={theme === mode}
               aria-label={`${mode} color mode`}
-              onClick={() => onThemeChange(mode)}
+              onClick={() => setTheme(mode)}
             >
               {mode === 'auto' ? (
                 <div className="theme-card__preview theme-card__preview--auto">

@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import { Reservation } from '@/domain/Reservation';
@@ -22,25 +23,68 @@ interface UseReservationsReturn {
 }
 
 export function useReservations(tripId: number): UseReservationsReturn {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const refetch = useCallback((): void => {
-    setIsLoading(true);
-    api.get<ReservationRow[]>(`/reservations?tripId=${tripId}`)
-      .then(rows => {
-        setReservations(rows.map(r => new Reservation(r)));
-        setError(null);
-        setIsLoading(false);
-      })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : 'Unknown error');
-        setIsLoading(false);
-      });
-  }, [tripId]);
+  const { data: reservations = [], isLoading, error, refetch: rqRefetch } = useQuery({
+    queryKey: ['reservations', tripId],
+    queryFn: () => api.get<ReservationRow[]>(`/reservations?tripId=${tripId}`),
+    staleTime: 30_000,
+    select: (rows) => rows.map(r => new Reservation(r)),
+  });
 
-  useEffect(() => { refetch(); }, [refetch]);
+  const refetch = (): void => { void rqRefetch(); };
+
+  const createMutation = useMutation({
+    mutationFn: (input: CreateReservationInput) => api.post<ReservationRow>('/reservations', input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['reservations', tripId] });
+      toast.success('Reservation saved');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to save reservation');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: number; input: UpdateReservationInput }) =>
+      api.patch<ReservationRow>(`/reservations/${id}`, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['reservations', tripId] });
+      toast.success('Reservation updated');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to update reservation');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete<void>(`/reservations/${id}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['reservations', tripId] });
+      toast.success('Reservation deleted');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete reservation');
+    },
+  });
+
+  const createReservation = async (input: CreateReservationInput): Promise<Reservation> => {
+    const row = await createMutation.mutateAsync(input);
+    return new Reservation(row);
+  };
+
+  const updateReservation = async (id: number, input: UpdateReservationInput): Promise<Reservation> => {
+    const row = await updateMutation.mutateAsync({ id, input });
+    return new Reservation(row);
+  };
+
+  const deleteReservation = async (id: number): Promise<void> => {
+    try {
+      await deleteMutation.mutateAsync(id);
+    } catch {
+      // onError already shows the toast; swallow to match original behaviour.
+    }
+  };
 
   const byType = useCallback(
     (type: ReservationType): Reservation[] => reservations.filter(r => r.type === type),
@@ -58,55 +102,10 @@ export function useReservations(tripId: number): UseReservationsReturn {
     [reservations],
   );
 
-  const createReservation = useCallback(
-    async (input: CreateReservationInput): Promise<Reservation> => {
-      try {
-        const row = await api.post<ReservationRow>('/reservations', input);
-        const reservation = new Reservation(row);
-        refetch();
-        toast.success('Reservation saved');
-        return reservation;
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to save reservation');
-        throw err;
-      }
-    },
-    [refetch],
-  );
-
-  const updateReservation = useCallback(
-    async (id: number, input: UpdateReservationInput): Promise<Reservation> => {
-      try {
-        const row = await api.patch<ReservationRow>(`/reservations/${id}`, input);
-        const reservation = new Reservation(row);
-        refetch();
-        toast.success('Reservation updated');
-        return reservation;
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to update reservation');
-        throw err;
-      }
-    },
-    [refetch],
-  );
-
-  const deleteReservation = useCallback(
-    async (id: number): Promise<void> => {
-      try {
-        await api.delete(`/reservations/${id}`);
-        refetch();
-        toast.success('Reservation deleted');
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete reservation');
-      }
-    },
-    [refetch],
-  );
-
   return {
     reservations,
     isLoading,
-    error,
+    error: error ? error.message : null,
     refetch,
     byType,
     forDay,

@@ -1,7 +1,7 @@
 // TripDetailPage — Phase 4 rebuild.
 // Own topbar, compact hero, five-tab bar, itinerary with reservations.
 
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef, Suspense, lazy } from 'react';
 import { toast } from 'sonner';
 import { Pencil, Trash2, GripVertical, BedDouble, AlertTriangle, Plus, LayoutGrid, FileText, CalendarDays, CheckSquare, Map, Plane, Bus, Car, UtensilsCrossed, MapPin, NotebookPen, CalendarPlus, Footprints, Bike, Check, X, Route, Loader2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -14,7 +14,10 @@ import { useTrips } from '@/hooks/useTrips';
 import { useReservations } from '@/hooks/useReservations';
 import { useMapData } from '@/hooks/useMapData';
 import { Activity as ActivityClass } from '@/domain/Activity';
-import TripMap from '@/components/map/TripMap';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
+// Reason: leaflet + react-leaflet is ~200 KB; split into its own chunk and only
+// downloaded when the Map tab is first activated.
+const TripMap = lazy(() => import('@/components/map/TripMap'));
 import type { CreateReservationInput } from '@/hooks/useReservations';
 import ActivityFormModal from '@/components/itinerary/ActivityFormModal';
 import ReservationFormModal from '@/components/itinerary/ReservationFormModal';
@@ -31,6 +34,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatDate } from '@/utils/dates';
 import { formatDateRange, nightCount, formatActivityTime, formatDuration, formatDistance } from '@/utils/format';
 import { sortActivities } from '@/utils/activity';
+import { isCheckinDay } from '@/utils/lodging';
 import type { Activity, Trip as TripType, TripWithDays, DayWithActivities } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 import type { LodgingDetails } from '@/schemas/reservation.schema';
@@ -40,10 +44,12 @@ import type { UpdateTripInput } from '@/db/repositories/trips.repo';
 import { findLeg, findLegMode } from '@/domain/RouteLeg';
 import { api } from '@/db/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorScreen } from '@/components/ui/ErrorScreen';
 import ChecklistPanel from '@/components/checklist/ChecklistPanel';
 import TripCalendar from '@/components/calendar/TripCalendar';
 import ExportButton from '@/components/export/ExportButton';
 import { useRouteLegs } from '@/hooks/useRouteLegs';
+import { useChecklist } from '@/hooks/useChecklist';
 import { usePreferences } from '@/hooks/usePreferences';
 import type { RouteLegTravelMode, LegModeRow } from '@/types/db';
 
@@ -139,9 +145,13 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
     updateReservation,
     deleteReservation,
   } = useReservations(tripId);
-  const { pins, mapDays, missingCount, refetch: refetchMapData } = useMapData(tripId);
-  const { legs: routeLegs, expectedLegs, isStale: routesStale, legModes, isSyncing: isRouteSyncing, sync: syncRoutes, setLegMode } = useRouteLegs(tripId);
+  const { pins, mapDays, missingCount, error: mapDataError, refetch: refetchMapData } = useMapData(tripId);
+  const { legs: routeLegs, expectedLegs, isStale: routesStale, legModes, isSyncing: isRouteSyncing, sync: syncRoutes, setLegMode, error: routeLegsError } = useRouteLegs(tripId);
   const { distanceUnit } = usePreferences();
+  // Reason: useChecklist is called here (in addition to inside ChecklistPanel) so
+  // the error state is available at the page level for inline tab error handling.
+  // React Query deduplicates the identical query key — no extra network request.
+  const { error: checklistError } = useChecklist(tripId);
 
   // Reason: expectedLegs is the server-authoritative set of pairs that should exist;
   // routeLegs is what's cached. The difference is what still needs syncing.
@@ -155,13 +165,6 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   }, [expectedLegs, routeLegs]);
 
   const [activeTab, setActiveTab] = useState<TripTab>('overview');
-
-  // Reason: refetch map data each time the user navigates to the tab so geocoded
-  // pins appear without a full page reload.
-  useEffect(() => {
-    if (activeTab === 'map') refetchMapData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
 
   // ── Trip edit / delete modals ─────────────────────────────────────────────
   const [tripEditOpen,       setTripEditOpen]       = useState(false);
@@ -371,9 +374,12 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
 
   if (error || !trip) {
     return (
-      <div className="tdp tdp--error">
-        <p>Failed to load trip: {error ?? 'Not found'}</p>
-        <Button variant="secondary" onClick={refetch}>Retry</Button>
+      <div className="tdp">
+        <ErrorScreen
+          message={error ?? 'The trip could not be found.'}
+          onRetry={refetch}
+          onGoBack={onBack}
+        />
       </div>
     );
   }
@@ -466,18 +472,49 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
         {activeTab === 'calendar'  && (
           <TripCalendar tripId={trip.id} startDate={trip.start_date} endDate={trip.end_date} />
         )}
-        {activeTab === 'checklist' && <ChecklistPanel tripId={trip.id} />}
-        {activeTab === 'map'       && (
-          <TripMap
-            pins={pins}
-            mapDays={mapDays}
-            routeLegs={routeLegs}
-            expectedLegs={expectedLegs}
-            isStale={routesStale}
-            missingCount={missingCount}
-            isSyncing={isRouteSyncing}
-            onSyncRoutes={() => void syncRoutes()}
-          />
+        {activeTab === 'checklist' && (
+          checklistError
+            ? (
+              <div className="flex flex-col items-center gap-2 py-16 text-center">
+                <AlertTriangle size={20} style={{ color: 'var(--destructive)' }} aria-hidden />
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Checklist could not be loaded.
+                </p>
+              </div>
+            )
+            : <ChecklistPanel tripId={trip.id} />
+        )}
+        {activeTab === 'map' && (
+          (mapDataError ?? routeLegsError)
+            ? (
+              <div className="flex flex-col items-center gap-2 py-16 text-center">
+                <AlertTriangle size={20} style={{ color: 'var(--destructive)' }} aria-hidden />
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                  Map data could not be loaded.{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => refetchMapData()}
+                  >
+                    Retry
+                  </button>
+                </p>
+              </div>
+            )
+            : (
+              <Suspense fallback={<LoadingScreen message="Loading map..." />}>
+                <TripMap
+                  pins={pins}
+                  mapDays={mapDays}
+                  routeLegs={routeLegs}
+                  expectedLegs={expectedLegs}
+                  isStale={routesStale}
+                  missingCount={missingCount}
+                  isSyncing={isRouteSyncing}
+                  onSyncRoutes={() => void syncRoutes()}
+                />
+              </Suspense>
+            )
         )}
       </div>
 
@@ -504,7 +541,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
         dayId={pendingDayId ?? undefined}
         tripId={tripId}
         onSave={handleSaveActivity}
-        onGeocodeDone={refetchMapData}
+        onGeocodeDone={refetch}
       />
 
       <ReservationFormModal
@@ -529,7 +566,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
           // Reason: refetch is deferred to onClose to avoid flash while modal+geocoding are still active.
           return new ActivityClass(row);
         }}
-        onGeocodeDone={refetchMapData}
+        onGeocodeDone={refetch}
       />
 
       <AlertDialog open={deleteConfirmOpen} onOpenChange={o => { if (!o) setDeleteConfirmOpen(false); }}>
@@ -998,17 +1035,42 @@ function ItineraryTab({
           : 'car';
         const interDayLeg = !isLastDay ? findLeg(routeLegs, lastOfDay, firstOfNext, interDayMode) : null;
 
-        // Reason: sum all route legs whose from-point belongs to this day's geocoded
-        // points. This captures intra-day legs + the departing inter-day leg, giving
-        // a "total travel departing from this day" summary.
-        const dayLegs = geocodedInDay.length > 0
-          ? routeLegs.filter(leg =>
-              geocodedInDay.some(p =>
-                Math.abs(leg.from_lat - p.lat!) < 1e-5 &&
-                Math.abs(leg.from_lng - p.lng!) < 1e-5,
-              ),
-            )
-          : [];
+        // Reason: mirror backend computeExpectedLegs — sort geocoded points by
+        // sort_order (reservations offset by 1000) then look up each consecutive
+        // pair in routeLegs. This avoids counting stale legs or coincidental
+        // coord matches that the set-membership filter would incorrectly pick up.
+        const RSRV_OFFSET = 1_000;
+        // Reason: include lodging anchors exactly as the backend does — check-in day
+        // lodging sorts to end of day (9999), overnight lodging sorts to start (-1).
+        const lodgingAnchorPoints = lodgings
+          .filter(l => l.lat != null && l.lng != null)
+          .map(l => {
+            const d = l.parsedDetails<{ check_in_date?: string }>() ;
+            return {
+              lat:        l.lat!,
+              lng:        l.lng!,
+              sort_order: d.check_in_date != null && isCheckinDay(d.check_in_date, day.date) ? 9_999 : -1,
+            };
+          });
+        const sortedInDay = [
+          ...activities.map(a => ({ lat: a.lat, lng: a.lng, sort_order: a.sort_order })),
+          ...dayReservations.map(r => ({ lat: r.lat, lng: r.lng, sort_order: r.sort_order + RSRV_OFFSET })),
+          ...lodgingAnchorPoints,
+        ]
+          .filter((p): p is { lat: number; lng: number; sort_order: number } => p.lat != null && p.lng != null)
+          .sort((a, b) => a.sort_order - b.sort_order);
+        const dayLegs = [];
+        for (let i = 0; i < sortedInDay.length - 1; i++) {
+          const from = sortedInDay[i];
+          const to   = sortedInDay[i + 1];
+          const leg  = routeLegs.find(l =>
+            Math.abs(l.from_lat - from.lat) < 1e-5 &&
+            Math.abs(l.from_lng - from.lng) < 1e-5 &&
+            Math.abs(l.to_lat   - to.lat)   < 1e-5 &&
+            Math.abs(l.to_lng   - to.lng)   < 1e-5,
+          );
+          if (leg) dayLegs.push(leg);
+        }
         const legSummary = dayLegs.length > 0
           ? { distance_m: dayLegs.reduce((s, l) => s + l.distance_m, 0), duration_s: dayLegs.reduce((s, l) => s + l.duration_s, 0) }
           : null;

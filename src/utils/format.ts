@@ -40,10 +40,10 @@ export function formatTripDateRange(start: string | null, end: string | null): s
 export function formatDistance(metres: number, unit: 'km' | 'mi'): string {
   if (unit === 'mi') {
     const miles = metres / 1609.344;
-    return `${miles.toLocaleString(undefined, { maximumFractionDigits: 0 })} mi`;
+    return `${Math.round(miles)} mi`;
   }
   const km = metres / 1000;
-  return `${km.toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+  return `${parseFloat(km.toFixed(1))} km`;
 }
 
 // ── Duration formatting ───────────────────────────────────────────────────────

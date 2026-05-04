@@ -1,4 +1,7 @@
-import { useReducer, useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -11,51 +14,31 @@ import { useGeocode } from '@/hooks/useGeocode';
 import type { Activity } from '@/types/domain';
 import type { ActivityType, ActivityRow } from '@/types/db';
 import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories/activities.repo';
+import { ActivityBaseSchema } from '@/schemas/activity.schema';
 import './ActivityFormModal.css';
 
-// ─── Form state ─────────────────────────────────────────────────────────────
+// ─── Form schema ──────────────────────────────────────────────────────────────
+// Reason: the full CreateActivitySchema includes server-only fields (trip_id,
+// day_id, sort_order) AND has a .refine() on it. Zod disallows .pick() on
+// refined schemas, so we pick from ActivityBaseSchema (pre-refinement) and
+// re-add the end_time cross-field check ourselves.
 
-interface FormState {
-  title: string;
-  activity_type: ActivityType;
-  start_time: string; // HH:MM or ''
-  end_time: string;   // HH:MM or ''
-  notes: string;
-  location: string;
-}
+const ActivityFormSchema = ActivityBaseSchema
+  .pick({
+    title:         true,
+    activity_type: true,
+    start_time:    true,
+    end_time:      true,
+    notes:         true,
+    location:      true,
+  })
+  .refine(
+    d => !(d.end_time && !d.start_time),
+    { message: 'end_time requires start_time', path: ['end_time'] },
+  );
 
-type FormAction =
-  | { type: 'SET_FIELD'; field: keyof FormState; value: string }
-  | { type: 'RESET'; payload: FormState };
-
-function formReducer(state: FormState, action: FormAction): FormState {
-  switch (action.type) {
-    case 'SET_FIELD': return { ...state, [action.field]: action.value };
-    case 'RESET':     return action.payload;
-  }
-}
-
-function makeBlankForm(): FormState {
-  return {
-    title:         '',
-    activity_type: 'attraction',
-    start_time:    '',
-    end_time:      '',
-    notes:         '',
-    location:      '',
-  };
-}
-
-function activityToForm(a: Activity): FormState {
-  return {
-    title:         a.title,
-    activity_type: a.activity_type,
-    start_time:    a.start_time ?? '',
-    end_time:      a.end_time   ?? '',
-    notes:         a.notes      ?? '',
-    location:      a.data.location ?? '',
-  };
-}
+type ActivityFormValues = z.infer<typeof ActivityFormSchema>;
+type ActivityFormInput  = z.input<typeof ActivityFormSchema>;
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -79,6 +62,17 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: 'other',      label: '📌 Other' },
 ];
 
+function buildDefaultValues(activity?: Activity | null): ActivityFormValues {
+  return {
+    title:         activity?.title              ?? '',
+    activity_type: activity?.activity_type      ?? 'attraction',
+    start_time:    activity?.start_time         ?? null,
+    end_time:      activity?.end_time           ?? null,
+    notes:         activity?.notes              ?? null,
+    location:      activity?.data.location      ?? null,
+  };
+}
+
 export default function ActivityFormModal({
   open,
   onClose,
@@ -90,57 +84,45 @@ export default function ActivityFormModal({
 }: ActivityFormModalProps): JSX.Element {
   const isEditing = activity != null;
 
-  const [form, dispatch] = useReducer(formReducer, makeBlankForm());
-  const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  // Reason: ref guard ensures a second click while the promise is in-flight is a no-op,
-  // guarding against duplicate POSTs on slow networks (the server enforces 1 req/s).
-  const submittingRef = useRef(false);
   // Reason: store coordinates from autocomplete selection so the geocode call
   // can skip the Nominatim round-trip and use them directly.
   const coordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
   const geoHook = useGeocode('activities');
 
-  useEffect(() => {
-    if (!open) { setSubmitAttempted(false); setIsSubmitting(false); submittingRef.current = false; coordsRef.current = undefined; geoHook.reset(); }
-  // Reason: reset geo status when modal closes; geoHook.reset is stable.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const titleError: string | null =
-    submitAttempted && !form.title.trim() ? 'Title is required' : null;
-
-  function isFormValid(): boolean {
-    return form.title.trim().length > 0;
-  }
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<ActivityFormInput, unknown, ActivityFormValues>({
+    resolver: zodResolver(ActivityFormSchema),
+    defaultValues: buildDefaultValues(activity),
+  });
 
   useEffect(() => {
     if (open) {
-      dispatch({
-        type: 'RESET',
-        payload: isEditing ? activityToForm(activity) : makeBlankForm(),
-      });
+      reset(buildDefaultValues(activity));
+      coordsRef.current = undefined;
+      geoHook.reset();
     }
-  }, [open, isEditing, activity]);
+  // Reason: geoHook.reset is stable; only open/activity trigger a re-seed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activity, reset]);
 
-  function set(field: keyof FormState, value: string): void {
-    dispatch({ type: 'SET_FIELD', field, value });
-  }
-
-  async function handleSubmit(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    setSubmitAttempted(true);
-    if (!isFormValid() || submittingRef.current) return;
-    submittingRef.current = true;
-    setIsSubmitting(true);
-    try {
-    const locationTrimmed = form.location.trim();
+  // Before: handleSubmit(e) { e.preventDefault(); setSubmitAttempted(true);
+  //   if (!isFormValid() || submittingRef.current) return; submittingRef.current = true;
+  //   setIsSubmitting(true); try { ... } finally { submittingRef.current = false; setIsSubmitting(false); } }
+  // After: onValid(data) receives pre-validated values; isSubmitting managed by RHF.
+  //   No submittingRef needed — RHF prevents double-submit while isSubmitting is true.
+  async function onValid(data: ActivityFormValues): Promise<void> {
+    const locationTrimmed = data.location?.trim() ?? '';
     const base = {
-      title:         form.title.trim(),
-      activity_type: form.activity_type,
-      start_time:    form.start_time || null,
-      end_time:      form.end_time   || null,
-      notes:         form.notes.trim() || null,
+      title:         data.title.trim(),
+      activity_type: data.activity_type,
+      start_time:    data.start_time || null,
+      end_time:      data.end_time   || null,
+      notes:         data.notes?.trim() || null,
       location:      locationTrimmed || null,
       // Reason: clear stale coordinates when location is cleared.
       ...(locationTrimmed ? {} : { lat: null, lng: null }),
@@ -161,10 +143,6 @@ export default function ActivityFormModal({
     }
 
     onClose();
-    } finally {
-      submittingRef.current = false;
-      setIsSubmitting(false);
-    }
   }
 
   const footer = (
@@ -172,8 +150,8 @@ export default function ActivityFormModal({
       <Button variant="outline" onClick={onClose}>Cancel</Button>
       <Button
         variant="default"
-        disabled={isSubmitting || (submitAttempted && !isFormValid())}
-        onClick={e => { void handleSubmit(e as unknown as React.FormEvent); }}
+        disabled={isSubmitting}
+        onClick={handleSubmit(onValid)}
       >
         {isSubmitting
           ? <><Spinner className="mr-1.5 size-3.5" />{isEditing ? 'Saving…' : 'Adding…'}</>
@@ -188,35 +166,40 @@ export default function ActivityFormModal({
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit activity' : 'New activity'}</DialogTitle>
         </DialogHeader>
-        <form className="activity-form pb-1" onSubmit={e => { void handleSubmit(e); }}>
+        <form className="activity-form pb-1" onSubmit={handleSubmit(onValid)}>
           {/* Title */}
           <div className="activity-form__field activity-form__field--required">
             <Label htmlFor="af-title">Title</Label>
             <Input
               id="af-title"
-              aria-invalid={!!titleError}
+              aria-invalid={!!errors.title}
               type="text"
-              value={form.title}
-              onChange={e => set('title', e.target.value)}
               placeholder="Activity name"
               autoFocus
+              {...register('title')}
             />
-            {titleError && <span className="form-field-error">{titleError}</span>}
+            {errors.title && <span className="form-field-error">{errors.title.message}</span>}
           </div>
 
-          {/* Activity type */}
+          {/* Activity type — Controller required: shadcn Select */}
           <div className="activity-form__field">
             <Label htmlFor="af-type">Type</Label>
-            <Select value={form.activity_type} onValueChange={v => set('activity_type', v)}>
-              <SelectTrigger id="af-type" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ACTIVITY_TYPES.map(t => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Controller
+              name="activity_type"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id="af-type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTIVITY_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </div>
 
           {/* Time window */}
@@ -227,8 +210,7 @@ export default function ActivityFormModal({
                 id="af-start-time"
                 className="activity-form__input--time"
                 type="time"
-                value={form.start_time}
-                onChange={e => set('start_time', e.target.value)}
+                {...register('start_time')}
               />
             </div>
             <div className="activity-form__field">
@@ -237,9 +219,9 @@ export default function ActivityFormModal({
                 id="af-end-time"
                 className="activity-form__input--time"
                 type="time"
-                value={form.end_time}
-                onChange={e => set('end_time', e.target.value)}
+                {...register('end_time')}
               />
+              {errors.end_time && <span className="form-field-error">{errors.end_time.message}</span>}
             </div>
           </div>
 
@@ -248,18 +230,24 @@ export default function ActivityFormModal({
             <Label htmlFor="af-notes">Notes</Label>
             <Textarea
               id="af-notes"
-              value={form.notes}
-              onChange={e => set('notes', e.target.value)}
               placeholder="Any extra details…"
               rows={3}
+              {...register('notes')}
             />
           </div>
-          {/* Location (geocodable place for the map) */}
-          <LocationField
-            value={form.location}
-            onChange={val => { set('location', val); coordsRef.current = undefined; }}
-            onCoordinates={(lat, lng) => { coordsRef.current = { lat, lng }; }}
-            status={geoHook.status}
+
+          {/* Location — Controller required: custom LocationField component */}
+          <Controller
+            name="location"
+            control={control}
+            render={({ field }) => (
+              <LocationField
+                value={field.value ?? ''}
+                onChange={val => { coordsRef.current = undefined; field.onChange(val); }}
+                onCoordinates={(lat, lng) => { coordsRef.current = { lat, lng }; }}
+                status={geoHook.status}
+              />
+            )}
           />
         </form>
         <DialogFooter>{footer}</DialogFooter>

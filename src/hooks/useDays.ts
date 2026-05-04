@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import type { DayRow } from '@/types/db';
@@ -13,33 +13,34 @@ interface UseDaysReturn {
 }
 
 export function useDays(tripId: number): UseDaysReturn {
-  const [days, setDays] = useState<DayRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const refetch = useCallback((): void => {
-    setIsLoading(true);
-    api.get<DayRow[]>(`/days?tripId=${tripId}`)
-      .then(data => { setDays(data); setError(null); setIsLoading(false); })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : 'Unknown error');
-        setIsLoading(false);
-      });
-  }, [tripId]);
+  const { data: days = [], isLoading, error, refetch: rqRefetch } = useQuery({
+    queryKey: ['days', tripId],
+    queryFn: () => api.get<DayRow[]>(`/days?tripId=${tripId}`),
+    staleTime: 30_000,
+  });
 
-  useEffect(() => { refetch(); }, [refetch]);
+  const refetch = (): void => { void rqRefetch(); };
 
-  const updateDay = useCallback(async (id: number, input: UpdateDayInput): Promise<DayRow> => {
-    try {
-      const day = await api.patch<DayRow>(`/days/${id}`, input);
-      refetch();
+  const updateMutation = useMutation({
+    mutationFn: ({ id, input }: { id: number; input: UpdateDayInput }) =>
+      api.patch<DayRow>(`/days/${id}`, input),
+    onSuccess: () => {
+      // Reason: invalidate both the flat days list and the full trip (which embeds
+      // day title/subtitle inline) so all consumers see the updated data.
+      void queryClient.invalidateQueries({ queryKey: ['days', tripId] });
+      void queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
       toast.success('Day updated');
-      return day;
-    } catch (err) {
+    },
+    onError: (err) => {
       toast.error(err instanceof Error ? err.message : 'Failed to update day');
-      throw err;
-    }
-  }, [refetch]);
+    },
+  });
 
-  return { days, isLoading, error, refetch, updateDay };
+  const updateDay = async (id: number, input: UpdateDayInput): Promise<DayRow> => {
+    return updateMutation.mutateAsync({ id, input });
+  };
+
+  return { days, isLoading, error: error ? error.message : null, refetch, updateDay };
 }

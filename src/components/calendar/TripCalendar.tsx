@@ -111,12 +111,22 @@ function MonthGrid({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function TripCalendar({ tripId, startDate, endDate }: TripCalendarProps): JSX.Element {
-  const { byDate, isLoading } = useCalendarDays(tripId);
+  const { byDate, isLoading, error } = useCalendarDays(tripId);
 
   if (!startDate || !endDate) {
     return (
       <div className="trip-cal trip-cal--empty">
         <p>No dates set for this trip.</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="trip-cal trip-cal--empty">
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Calendar data could not be loaded.
+        </p>
       </div>
     );
   }

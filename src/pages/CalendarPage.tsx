@@ -3,6 +3,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import GlobalCalendar from '@/components/calendar/GlobalCalendar';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { ErrorScreen } from '@/components/ui/ErrorScreen';
+import { useTrips } from '@/hooks/useTrips';
 import { MONTH_NAMES } from '@/utils/calendar';
 import './CalendarPage.css';
 
@@ -11,6 +14,11 @@ export default function CalendarPage(): JSX.Element {
   const [month, setMonth] = useState<Date>(
     new Date(today.getFullYear(), today.getMonth(), 1)
   );
+
+  // Reason: useTrips is also called inside GlobalCalendar — React Query
+  // deduplicates the request. This call only exists to surface loading/error
+  // state at the page level so the user gets proper feedback.
+  const { isLoading, error, refetch } = useTrips();
 
   function goToPrev(): void {
     setMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1));
@@ -22,6 +30,19 @@ export default function CalendarPage(): JSX.Element {
 
   function goToToday(): void {
     setMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+  }
+
+  if (isLoading) {
+    return <LoadingScreen message="Loading calendar…" />;
+  }
+
+  if (error) {
+    return (
+      <ErrorScreen
+        message={`Calendar data could not be loaded. ${error}`}
+        onRetry={refetch}
+      />
+    );
   }
 
   return (

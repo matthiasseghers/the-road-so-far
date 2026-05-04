@@ -1,5 +1,6 @@
 import { useState, Fragment, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,6 +11,17 @@ import type { TemplateWithItems } from '@/hooks/useTemplateEditor';
 
 export default function TemplatesPanel(): JSX.Element {
   const { templates, isLoading, addTemplate, renameTemplate, deleteTemplate, addItem, deleteItem, reorderItems } = useTemplateEditor();
+
+  // Reason: useTemplateEditor does not expose its error state. This observer
+  // subscribes to the same ['templates'] cache entry reactively (enabled: false
+  // means it never triggers a fetch — it only reads and observes the cache).
+  const { error: templateLoadError } = useQuery<TemplateWithItems[], Error>({
+    queryKey: ['templates'],
+    // eslint-disable-next-line @typescript-eslint/require-await
+    queryFn: async () => [],
+    enabled: false,
+    staleTime: Infinity,
+  });
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [newTemplateName, setNewTemplateName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -58,6 +70,18 @@ export default function TemplatesPanel(): JSX.Element {
         <h2 className="settings-panel__title">Templates</h2>
         <div className="template-list">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 rounded-md" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (templateLoadError) {
+    return (
+      <div>
+        <h2 className="settings-panel__title">Templates</h2>
+        <div className="flex items-center gap-2 py-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <AlertTriangle size={16} style={{ color: 'var(--destructive)', flexShrink: 0 }} aria-hidden />
+          Templates could not be loaded. Please reload the page to try again.
         </div>
       </div>
     );

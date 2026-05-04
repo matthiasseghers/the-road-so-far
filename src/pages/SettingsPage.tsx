@@ -4,7 +4,6 @@ import GeneralPanel from '@/components/settings/GeneralPanel';
 import ServicesPanel from '@/components/settings/ServicesPanel';
 import TemplatesPanel from '@/components/settings/TemplatesPanel';
 import DataPanel from '@/components/settings/DataPanel';
-import type { Theme } from '@/types/domain';
 import type { LucideIcon } from 'lucide-react';
 import './SettingsPage.css';
 
@@ -18,12 +17,10 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
 ];
 
 interface SettingsPageProps {
-  theme: Theme;
-  onThemeChange: (t: Theme) => void;
   onDataWiped: () => void;
 }
 
-export default function SettingsPage({ theme, onThemeChange, onDataWiped }: SettingsPageProps): JSX.Element {
+export default function SettingsPage({ onDataWiped }: SettingsPageProps): JSX.Element {
   const [activeSection, setActiveSection] = useState<Section>('general');
 
   return (
@@ -48,7 +45,7 @@ export default function SettingsPage({ theme, onThemeChange, onDataWiped }: Sett
 
       {/* Right content */}
       <div className="settings-content">
-        {activeSection === 'general'   && <GeneralPanel   theme={theme} onThemeChange={onThemeChange} />}
+        {activeSection === 'general'   && <GeneralPanel />}
         {activeSection === 'services'  && <ServicesPanel />}
         {activeSection === 'templates' && <TemplatesPanel />}
         {activeSection === 'data'      && <DataPanel      onDataWiped={onDataWiped} />}

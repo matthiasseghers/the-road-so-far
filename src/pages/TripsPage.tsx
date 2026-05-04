@@ -6,6 +6,7 @@ import OngoingTripBanner from '@/components/trips/OngoingTripBanner';
 import TripFormModal from '@/components/trips/TripFormModal';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorScreen } from '@/components/ui/ErrorScreen';
 import { useTrips } from '@/hooks/useTrips';
 import type { Trip, Screen } from '@/types/domain';
 import './TripsPage.css';
@@ -20,7 +21,7 @@ interface TripsPageProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TripsPage({ onNavigate, newTripOpen = false, onNewTripOpenChange }: TripsPageProps): JSX.Element {
-  const { trips, isLoading, error, createTrip, updateTrip, deleteTrip } = useTrips();
+  const { trips, isLoading, error, refetch, createTrip, updateTrip, deleteTrip } = useTrips();
 
   const [search, setSearch] = useState('');
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -94,7 +95,14 @@ export default function TripsPage({ onNavigate, newTripOpen = false, onNewTripOp
   }
 
   if (error) {
-    return <div className="trips-page__error">Error: {error}</div>;
+    return (
+      <div className="trips-page">
+        <ErrorScreen
+          message={`Your trips could not be loaded. ${error}`}
+          onRetry={refetch}
+        />
+      </div>
+    );
   }
 
   const hasFilters = search.trim().length > 0 || activeTags.length > 0;

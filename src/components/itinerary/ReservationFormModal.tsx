@@ -1,4 +1,7 @@
-import { useReducer, useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { BedDouble, Plane, Train, Bus, Ship, Car, Utensils, Tag, Camera, ShoppingBag, TreePine, Landmark, FileText } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -19,8 +22,29 @@ import type { ReservationType, ActivityType } from '@/types/db';
 import type { CreateReservationInput } from '@/hooks/useReservations';
 import type { CreateActivityInput } from '@/db/repositories/activities.repo';
 import { CreateReservationSchema } from '@/schemas/reservation.schema';
-import { CreateActivitySchema } from '@/schemas/activity.schema';
+import { ActivityBaseSchema } from '@/schemas/activity.schema';
 import './ReservationFormModal.css';
+
+// ── Activity RHF schema ───────────────────────────────────────────────────────
+// Reason: the full CreateActivitySchema includes server-only fields AND has a
+// .refine() on it. Zod disallows .pick() on refined schemas, so we pick from
+// ActivityBaseSchema (pre-refinement) and re-add the end_time check.
+
+const ActivityFormSchema = ActivityBaseSchema
+  .pick({
+    title:         true,
+    activity_type: true,
+    start_time:    true,
+    end_time:      true,
+    notes:         true,
+    location:      true,
+  })
+  .refine(
+    d => !(d.end_time && !d.start_time),
+    { message: 'end_time requires start_time', path: ['end_time'] },
+  );
+type ActivityFormValues = z.infer<typeof ActivityFormSchema>;
+type ActivityFormInput  = z.input<typeof ActivityFormSchema>;
 
 // ── Category / type selection ────────────────────────────────────────────────
 
@@ -52,24 +76,15 @@ const STEP2B_CHIPS: Step2bChipDef[] = [
   { value: 'other',      label: 'Other',        sub: 'Tours, tickets, events',  icon: Tag,        defaultType: 'other' },
 ];
 
-// ── Activity form state ───────────────────────────────────────────────────────
+// ── Activity form helpers ─────────────────────────────────────────────────────
 
-interface ActivityFormState {
-  title: string;
-  activity_type: ActivityType;
-  start_time: string;
-  end_time: string;
-  notes: string;
-  location: string;
-}
-
-const BLANK_ACTIVITY: ActivityFormState = {
-  title: '',
+const BLANK_ACTIVITY: ActivityFormValues = {
+  title:         '',
   activity_type: 'note',
-  start_time: '',
-  end_time: '',
-  notes: '',
-  location: '',
+  start_time:    null,
+  end_time:      null,
+  notes:         null,
+  location:      null,
 };
 
 const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string; icon: LucideIcon }[] = [
@@ -218,95 +233,6 @@ interface ReservationFormModalProps {
 }
 
 // ── Step indicator ────────────────────────────────────────────────────────────
-
-// ── Activity sub-form ─────────────────────────────────────────────────────────
-
-function ActivitySubForm({
-  form,
-  onChange,
-  errors,
-  locationStatus,
-  onLocationCoordinates,
-}: {
-  form: ActivityFormState;
-  onChange: (field: keyof ActivityFormState, value: string) => void;
-  errors: Partial<Record<keyof ActivityFormState, string>>;
-  locationStatus: ReturnType<typeof useGeocode>['status'];
-  onLocationCoordinates?: (lat: number, lng: number) => void;
-}): JSX.Element {
-  return (
-    <div className="rfm__form">
-      <div className="rfm__field rfm__field--required">
-        <Label htmlFor="rfm-act-title">Title</Label>
-        <Input
-          id="rfm-act-title"
-          aria-invalid={!!errors.title}
-          type="text"
-          value={form.title}
-          onChange={e => onChange('title', e.target.value)}
-          placeholder="e.g. Visit the Colosseum"
-          autoFocus
-        />
-        {errors.title && <span className="form-field-error">{errors.title}</span>}
-      </div>
-
-      <div className="rfm__field">
-        <Label htmlFor="rfm-act-type">Type</Label>
-        <Select value={form.activity_type} onValueChange={v => onChange('activity_type', v)}>
-          <SelectTrigger id="rfm-act-type" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ACTIVITY_TYPE_OPTIONS.map(o => (
-              <SelectItem key={o.value} value={o.value}>
-                <span className="flex items-center gap-1.5"><o.icon size={13} />{o.label}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="rfm__row">
-        <div className="rfm__field">
-          <Label htmlFor="rfm-start-time">Start time</Label>
-          <Input
-            id="rfm-start-time"
-            type="time"
-            value={form.start_time}
-            onChange={e => onChange('start_time', e.target.value)}
-          />
-        </div>
-        <div className="rfm__field">
-          <Label htmlFor="rfm-end-time">End time</Label>
-          <Input
-            id="rfm-end-time"
-            type="time"
-            value={form.end_time}
-            onChange={e => onChange('end_time', e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="rfm__field">
-        <Label htmlFor="rfm-act-notes">Notes</Label>
-        <Textarea
-          id="rfm-act-notes"
-          value={form.notes}
-          onChange={e => onChange('notes', e.target.value)}
-          placeholder="Any details…"
-          rows={3}
-        />
-      </div>
-
-      <LocationField
-        value={form.location}
-        onChange={val => onChange('location', val)}
-        onCoordinates={onLocationCoordinates}
-        status={locationStatus}
-      />
-    </div>
-  );
-}
 
 // ── Reservation sub-form ──────────────────────────────────────────────────────
 
@@ -622,17 +548,6 @@ function ClearableTimeInput({
   );
 }
 
-type ActivityAction =
-  | { type: 'SET'; field: keyof ActivityFormState; value: string }
-  | { type: 'RESET'; payload: ActivityFormState };
-
-function activityReducer(state: ActivityFormState, action: ActivityAction): ActivityFormState {
-  switch (action.type) {
-    case 'SET':   return { ...state, [action.field]: action.value };
-    case 'RESET': return action.payload;
-  }
-}
-
 // ── Helper: derive day_id from reservation date fields ───────────────────────
 
 function resolveDayId(
@@ -676,8 +591,18 @@ export default function ReservationFormModal({
   const [resType, setResType]       = useState<ReservationType>('lodging');
 
   // ── Activity form ─────────────────────────────────────────────────────────
-  const [actForm, dispatchAct] = useReducer(activityReducer, BLANK_ACTIVITY);
-  const [actErrors, setActErrors] = useState<Partial<Record<keyof ActivityFormState, string>>>({});
+  // Reason: useForm replaces the useReducer+activityReducer pattern. zodResolver
+  // validates on submit so the inline isFormValid() guard is no longer needed.
+  const {
+    register: actRegister,
+    handleSubmit: actHandleSubmit,
+    control: actControl,
+    reset: actReset,
+    formState: actFormState,
+  } = useForm<ActivityFormInput, unknown, ActivityFormValues>({
+    resolver: zodResolver(ActivityFormSchema),
+    defaultValues: BLANK_ACTIVITY,
+  });
 
   // ── Reservation form ──────────────────────────────────────────────────────
   const [resForm, setResForm] = useState<ReservationFormState>(BLANK_RESERVATION);
@@ -692,19 +617,18 @@ export default function ReservationFormModal({
   const actCoordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
   const resCoordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
 
-  // ── Submission guard ──────────────────────────────────────────────────────
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  // Reason: ref prevents a second click while an async submit is in-flight
-  // from enqueuing a duplicate POST, regardless of React re-render timing.
+  // ── Submission guard (reservation path only) ────────────────────────────
+  // Reason: the activity path uses actFormState.isSubmitting from RHF.
+  // The reservation path still uses manual state because resForm is plain useState.
+  const [resIsSubmitting, setResIsSubmitting] = useState(false);
   const submittingRef = useRef(false);
 
   // Seed form from editing props / reset on close
   useEffect(() => {
     if (!open) {
-      setActErrors({});
       setResErrors({});
       setApiError(null);
-      setIsSubmitting(false);
+      setResIsSubmitting(false);
       submittingRef.current = false;
       actGeocode.reset();
       resGeocode.reset();
@@ -715,16 +639,13 @@ export default function ReservationFormModal({
 
     if (editingActivity) {
       setCategory('activity');
-      dispatchAct({
-        type: 'RESET',
-        payload: {
-          title:         editingActivity.title,
-          activity_type: editingActivity.activity_type,
-          start_time:    editingActivity.start_time ?? '',
-          end_time:      editingActivity.end_time   ?? '',
-          notes:         editingActivity.notes      ?? '',
-          location:      editingActivity.data.location ?? '',
-        },
+      actReset({
+        title:         editingActivity.title,
+        activity_type: editingActivity.activity_type,
+        start_time:    editingActivity.start_time    ?? null,
+        end_time:      editingActivity.end_time      ?? null,
+        notes:         editingActivity.notes         ?? null,
+        location:      editingActivity.data.location ?? null,
       });
       return;
     }
@@ -757,7 +678,7 @@ export default function ReservationFormModal({
 
     if (defaultCategory === 'activity') {
       setCategory('activity');
-      dispatchAct({ type: 'RESET', payload: BLANK_ACTIVITY });
+      actReset(BLANK_ACTIVITY);
       return;
     }
 
@@ -765,9 +686,10 @@ export default function ReservationFormModal({
     setCategory('reservation');
     setStep2bChip('lodging');
     setResType('lodging');
-    dispatchAct({ type: 'RESET', payload: BLANK_ACTIVITY });
+    actReset(BLANK_ACTIVITY);
     setResForm(BLANK_RESERVATION);
-  }, [open, editingActivity, editingReservation, initialType, defaultCategory]);
+  // Reason: actReset is stable (RHF); including it avoids the exhaustive-deps lint warning.
+  }, [open, editingActivity, editingReservation, initialType, defaultCategory, actReset]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -795,56 +717,44 @@ export default function ReservationFormModal({
     setResForm(prev => ({ ...prev, [field]: value }));
   }
 
+  // Reason: activity path is handled by RHF handleSubmit; this function only
+  // runs the reservation path. The activity path calls actHandleSubmit(onActivityValid).
+  async function onActivityValid(data: ActivityFormValues): Promise<void> {
+    setApiError(null);
+    const locationTrimmed = (data.location ?? '').trim();
+    const fullInput = {
+      day_id:        dayId ?? null,
+      trip_id:       tripId,
+      title:         data.title.trim(),
+      activity_type: data.activity_type,
+      start_time:    data.start_time || null,
+      end_time:      data.end_time   || null,
+      notes:         (data.notes ?? '').trim() || null,
+      location:      locationTrimmed || null,
+      ...(locationTrimmed ? {} : { lat: null, lng: null }),
+    };
+    try {
+      let saved: Activity | void;
+      if (editingActivity && onUpdateActivity) {
+        saved = await onUpdateActivity(editingActivity.id, fullInput);
+      } else {
+        saved = await onCreateActivity(fullInput as CreateActivityInput);
+      }
+      const savedId = (saved as Activity | undefined)?.id ?? editingActivity?.id;
+      if (savedId && locationTrimmed) {
+        await actGeocode.geocode(savedId, locationTrimmed, actCoordsRef.current);
+        onGeocodeDone?.();
+        await new Promise<void>(resolve => { setTimeout(resolve, 800); });
+      }
+      onClose();
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : 'Failed to save activity');
+    }
+  }
+
   async function handleSubmit(): Promise<void> {
     setApiError(null);
     if (submittingRef.current) return;
-
-    if (category === 'activity') {
-      const locationTrimmed = actForm.location.trim();
-      const parsed = CreateActivitySchema.safeParse({
-        day_id:        dayId ?? null,
-        trip_id:       tripId,
-        title:         actForm.title.trim(),
-        activity_type: actForm.activity_type,
-        start_time:    actForm.start_time || null,
-        end_time:      actForm.end_time   || null,
-        notes:         actForm.notes.trim() || null,
-        location:      locationTrimmed || null,
-        // Reason: clear stale coordinates when location is cleared.
-        ...(locationTrimmed ? {} : { lat: null, lng: null }),
-      });
-      if (!parsed.success) {
-        const fe = parsed.error.flatten().fieldErrors;
-        setActErrors({
-          title:    fe['title']?.[0],
-          end_time: fe['end_time']?.[0],
-        });
-        return;
-      }
-      submittingRef.current = true;
-      setIsSubmitting(true);
-      try {
-        let saved: Activity | void;
-        if (editingActivity && onUpdateActivity) {
-          saved = await onUpdateActivity(editingActivity.id, parsed.data);
-        } else {
-          saved = await onCreateActivity(parsed.data);
-        }
-        const savedId = (saved as Activity | undefined)?.id ?? editingActivity?.id;
-        if (savedId && locationTrimmed) {
-          await actGeocode.geocode(savedId, locationTrimmed, actCoordsRef.current);
-          onGeocodeDone?.();
-          await new Promise<void>(resolve => { setTimeout(resolve, 800); });
-        }
-        onClose();
-      } catch (err) {
-        setApiError(err instanceof Error ? err.message : 'Failed to save activity');
-      } finally {
-        submittingRef.current = false;
-        setIsSubmitting(false);
-      }
-      return;
-    }
 
     // Reservation
     const detailsObj = { type: resType, ...resForm.details };
@@ -874,12 +784,12 @@ export default function ReservationFormModal({
       return;
     }
     submittingRef.current = true;
-    setIsSubmitting(true);
+    setResIsSubmitting(true);
     try {
       await doSaveReservation(parsed.data);
     } finally {
       submittingRef.current = false;
-      setIsSubmitting(false);
+      setResIsSubmitting(false);
     }
   }
 
@@ -930,8 +840,8 @@ export default function ReservationFormModal({
     return (
       <>
         <Button variant="outline" onClick={onClose} type="button">Cancel</Button>
-        <Button variant="default" disabled={isSubmitting} onClick={() => { void handleSubmit(); }} type="button">
-          {isSubmitting
+        <Button variant="default" disabled={category === 'activity' ? actFormState.isSubmitting : resIsSubmitting} onClick={() => { if (category === 'activity') { void actHandleSubmit(onActivityValid)(); } else { void handleSubmit(); } }} type="button">
+          {(category === 'activity' ? actFormState.isSubmitting : resIsSubmitting)
             ? <><Spinner className="mr-1.5 size-3.5" />Saving…</>
             : saveLabel}
         </Button>
@@ -953,13 +863,69 @@ export default function ReservationFormModal({
             the left/right edge of inputs aren't clipped by overflow-x:auto. */}
         <div className="rfm__scroll-area -mx-4 px-4">
           {category === 'activity' ? (
-            <ActivitySubForm
-              form={actForm}
-              onChange={(f, v) => { if (f === 'location') actCoordsRef.current = undefined; dispatchAct({ type: 'SET', field: f, value: v }); }}
-              onLocationCoordinates={(lat, lng) => { actCoordsRef.current = { lat, lng }; }}
-              errors={actErrors}
-              locationStatus={actGeocode.status}
-            />
+            <div className="rfm__form">
+              {apiError && (
+                <div className="rfm__api-error"><span>⚠</span><span>{apiError}</span></div>
+              )}
+              <div className="rfm__field rfm__field--required">
+                <Label htmlFor="rfm-act-title">Title</Label>
+                <Input
+                  id="rfm-act-title"
+                  aria-invalid={!!actFormState.errors.title}
+                  type="text"
+                  placeholder="e.g. Visit the Colosseum"
+                  autoFocus
+                  {...actRegister('title')}
+                />
+                {actFormState.errors.title && <span className="form-field-error">{actFormState.errors.title.message}</span>}
+              </div>
+              <div className="rfm__field">
+                <Label htmlFor="rfm-act-type">Type</Label>
+                <Controller
+                  name="activity_type"
+                  control={actControl}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger id="rfm-act-type" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ACTIVITY_TYPE_OPTIONS.map(o => (
+                          <SelectItem key={o.value} value={o.value}>
+                            <span className="flex items-center gap-1.5"><o.icon size={13} />{o.label}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="rfm__row">
+                <div className="rfm__field">
+                  <Label htmlFor="rfm-start-time">Start time</Label>
+                  <Input id="rfm-start-time" type="time" {...actRegister('start_time')} />
+                </div>
+                <div className="rfm__field">
+                  <Label htmlFor="rfm-end-time">End time</Label>
+                  <Input id="rfm-end-time" type="time" {...actRegister('end_time')} />
+                  {actFormState.errors.end_time && <span className="form-field-error">{actFormState.errors.end_time.message}</span>}
+                </div>
+              </div>
+              <div className="rfm__field">
+                <Label htmlFor="rfm-act-notes">Notes</Label>
+                <Textarea id="rfm-act-notes" placeholder="Any details…" rows={3} {...actRegister('notes')} />
+              </div>
+              <Controller
+                name="location"
+                control={actControl}
+                render={({ field }) => (
+                  <LocationField
+                    value={field.value ?? ''}
+                    onChange={val => { actCoordsRef.current = undefined; field.onChange(val); }}
+                    onCoordinates={(lat, lng) => { actCoordsRef.current = { lat, lng }; }}
+                    status={actGeocode.status}
+                  />
+                )}
+              />
+            </div>
           ) : (
             <div className="rfm__form">
               {/* Type selector: only for new reservations without a pre-set type; editing keeps type fixed */}

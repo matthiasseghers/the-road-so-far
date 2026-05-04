@@ -16,6 +16,7 @@ export function getDb(): Database.Database {
     const dbPath = join(process.cwd(), 'road-so-far.db');
     _db = new Database(dbPath);
     _db.pragma('journal_mode = WAL');
+    _db.pragma('synchronous = NORMAL');
     _db.pragma('foreign_keys = ON');
     runMigrations(_db);
   }
@@ -39,8 +40,11 @@ function runMigrations(db: Database.Database): void {
   for (const file of files) {
     if (!ran.has(file)) {
       const sql = readFileSync(join(migrationsDir, file), 'utf-8');
-      db.exec(sql);
-      db.prepare("INSERT INTO _migrations VALUES (?, datetime('now'))").run(file);
+      db.transaction(() => {
+        db.exec(sql);
+        db.prepare("INSERT INTO _migrations (name, run_at) VALUES (?, datetime('now'))")
+          .run(file);
+      })();
     }
   }
 }

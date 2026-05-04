@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import { RouteLeg } from '@/domain/RouteLeg';
@@ -23,41 +24,35 @@ interface UseRouteLegsResult {
 }
 
 export function useRouteLegs(tripId: number): UseRouteLegsResult {
-  const [rows,         setRows]         = useState<RouteLegRow[]>([]);
-  const [expectedLegs, setExpectedLegs] = useState<ExpectedLeg[]>([]);
-  const [isStale,      setIsStale]      = useState(false);
-  const [legModes,     setLegModes]     = useState<LegModeRow[]>([]);
-  const [isSyncing,    setIsSyncing]    = useState(false);
-  const [error,        setError]        = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    setError(null);
-    Promise.all([
-      api.get<RouteLegsResponse>(`/trips/${tripId}/route-legs`).then(r => {
-        setRows(r.legs);
-        setExpectedLegs(r.expectedLegs);
-        setIsStale(r.isStale);
-      }),
-      api.get<LegModeRow[]>(`/trips/${tripId}/leg-modes`).then(setLegModes),
-    ]).catch((e: unknown) => {
-      setError(e instanceof Error ? e.message : 'Failed to load route legs');
-    });
-  }, [tripId]);
+  const {
+    data: routeLegsData,
+    error: routeLegsError,
+  } = useQuery({
+    queryKey: ['route-legs', tripId],
+    queryFn: () => api.get<RouteLegsResponse>(`/trips/${tripId}/route-legs`),
+    // Reason: every sync/setLegMode mutation invalidates this query — background refetch is wasted TomTom API calls.
+    staleTime: Infinity,
+  });
 
-  const sync = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      const result = await api.post<{ synced: number; deleted: number; legs: RouteLegRow[] }>(
+  const {
+    data: legModes = [],
+    error: legModesError,
+  } = useQuery({
+    queryKey: ['leg-modes', tripId],
+    queryFn: () => api.get<LegModeRow[]>(`/trips/${tripId}/leg-modes`),
+    // Reason: every setLegMode mutation invalidates this query — background refetch is wasted work.
+    staleTime: Infinity,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () =>
+      api.post<{ synced: number; deleted: number; legs: RouteLegRow[] }>(
         `/trips/${tripId}/route-legs/sync`,
         {},
-      );
-      // Reason: after sync re-fetch expectedLegs + isStale from the server so the
-      // map immediately reflects the post-sync state without a full page reload.
-      const fresh = await api.get<RouteLegsResponse>(`/trips/${tripId}/route-legs`);
-      setRows(fresh.legs);
-      setExpectedLegs(fresh.expectedLegs);
-      setIsStale(fresh.isStale);
-
+      ),
+    onSuccess: (result) => {
       if (result.synced > 0) {
         toast.success(`Synced ${result.synced} route leg${result.synced !== 1 ? 's' : ''}`);
       } else if (result.deleted > 0) {
@@ -65,41 +60,80 @@ export function useRouteLegs(tripId: number): UseRouteLegsResult {
       } else {
         toast.info('Routes are up to date');
       }
-    } catch (err) {
+      // Reason: after sync re-fetch route-legs so the map immediately reflects
+      // the post-sync state without a full page reload.
+      void queryClient.invalidateQueries({ queryKey: ['route-legs', tripId] });
+    },
+    onError: (err) => {
       if (err instanceof Error && err.message.includes('no_api_key')) {
         toast.error('Add your TomTom API key in Settings → General first');
       } else {
         toast.error('Route sync failed');
       }
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [tripId]);
+    },
+  });
 
-  const setLegMode = useCallback(async (
-    fromLat: number, fromLng: number,
-    toLat: number,   toLng: number,
-    mode: RouteLegTravelMode,
-  ) => {
-    setIsSyncing(true);
-    try {
-      const result = await api.post<{ legs: RouteLegRow[]; modes: LegModeRow[] }>(
+  const setLegModeMutation = useMutation({
+    mutationFn: ({
+      fromLat, fromLng, toLat, toLng, mode,
+    }: {
+      fromLat: number; fromLng: number;
+      toLat: number;   toLng: number;
+      mode: RouteLegTravelMode;
+    }) =>
+      api.post<{ legs: RouteLegRow[]; modes: LegModeRow[] }>(
         `/trips/${tripId}/leg-modes`,
         { from_lat: fromLat, from_lng: fromLng, to_lat: toLat, to_lng: toLng, travel_mode: mode },
+      ),
+    onSuccess: (result) => {
+      // Reason: setQueryData avoids a redundant GET — the server already returned
+      // the updated legs and modes in the mutation response.
+      queryClient.setQueryData<RouteLegsResponse>(['route-legs', tripId], prev =>
+        prev ? { ...prev, legs: result.legs } : prev,
       );
-      setRows(result.legs);
-      setLegModes(result.modes);
-    } catch (err) {
+      queryClient.setQueryData<LegModeRow[]>(['leg-modes', tripId], result.modes);
+    },
+    onError: (err) => {
       if (err instanceof Error && err.message.includes('no_api_key')) {
         toast.error('Add your TomTom API key in Settings → General first');
       } else {
         toast.error('Failed to update route mode');
       }
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [tripId]);
+    },
+  });
 
-  const legs = useMemo(() => rows.map(r => new RouteLeg(r)), [rows]);
-  return { legs, expectedLegs, isStale, legModes, isSyncing, error, sync, setLegMode };
+  const sync = async (): Promise<void> => {
+    try {
+      await syncMutation.mutateAsync();
+    } catch { /* onError handles toast */ }
+  };
+
+  const setLegMode = async (
+    fromLat: number, fromLng: number,
+    toLat: number,   toLng: number,
+    mode: RouteLegTravelMode,
+  ): Promise<void> => {
+    try {
+      await setLegModeMutation.mutateAsync({ fromLat, fromLng, toLat, toLng, mode });
+    } catch { /* onError handles toast */ }
+  };
+
+  const isSyncing = syncMutation.isPending || setLegModeMutation.isPending;
+  const error = (routeLegsError ?? legModesError)?.message ?? null;
+
+  const legs = useMemo(
+    () => (routeLegsData?.legs ?? []).map(r => new RouteLeg(r)),
+    [routeLegsData?.legs],
+  );
+
+  return {
+    legs,
+    expectedLegs: routeLegsData?.expectedLegs ?? [],
+    isStale:      routeLegsData?.isStale ?? false,
+    legModes,
+    isSyncing,
+    error,
+    sync,
+    setLegMode,
+  };
 }

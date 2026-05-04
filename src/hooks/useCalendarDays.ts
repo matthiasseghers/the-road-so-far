@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/db/api-client';
 import type { CalendarDayRow } from '@/types/db';
 
@@ -10,21 +11,11 @@ interface UseCalendarDaysReturn {
 }
 
 export function useCalendarDays(tripId: number): UseCalendarDaysReturn {
-  const [days, setDays] = useState<CalendarDayRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const refetch = useCallback((): void => {
-    setIsLoading(true);
-    api.get<CalendarDayRow[]>(`/trips/${tripId}/calendar-days`)
-      .then(data => { setDays(data); setError(null); setIsLoading(false); })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : 'Failed to load calendar days');
-        setIsLoading(false);
-      });
-  }, [tripId]);
-
-  useEffect(() => { refetch(); }, [refetch]);
+  const { data: days = [], isLoading, error } = useQuery({
+    queryKey: ['calendar-days', tripId],
+    queryFn: () => api.get<CalendarDayRow[]>(`/trips/${tripId}/calendar-days`),
+    staleTime: 30_000,
+  });
 
   // Reason: keyed lookup avoids O(n) scans when rendering the grid cells.
   const byDate = useMemo<Record<string, CalendarDayRow>>(() => {
@@ -33,5 +24,5 @@ export function useCalendarDays(tripId: number): UseCalendarDaysReturn {
     return map;
   }, [days]);
 
-  return { days, byDate, isLoading, error };
+  return { days, byDate, isLoading, error: error ? error.message : null };
 }

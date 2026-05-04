@@ -9,7 +9,9 @@ export const ActivityTypeSchema = z.enum([
 
 // Reason: Zod v4 does not allow .omit()/.partial() on refined schemas.
 // Build patch schema from the base object then apply the same refinements.
-const ActivityBaseSchema = z.object({
+// Exported so form modals can .pick() user-editable fields without hitting
+// the "cannot pick on refined schema" restriction.
+export const ActivityBaseSchema = z.object({
   day_id:        z.number().int().positive().nullable().optional(),
   trip_id:       z.number().int().positive(),
   title:         z.string().trim().min(1, 'Title is required'),
