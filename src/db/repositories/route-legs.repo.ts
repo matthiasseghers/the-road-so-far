@@ -2,12 +2,13 @@ import { getDb } from '../client.js';
 import type { RouteLegRow, RouteLegTravelMode } from '@/types/db';
 import { isCheckinDay } from '@/utils/lodging';
 import { getLodgingDayAnchors } from './reservations.repo.js';
+import { RESERVATION_SORT_OFFSET } from '@/utils/sort';
 
 /**
  * Reservations are offset by this value in sort_order so they appear after
  * activities when both share the same day and neither has an explicit position.
+ * Imported from src/utils/sort.ts — the PdfExportModal uses the same constant.
  */
-const RESERVATION_SORT_OFFSET = 1_000;
 
 export function getByTrip(tripId: number): RouteLegRow[] {
   return getDb()

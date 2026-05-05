@@ -15,8 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Switch } from '@/components/ui/switch';
-import { generateTripIcs, ICS_DEFAULTS } from '@/lib/export/ics';
-import type { IcsOptions } from '@/lib/export/ics';
+import { generateTripIcs, ICS_DEFAULTS } from '@/lib/export/ics/ics';
+import type { IcsOptions } from '@/lib/export/ics/ics';
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 

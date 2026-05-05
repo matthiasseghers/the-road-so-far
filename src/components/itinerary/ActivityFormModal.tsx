@@ -139,7 +139,10 @@ export default function ActivityFormModal({
       await geoHook.geocode(savedRow.id, locationTrimmed, coordsRef.current);
       onGeocodeDone?.();
       // Reason: brief pause so user sees geocode status before modal closes.
-      await new Promise<void>(resolve => { setTimeout(resolve, 800); });
+      /** Brief pause so the geocode success indicator is visible before
+       *  the modal dismisses. Purely cosmetic — not a real async wait. */
+      const GEOCODE_FEEDBACK_DELAY_MS = 800;
+      await new Promise<void>(resolve => { setTimeout(resolve, GEOCODE_FEEDBACK_DELAY_MS); });
     }
 
     onClose();

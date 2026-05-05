@@ -38,7 +38,7 @@ const {
   formatDayHeader,
   buildLodgingStripText,
   generateTripPDF,
-} = await import('@/lib/export/pdf');
+} = await import('@/lib/export/pdf/pdf');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

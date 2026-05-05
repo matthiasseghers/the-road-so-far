@@ -9,7 +9,7 @@ import * as settingsRepo from '../src/db/repositories/settings.repo.js';
 import * as routeLegsRepo from '../src/db/repositories/route-legs.repo.js';
 import * as legModesRepo from '../src/db/repositories/leg-modes.repo.js';
 import * as mapRepo from '../src/db/repositories/map.repo.js';
-import { findLegMode } from '../src/domain/RouteLeg.js';
+import { findLegMode } from '../src/utils/routing.js';
 import * as calendarRepo from '../src/db/repositories/calendar.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
 import { geocodePlace, autocomplete } from '../src/services/geocoding.service.js';
@@ -61,7 +61,23 @@ const TemplateReorderSchema = z.object({
   ids:        z.array(z.number().int().positive()),
 });
 const TripReorderSchema     = z.object({ ids: z.array(z.number().int().positive()) });
-const SettingValueSchema    = z.object({ value: z.unknown() });
+// Reason: per-key validation so each setting is checked against its actual domain.
+// The key comes from req.params (URL), not the body, so we resolve the correct
+// Zod schema at runtime after the key whitelist check.
+const SETTING_SCHEMAS: Record<string, z.ZodTypeAny> = {
+  theme:              z.enum(['light', 'dark', 'auto']),
+  date_format:        z.enum(['DD MMM YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']),
+  time_areas:         z.record(z.string(), z.object({
+    label: z.string().min(1).max(64),
+    start: z.number().int().min(0).max(24),
+    end:   z.number().int().min(0).max(24),
+  })),
+  tomtom_api_key:     z.string().max(256).trim(),
+  geocoding_provider: z.enum(['nominatim', 'tomtom']),
+  routing_provider:   z.enum(['tomtom']),
+  maps_provider:      z.enum(['tomtom']),
+};
+const SettingBodySchema     = z.object({ value: z.unknown() });
 const TemplateCreateSchema  = z.object({
   name:       z.string().trim().min(1),
   icon_name:  z.string().trim().min(1).nullable().optional(),
@@ -232,7 +248,9 @@ router.patch('/activities/:id', (req: Request, res: Response) => {
 });
 
 const GeocodeBodySchema = z.object({
-  location: z.string().trim().min(1),
+  // Reason: 512 chars is well above any real place name; capping prevents
+  // multi-MB strings from being URL-encoded and forwarded to Nominatim/TomTom.
+  location: z.string().trim().min(1).max(512),
   // Reason: when the client already has coordinates from autocomplete, skip
   // the external Nominatim call and use them directly.
   lat: z.number().optional(),
@@ -358,6 +376,10 @@ router.patch('/days/:dayId/reorder', (req: Request, res: Response) => {
     return;
   }
   reservationsRepo.reorderDayItems(dayId, parsed.data.items);
+  // Reason: unlike reorderActivities, a mixed list (activities + reservations) may
+  // partially succeed — e.g. all activity IDs valid, one reservation ID invalid.
+  // We don't 422 here because partial reorders are acceptable; the frontend always
+  // sends the full ordered set from its own state, so orphan IDs are benign no-ops.
   res.status(204).send();
 });
 
@@ -605,15 +627,21 @@ const ALLOWED_SETTING_KEYS = ['theme', 'date_format', 'time_areas', 'tomtom_api_
 type AllowedSettingKey = typeof ALLOWED_SETTING_KEYS[number];
 
 router.put('/settings/:key', (req: Request, res: Response) => {
-  const parsed = SettingValueSchema.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const bodyParsed = SettingBodySchema.safeParse(req.body);
+  if (!bodyParsed.success) { res.status(400).json({ errors: bodyParsed.error.flatten().fieldErrors }); return; }
   // Reason: Express params are always string at runtime; bracket access types as string | string[] in some @types/express versions
   const key = req.params['key'] as string;
   if (!ALLOWED_SETTING_KEYS.includes(key as AllowedSettingKey)) {
     res.status(400).json({ error: `Unknown setting key: ${key}` });
     return;
   }
-  settingsRepo.setSetting(key, parsed.data.value);
+  // Reason: validate the value against the key-specific schema so each setting
+  // is constrained to its actual domain, not just z.unknown().
+  const valueSchema = SETTING_SCHEMAS[key];
+  if (!valueSchema) { res.status(400).json({ error: `Unknown setting key: ${key}` }); return; }
+  const valueParsed = valueSchema.safeParse(bodyParsed.data.value);
+  if (!valueParsed.success) { res.status(400).json({ errors: valueParsed.error.flatten().fieldErrors ?? valueParsed.error.issues }); return; }
+  settingsRepo.setSetting(key, valueParsed.data);
   res.status(204).send();
 });
 
@@ -658,8 +686,10 @@ router.get('/trips/:tripId/export/trippack', (req: Request, res: Response) => {
 router.delete('/data/wipe', (req: Request, res: Response) => {
   // Reason: confirmation guard prevents accidental data loss from non-browser HTTP clients
   // (curl, scripts, LAN requests) that are not blocked by the browser CORS policy.
+  // Reason: do NOT reveal the expected confirmation string in the error message —
+  // doing so turns the 400 response into a self-documenting LAN wipe script primer.
   if (req.query['confirm'] !== 'wipe-all-data') {
-    res.status(400).json({ error: 'Pass ?confirm=wipe-all-data to confirm data wipe' });
+    res.status(400).json({ error: 'Missing or invalid confirmation parameter' });
     return;
   }
   const db = getDb();
@@ -967,12 +997,19 @@ router.get('/trips/:tripId/static-map-image', async (req: Request, res: Response
   if (!apiKey) { res.json({ dataUrl: null, mapParams: null }); return; }
 
   // Optional: filter to a single day's points; default to all trip points.
-  const dayIdRaw = req.query['dayId'];
-  const dayId = dayIdRaw != null ? Number(dayIdRaw) : null;
+  // Reason: use parseIdParam (not Number()) so non-numeric values produce null
+  // rather than NaN, which would silently filter to an empty set.
+  const dayId = parseIdParam(req.query['dayId'] as string | undefined);
 
   // Optional: image dimensions — caller can request a size matching the display target.
-  const imgW = Math.min(800, Math.max(100, Number(req.query['w'] ?? 800)));
-  const imgH = Math.min(600, Math.max(100, Number(req.query['h'] ?? 320)));
+  // Reason: Number("foo") = NaN, and Math.min/max propagate NaN, causing "NaN" to be sent
+  // to the TomTom API. Fall back to safe defaults for any non-numeric or out-of-range value.
+  const parsePixels = (raw: unknown, fallback: number, lo: number, hi: number): number => {
+    const n = Number(raw);
+    return isNaN(n) ? fallback : Math.min(hi, Math.max(lo, n));
+  };
+  const imgW = parsePixels(req.query['w'], 800, 100, 800);
+  const imgH = parsePixels(req.query['h'], 320, 100, 600);
 
   const allActivities   = activitiesRepo.findActivitiesByTripId(tripId);
   const allReservations = reservationsRepo.findAllByTripId(tripId);

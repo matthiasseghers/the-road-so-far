@@ -2,8 +2,8 @@
 // Pure function tests — no DOM, no mocks needed.
 
 import { describe, it, expect } from 'vitest';
-import { generateTripIcs, ICS_DEFAULTS } from '@/lib/export/ics';
-import type { IcsOptions } from '@/lib/export/ics';
+import { generateTripIcs, ICS_DEFAULTS } from '@/lib/export/ics/ics';
+import type { IcsOptions } from '@/lib/export/ics/ics';
 import { Reservation } from '@/domain/Reservation';
 import type { TripWithDays, DayWithActivities } from '@/types/domain';
 import type { ReservationRow, ActivityRow } from '@/types/db';

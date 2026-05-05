@@ -35,6 +35,7 @@ import { formatDate } from '@/utils/dates';
 import { formatDateRange, nightCount, formatActivityTime, formatDuration, formatDistance } from '@/utils/format';
 import { sortActivities } from '@/utils/activity';
 import { isCheckinDay } from '@/utils/lodging';
+import { RESERVATION_SORT_OFFSET } from '@/utils/sort';
 import type { Activity, Trip as TripType, TripWithDays, DayWithActivities } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 import type { LodgingDetails } from '@/schemas/reservation.schema';
@@ -1036,10 +1037,9 @@ function ItineraryTab({
         const interDayLeg = !isLastDay ? findLeg(routeLegs, lastOfDay, firstOfNext, interDayMode) : null;
 
         // Reason: mirror backend computeExpectedLegs — sort geocoded points by
-        // sort_order (reservations offset by 1000) then look up each consecutive
-        // pair in routeLegs. This avoids counting stale legs or coincidental
+        // sort_order (reservations offset by RESERVATION_SORT_OFFSET) then look up each
+        // consecutive pair in routeLegs. This avoids counting stale legs or coincidental
         // coord matches that the set-membership filter would incorrectly pick up.
-        const RSRV_OFFSET = 1_000;
         // Reason: include lodging anchors exactly as the backend does — check-in day
         // lodging sorts to end of day (9999), overnight lodging sorts to start (-1).
         const lodgingAnchorPoints = lodgings
@@ -1054,7 +1054,7 @@ function ItineraryTab({
           });
         const sortedInDay = [
           ...activities.map(a => ({ lat: a.lat, lng: a.lng, sort_order: a.sort_order })),
-          ...dayReservations.map(r => ({ lat: r.lat, lng: r.lng, sort_order: r.sort_order + RSRV_OFFSET })),
+          ...dayReservations.map(r => ({ lat: r.lat, lng: r.lng, sort_order: r.sort_order + RESERVATION_SORT_OFFSET })),
           ...lodgingAnchorPoints,
         ]
           .filter((p): p is { lat: number; lng: number; sort_order: number } => p.lat != null && p.lng != null)

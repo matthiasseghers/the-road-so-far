@@ -24,5 +24,10 @@ export class Activity {
     return this.data.start_time !== null;
   }
 
+  /** True when both lat and lng are set (i.e. the activity has been geocoded). */
+  isGeocoded(): boolean {
+    return this.data.lat != null && this.data.lng != null;
+  }
+
 }
 

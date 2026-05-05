@@ -32,6 +32,28 @@ describe('Activity domain class', () => {
     });
   });
 
+  describe('isGeocoded()', () => {
+    it('returns true when both lat and lng are set', () => {
+      const a = new Activity(makeRow({ lat: 48.8566, lng: 2.3522 }));
+      expect(a.isGeocoded()).toBe(true);
+    });
+
+    it('returns false when lat is null', () => {
+      const a = new Activity(makeRow({ lat: null, lng: 2.3522 }));
+      expect(a.isGeocoded()).toBe(false);
+    });
+
+    it('returns false when lng is null', () => {
+      const a = new Activity(makeRow({ lat: 48.8566, lng: null }));
+      expect(a.isGeocoded()).toBe(false);
+    });
+
+    it('returns false when both lat and lng are null', () => {
+      const a = new Activity(makeRow({ lat: null, lng: null }));
+      expect(a.isGeocoded()).toBe(false);
+    });
+  });
+
   describe('basic getters', () => {
     it('returns correct id', () => {
       const a = new Activity(makeRow({ id: 42 }));

@@ -132,6 +132,20 @@ describe('Trip domain class', () => {
       const b = makeTrip({ start_date: '2025-06-01', end_date: '2025-06-10' });
       expect(a.overlapsWith(b)).toBe(false);
     });
+
+    it('returns false when the other trip has no end_date', () => {
+      const a = makeTrip({ start_date: '2025-06-01', end_date: '2025-06-10' });
+      const b = makeTrip({ end_date: null });
+      expect(a.overlapsWith(b)).toBe(false);
+    });
+
+    it('returns true when end of one trip equals start of the other (same-day boundary)', () => {
+      // Reason: dateRangesOverlap uses inclusive bounds, so touching dates overlap.
+      // This test documents that behaviour explicitly.
+      const a = makeTrip({ start_date: '2025-06-01', end_date: '2025-06-10' });
+      const b = makeTrip({ start_date: '2025-06-10', end_date: '2025-06-20' });
+      expect(a.overlapsWith(b)).toBe(true);
+    });
   });
 
   describe('computeProgress()', () => {
@@ -143,6 +157,11 @@ describe('Trip domain class', () => {
     it('returns 100 for archived trips', () => {
       const trip = new Trip({ ...makeRow({ status: 'archived' }), day_count: 5 });
       expect(trip.computeProgress()).toBe(100);
+    });
+
+    it('returns 0 when there are no activities (but days exist)', () => {
+      const trip = new Trip({ ...makeRow(), day_count: 5, activity_count: 0 });
+      expect(trip.computeProgress()).toBe(0);
     });
 
     it('returns 0 when no days', () => {

@@ -162,3 +162,15 @@ export function projectPoints(
     y: ((b.maxLat - p.lat) / (b.maxLat - b.minLat)) * h,
   }));
 }
+
+// ── Mode label ────────────────────────────────────────────────────────────────
+
+/** Returns a human-readable travel mode label for use in the travel section. */
+export function formatModeLabel(mode: string): string {
+  switch (mode) {
+    case 'car':        return 'By car';
+    case 'pedestrian': return 'On foot';
+    case 'bicycle':    return 'By bike';
+    default:           return 'Travel';
+  }
+}

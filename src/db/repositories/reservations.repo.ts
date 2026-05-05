@@ -39,6 +39,13 @@ export function findById(id: number): ReservationRow | null {
 /**
  * Returns the first overlapping lodging reservation for the given trip and date range.
  * Used before INSERT to detect conflicts.
+ *
+ * NOTE: json_extract() in the WHERE clause cannot use a B-tree index.
+ * For trips with large numbers of lodging reservations this degrades to
+ * a full scan of reservations filtered by trip_id. The long-term fix is
+ * to promote check_in_date/check_out_date to real columns or use a
+ * SQLite generated column index (requires SQLite >= 3.31).
+ * Acceptable at current scale; revisit if reservation counts grow.
  */
 export function findLodgingOverlap(
   tripId: number,
@@ -259,22 +266,25 @@ export function updateReservationSafe(id: number, input: UpdateReservationInput)
 /**
  * Reorders a mixed list of activities and reservations within a day.
  * Runs in a single transaction for atomicity.
+ * Returns the number of rows actually updated so the route can detect out-of-scope IDs.
  */
 export function reorderDayItems(
   dayId: number,
   items: { id: number; itemType: 'activity' | 'reservation' }[],
-): void {
+): number {
   const db = getDb();
   const updateAct = db.prepare('UPDATE activities   SET sort_order = ? WHERE id = ? AND day_id = ?');
   const updateRes = db.prepare('UPDATE reservations SET sort_order = ? WHERE id = ? AND day_id = ?');
   const txn = db.transaction((list: { id: number; itemType: 'activity' | 'reservation' }[]) => {
+    let matched = 0;
     list.forEach((item, index) => {
       if (item.itemType === 'activity') {
-        updateAct.run(index, item.id, dayId);
+        matched += updateAct.run(index, item.id, dayId).changes;
       } else {
-        updateRes.run(index, item.id, dayId);
+        matched += updateRes.run(index, item.id, dayId).changes;
       }
     });
+    return matched;
   });
-  txn(items);
+  return txn(items) as number;
 }

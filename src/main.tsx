@@ -5,6 +5,7 @@ import '@/styles/global.css';
 import App from './App';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { PreferencesProvider } from '@/context/PreferencesContext';
 
 // Reason: the blocking script in index.html already applies .dk/.lt before first paint.
 // No need to set a default here — doing so would override a saved light preference.
@@ -36,9 +37,11 @@ createRoot(rootEl).render(
   <StrictMode>
     <ErrorBoundary>
       <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <App />
-        </QueryClientProvider>
+        <PreferencesProvider>
+          <QueryClientProvider client={queryClient}>
+            <App />
+          </QueryClientProvider>
+        </PreferencesProvider>
       </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,

@@ -14,15 +14,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { generateTripPDF } from '@/lib/export/pdf';
-import type { StaticMapData } from '@/lib/export/helpers';
+import { generateTripPDF } from '@/lib/export/pdf/pdf';
+import type { PdfLayout } from '@/lib/export/pdf/pdf';
+import type { StaticMapData } from '@/lib/export/pdf/helpers';
+import { DefaultLayout } from '@/lib/export/pdf/layouts/default';
+import { MinimalLayout } from '@/lib/export/pdf/layouts/minimal';
 import { api } from '@/db/api-client';
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 import type { RouteLegRow } from '@/types/db';
 import { formatDuration, formatDistance } from '@/utils/format';
 import { usePreferences } from '@/hooks/usePreferences';
-import type { DayLegSummary } from '@/lib/export/DayPage';
+import type { DayLegSummary } from '@/lib/export/pdf/pdf.viewmodel';
+import { RESERVATION_SORT_OFFSET } from '@/utils/sort';
 
 interface PdfExportModalProps {
   open:         boolean;
@@ -43,10 +47,6 @@ interface GeoPointCounts {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Reservation sort offset mirrors the value in route-legs.repo.ts so that
-// combined points are ordered the same way as the repo uses for leg computation.
-const RESERVATION_SORT_OFFSET = 1000;
-
 type GeoPoint = { lat: number; lng: number; sort_order: number; name: string; location: string | null };
 
 function findLegByCoords(legs: RouteLegRow[], fromLat: number, fromLng: number, toLat: number, toLng: number): RouteLegRow | null {
@@ -57,6 +57,8 @@ function findLegByCoords(legs: RouteLegRow[], fromLat: number, fromLng: number, 
     Math.abs(l.to_lng   - toLng)   < 1e-5,
   ) ?? null;
 }
+
+const LAYOUT_OPTIONS: PdfLayout[] = [DefaultLayout, MinimalLayout];
 
 export default function PdfExportModal({
   open,
@@ -72,6 +74,7 @@ export default function PdfExportModal({
   const [includeTravelSummary,   setIncludeTravelSummary]   = useState(true);
   const [routeLegs,              setRouteLegs]              = useState<RouteLegRow[]>([]);
   const [exporting,              setExporting]              = useState(false);
+  const [selectedLayout,         setSelectedLayout]         = useState<PdfLayout>(DefaultLayout);
 
   // Reason: fetch API key status, geo counts, and route legs each time the modal
   // opens so toggles reflect any changes made in Settings without remounting.
@@ -105,7 +108,7 @@ export default function PdfExportModal({
     function getOrderedPoints(day: typeof days[number]): GeoPoint[] {
       return [
         ...day.activities
-          .filter(a => a.lat != null && a.lng != null)
+          .filter(a => a.isGeocoded())
           .map(a => ({ lat: a.lat!, lng: a.lng!, sort_order: a.sort_order, name: a.title, location: a.location ?? null })),
         ...reservations
           .filter(r => r.day_id === day.id && !r.isLodging() && r.lat != null && r.lng != null)
@@ -176,18 +179,21 @@ export default function PdfExportModal({
         // Cover geo points: all geocoded activities + reservations across the trip.
         const coverPoints = [
           ...days.flatMap(d => d.activities)
-            .filter(a => a.lat != null && a.lng != null)
+            .filter(a => a.isGeocoded())
             .map(a => ({ lat: a.lat!, lng: a.lng! })),
           ...reservations
             .filter(r => r.lat != null && r.lng != null)
             .map(r => ({ lat: r.lat!, lng: r.lng! })),
         ];
 
-        const [coverRes, dayResponses] = await Promise.all([
-          api.get<MapResponse>(`/trips/${trip.id}/static-map-image?w=800&h=200`),
-          Promise.all(days.map(day =>
-            api.get<MapResponse>(
-              `/trips/${trip.id}/static-map-image?dayId=${day.id}&w=400&h=200`,
+// Reason: Minimal layout is single-column full-width; Default uses a 40% right column.
+          // Request wider maps for layouts that need more horizontal space.
+          const dayMapW = selectedLayout.meta.id === 'default' ? 400 : 800;
+          const [coverRes, dayResponses] = await Promise.all([
+            api.get<MapResponse>(`/trips/${trip.id}/static-map-image?w=800&h=200`),
+            Promise.all(days.map(day =>
+              api.get<MapResponse>(
+                `/trips/${trip.id}/static-map-image?dayId=${day.id}&w=${dayMapW}&h=200`,
             ),
           )),
         ]);
@@ -203,7 +209,7 @@ export default function PdfExportModal({
           // Day geo points: activities of this day + non-lodging reservations of this day.
           const dayPoints = [
             ...day.activities
-              .filter(a => a.lat != null && a.lng != null)
+              .filter(a => a.isGeocoded())
               .map(a => ({ lat: a.lat!, lng: a.lng! })),
             ...reservations
               .filter(res => res.day_id === day.id && !res.isLodging() && res.lat != null && res.lng != null)
@@ -218,7 +224,7 @@ export default function PdfExportModal({
         ? computeDayLegSummaries(distanceUnit)
         : undefined;
 
-      const blob     = await generateTripPDF(trip, reservations, undefined, staticMap, dayStaticMaps, dayLegSummaries);
+      const blob     = await generateTripPDF(trip, reservations, { layout: selectedLayout, staticMap, dayStaticMaps, dayLegSummaries });
       const filename = `${safeFilename(trip.title)}-itinerary.pdf`;
       const url = URL.createObjectURL(blob);
       const a   = document.createElement('a');
@@ -249,6 +255,25 @@ export default function PdfExportModal({
         </DialogHeader>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0' }}>
+          {/* Layout selector */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Label>Layout</Label>
+            {LAYOUT_OPTIONS.map(layout => (
+              <button
+                key={layout.meta.id}
+                type="button"
+                onClick={() => setSelectedLayout(layout)}
+                style={{
+                  padding: '10px 12px', borderRadius: 6, textAlign: 'left', cursor: 'pointer',
+                  border: `1.5px solid ${selectedLayout.meta.id === layout.meta.id ? 'var(--primary)' : 'var(--border)'}`,
+                  background: selectedLayout.meta.id === layout.meta.id ? 'var(--primary-foreground)' : 'transparent',
+                }}
+              >
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{layout.meta.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{layout.meta.description}</div>
+              </button>
+            ))}
+          </div>
           {/* Map toggle */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <Label

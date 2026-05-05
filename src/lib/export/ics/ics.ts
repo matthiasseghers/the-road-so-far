@@ -5,7 +5,7 @@
 
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
-import { stripTiptapJson } from './helpers';
+import { stripTiptapJson } from '../pdf/helpers';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

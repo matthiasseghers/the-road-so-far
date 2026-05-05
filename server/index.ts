@@ -42,6 +42,12 @@ app.use('/api', router);
 // Ensure DB is initialised and all migrations run before accepting requests
 getDb();
 
+// Reason: return JSON 404 for any /api route that didn't match a handler so
+// api-client.ts gets a parseable ApiError instead of an HTML Express 404 page.
+app.use('/api', (_req: Request, res: Response) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
 // Reason: catch synchronous throws from routes (e.g. SqliteError from the import route)
 // and return JSON instead of the default HTML error page, which api-client.ts cannot parse.
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

@@ -178,6 +178,15 @@ describe('Reservation.autoTitle()', () => {
     expect(r.autoTitle()).toBe('Paris → Brussels');
   });
 
+  it('returns company and locations for rental_car type', () => {
+    const r = new Reservation(makeRow({
+      type: 'rental_car',
+      title: 'Car Rental',
+      details: makeDetails({ type: 'rental_car', company: 'Hertz', pickup_location: 'LIS Airport', dropoff_location: 'Cascais' }),
+    }));
+    expect(r.autoTitle()).toBe('Hertz · LIS Airport → Cascais');
+  });
+
   it('falls back to title when no useful details', () => {
     const r = new Reservation(makeRow({ type: 'other', title: 'Museum pass', details: makeDetails({ type: 'other' }) }));
     expect(r.autoTitle()).toBe('Museum pass');

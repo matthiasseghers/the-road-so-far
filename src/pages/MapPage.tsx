@@ -131,7 +131,9 @@ export default function MapPage(): JSX.Element {
       )}
 
       {!isLoading && pins.length > 0 && (
-        <div className="flex-1 relative overflow-hidden">
+        // Reason: isolation:isolate confines Leaflet's internal z-index stack (200–600)
+        // so it cannot escape to overlap the sidebar Sheet/backdrop on mobile.
+        <div className="flex-1 relative overflow-hidden" style={{ isolation: 'isolate' }}>
           <MapContainer
             center={[20, 0]}
             zoom={2}
