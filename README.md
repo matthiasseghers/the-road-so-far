@@ -1,73 +1,66 @@
-# React + TypeScript + Vite
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+# The Road So Far
 
-Currently, two official plugins are available:
+A personal, offline-first travel planner. Trips, days, activities, and reservations are stored locally in a SQLite database — no account, no cloud sync, no external data ever leaves the machine. The frontend is a React SPA; a thin Express sidecar handles all database access and proxies optional third-party API calls (TomTom geocoding, routing, and static maps) so API keys stay server-side. The app runs in three modes from the same codebase: a Vite dev server, a Docker container for home-server / LAN use, and a Tauri desktop executable.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Tech stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, Vite, TypeScript 5 (strict) |
+| UI components | shadcn/ui (Radix primitives), Tailwind CSS v4 |
+| Forms & validation | React Hook Form, Zod |
+| Data fetching | TanStack Query v5 |
+| Database | SQLite via better-sqlite3, schema managed with plain `.sql` migrations |
+| Backend bridge | Express 5 (zero business logic — DB access only) |
+| Mapping | Leaflet / react-leaflet |
+| PDF export | @react-pdf/renderer |
+| Calendar export | RFC 5545 ICS (no external dependency) |
+| Testing | Vitest, @testing-library/react |
+| Desktop distribution | Tauri |
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Getting started
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+**Prerequisites:** Node.js 20+, npm 10+.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+```bash
+# Install dependencies
+npm install
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Start the Express DB bridge (port 3001) and Vite dev server (port 5173) together
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app is available at `http://localhost:5173`. The API bridge runs on `http://localhost:3001`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Docker
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+A Docker image and `docker-compose.yml` are planned but not yet included in this repository. See `ARCHITECTURE.md` for the intended container setup (Express serves the built frontend as static files on a single port; the SQLite file is volume-mounted).
+
+---
+
+## Running tests
+
+```bash
+npm test
 ```
+
+Watch mode: `npm run test:watch`  
+Coverage report: `npm run test:coverage`
+
+---
+
+## License
+
+[GNU Affero General Public License v3.0](LICENSE)
+
+---
+
+## Security
+
+This app is designed for local, single-user use only. Port 3001 (the Express sidecar) has no authentication layer and should never be exposed on an untrusted network — bind it to `127.0.0.1` or protect it with a firewall when running in Docker or on a home server. The `/export/all` endpoint returns all trip data in a single unauthenticated request, which is intentional for a local-only tool but would be a significant exposure if the port were publicly reachable. API keys for third-party services (TomTom) are stored in the local SQLite settings table and transmitted only to those services by the sidecar — they are never sent to the frontend.

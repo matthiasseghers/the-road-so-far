@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { api } from '@/db/api-client';
 import { Trip } from '@/domain/Trip';
 import { Activity } from '@/domain/Activity';
-import type { TripData } from '@/domain/Trip';
 import type { TripWithDays, DayWithActivities } from '@/types/domain';
 import type { UpdateTripInput, RawTripWithDays } from '@/db/repositories/trips.repo';
 
@@ -21,13 +20,17 @@ interface UseTripReturn {
 export type { RawTripWithDays };
 
 export function buildTripWithDays(raw: RawTripWithDays): TripWithDays {
-  const days: DayWithActivities[] = raw.days.map(day => ({
+  // Reason: destructure days out so tripFields has the exact TripData shape —
+  // ParsedTripRow (tags: string[]) is assignable to TripData (tags: string | string[])
+  // once the extra `days` field is separated, removing the need for `as unknown`.
+  const { days: rawDays, ...tripFields } = raw;
+  const days: DayWithActivities[] = rawDays.map(day => ({
     ...day,
     activities: day.activities.map(a => new Activity(a)),
   }));
   // Reason: Object.assign adds days onto the Trip class instance so all
   // domain methods (isOngoing, computeProgress, etc.) remain callable.
-  return Object.assign(new Trip(raw as unknown as TripData), { days }) as TripWithDays;
+  return Object.assign(new Trip(tripFields), { days }) as TripWithDays;
 }
 
 export function useTrip(id: number): UseTripReturn {

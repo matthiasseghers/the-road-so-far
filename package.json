@@ -2,6 +2,7 @@
   "name": "travel",
   "private": true,
   "version": "0.0.0",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev:server": "nodemon --watch server --watch src/db --watch src/types --ext ts,sql --exec 'tsx --tsconfig server/tsconfig.json server/index.ts'",

@@ -142,16 +142,119 @@ function buildActivityViewModel(act: Activity): ActivityViewModel {
   };
 }
 
-function buildReservationViewModel(res: Reservation): ReservationViewModel {
+/** Formats an ISO date string as "d MMM yyyy"; returns the raw string on parse failure. */
+function fmtDate(iso: string): string {
+  try { return format(parseISO(iso), 'd MMM yyyy'); } catch { return iso; }
+}
+
+/** Derives timeLabel and detailLines from a reservation's type-specific details. */
+function buildReservationDetails(
+  res: Reservation,
+): { timeLabel: string | null; detailLines: string[] } {
+  switch (res.type) {
+    case 'flight': {
+      const d = res.parsedDetails<{
+        airline?: string; flight_number?: string;
+        depart_date?: string; depart_time?: string; depart_airport?: string;
+        arrive_date?: string; arrive_time?: string; arrive_airport?: string;
+      }>();
+      const lines: string[] = [];
+      const carrier = [d.airline, d.flight_number].filter(Boolean).join(' ');
+      if (carrier) lines.push(carrier);
+      const airports = [d.depart_airport, d.arrive_airport].filter(Boolean);
+      if (airports.length) lines.push(airports.join(' \u2192 '));
+      if (d.depart_date)
+        lines.push(`Dep: ${fmtDate(d.depart_date)}${d.depart_time ? ` ${d.depart_time}` : ''}`);
+      if (d.arrive_date)
+        lines.push(`Arr: ${fmtDate(d.arrive_date)}${d.arrive_time ? ` ${d.arrive_time}` : ''}`);
+      return { timeLabel: d.depart_time ?? null, detailLines: lines };
+    }
+
+    case 'lodging': {
+      const d = res.parsedDetails<{
+        check_in_date?: string; check_in_time?: string;
+        check_out_date?: string; check_out_time?: string;
+      }>();
+      const lines: string[] = [];
+      if (d.check_in_date)
+        lines.push(`Check-in: ${fmtDate(d.check_in_date)}${d.check_in_time ? ` ${d.check_in_time}` : ''}`);
+      if (d.check_out_date)
+        lines.push(`Check-out: ${fmtDate(d.check_out_date)}${d.check_out_time ? ` ${d.check_out_time}` : ''}`);
+      return { timeLabel: d.check_in_time ?? null, detailLines: lines };
+    }
+
+    case 'train':
+    case 'bus':
+    case 'ferry': {
+      const d = res.parsedDetails<{
+        from_stop?: string; to_stop?: string;
+        from_date?: string; from_time?: string;
+        to_date?: string; to_time?: string;
+        carrier?: string;
+      }>();
+      const lines: string[] = [];
+      const route = [d.from_stop, d.to_stop].filter(Boolean).join(' \u2192 ');
+      if (route) lines.push(route);
+      if (d.carrier) lines.push(d.carrier);
+      if (d.from_date)
+        lines.push(`Dep: ${fmtDate(d.from_date)}${d.from_time ? ` ${d.from_time}` : ''}`);
+      if (d.to_date)
+        lines.push(`Arr: ${fmtDate(d.to_date)}${d.to_time ? ` ${d.to_time}` : ''}`);
+      return { timeLabel: d.from_time ?? null, detailLines: lines };
+    }
+
+    case 'rental_car': {
+      const d = res.parsedDetails<{
+        company?: string; vehicle_type?: string;
+        pickup_location?: string; pickup_date?: string; pickup_time?: string;
+        dropoff_location?: string; dropoff_date?: string; dropoff_time?: string;
+      }>();
+      const lines: string[] = [];
+      const co = [d.company, d.vehicle_type].filter(Boolean).join(' \u00B7 ');
+      if (co) lines.push(co);
+      if (d.pickup_location ?? d.pickup_date) {
+        const datePart = d.pickup_date
+          ? `${fmtDate(d.pickup_date)}${d.pickup_time ? ` ${d.pickup_time}` : ''}`
+          : undefined;
+        lines.push(`Pick-up: ${[d.pickup_location, datePart].filter(Boolean).join(', ')}`);
+      }
+      if (d.dropoff_location ?? d.dropoff_date) {
+        const datePart = d.dropoff_date
+          ? `${fmtDate(d.dropoff_date)}${d.dropoff_time ? ` ${d.dropoff_time}` : ''}`
+          : undefined;
+        lines.push(`Drop-off: ${[d.dropoff_location, datePart].filter(Boolean).join(', ')}`);
+      }
+      return { timeLabel: d.pickup_time ?? null, detailLines: lines };
+    }
+
+    case 'restaurant': {
+      const d = res.parsedDetails<{
+        location?: string; date?: string; time?: string; party_size?: number;
+      }>();
+      const lines: string[] = [];
+      if (d.location) lines.push(d.location);
+      if (d.date)
+        lines.push(`${fmtDate(d.date)}${d.time ? ` at ${d.time}` : ''}`);
+      if (d.party_size) lines.push(`Party of ${d.party_size}`);
+      return { timeLabel: d.time ?? null, detailLines: lines };
+    }
+
+    default: {
+      const d = res.parsedDetails<{ description?: string }>();
+      return { timeLabel: null, detailLines: d.description ? [d.description] : [] };
+    }
+  }
+}
+
+export function buildReservationViewModel(res: Reservation): ReservationViewModel {
+  const { timeLabel, detailLines } = buildReservationDetails(res);
   return {
     id:               res.id,
     title:            res.title,
     typeLabel:        reservationTypeLabel(res.type),
     confirmationCode: res.confirmation_ref,
-    // Reason: time details are type-specific (flight departure vs hotel check-in);
-    // reserved for a future typed-details pass.
-    timeLabel:        null,
-    detailLines:      [],
+    timeLabel,
+    detailLines,
     status:           res.status,
   };
 }

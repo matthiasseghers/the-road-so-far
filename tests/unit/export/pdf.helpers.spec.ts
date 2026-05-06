@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { formatModeLabel, buildLodgingStripText } from '@/lib/export/pdf/helpers';
-import { buildCoverViewModel, buildDayViewModel } from '@/lib/export/pdf/pdf.viewmodel';
+import { buildCoverViewModel, buildDayViewModel, buildReservationViewModel } from '@/lib/export/pdf/pdf.viewmodel';
 import { Trip } from '@/domain/Trip';
 import { Reservation } from '@/domain/Reservation';
 import type { TripWithDays, DayWithActivities } from '@/types/domain';
@@ -237,5 +237,188 @@ describe('buildDayViewModel()', () => {
     const vm = buildDayViewModel(day, [], [], 0, 3, 2, 4);
     expect(vm.legSummary).toBeNull();
     expect(vm.legs).toHaveLength(0);
+  });
+});
+
+// ── buildReservationViewModel ─────────────────────────────────────────────────
+
+function makeResRow(overrides: Partial<ReservationRow> = {}): ReservationRow {
+  return {
+    id: 1, trip_id: 1, day_id: 1, type: 'other', title: 'Test',
+    status: 'confirmed', confirmation_ref: null, notes: null,
+    cost_amount: null, cost_currency: 'EUR',
+    details: JSON.stringify({}),
+    sort_order: 0, location: null, lat: null, lng: null,
+    created_at: '2025-01-01T00:00:00.000Z',
+    updated_at: '2025-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('buildReservationViewModel()', () => {
+  describe('flight', () => {
+    const res = new Reservation(makeResRow({
+      type: 'flight',
+      details: JSON.stringify({
+        airline: 'British Airways', flight_number: 'BA123',
+        depart_airport: 'LHR', arrive_airport: 'CDG',
+        depart_date: '2025-06-01', depart_time: '10:30',
+        arrive_date: '2025-06-01', arrive_time: '13:00',
+      }),
+    }));
+    const vm = buildReservationViewModel(res);
+
+    it('sets timeLabel to depart_time', () => {
+      expect(vm.timeLabel).toBe('10:30');
+    });
+    it('includes airline and flight number', () => {
+      expect(vm.detailLines[0]).toBe('British Airways BA123');
+    });
+    it('includes airport route', () => {
+      expect(vm.detailLines[1]).toContain('LHR');
+      expect(vm.detailLines[1]).toContain('CDG');
+    });
+    it('includes formatted departure date and time', () => {
+      expect(vm.detailLines[2]).toMatch(/Dep: 1 Jun 2025 10:30/);
+    });
+    it('includes formatted arrival date and time', () => {
+      expect(vm.detailLines[3]).toMatch(/Arr: 1 Jun 2025 13:00/);
+    });
+  });
+
+  describe('lodging', () => {
+    const res = new Reservation(makeResRow({
+      type: 'lodging',
+      details: JSON.stringify({
+        property_name: 'Hotel Lumière',
+        check_in_date: '2025-06-01', check_in_time: '15:00',
+        check_out_date: '2025-06-04', check_out_time: '11:00',
+      }),
+    }));
+    const vm = buildReservationViewModel(res);
+
+    it('sets timeLabel to check_in_time', () => {
+      expect(vm.timeLabel).toBe('15:00');
+    });
+    it('includes check-in line with date and time', () => {
+      expect(vm.detailLines[0]).toBe('Check-in: 1 Jun 2025 15:00');
+    });
+    it('includes check-out line with date and time', () => {
+      expect(vm.detailLines[1]).toBe('Check-out: 4 Jun 2025 11:00');
+    });
+  });
+
+  describe('train', () => {
+    const res = new Reservation(makeResRow({
+      type: 'train',
+      details: JSON.stringify({
+        from_stop: 'Paris Gare de Lyon', to_stop: 'Lyon Part-Dieu',
+        from_date: '2025-06-02', from_time: '08:15',
+        to_date: '2025-06-02', to_time: '10:00',
+        carrier: 'SNCF',
+      }),
+    }));
+    const vm = buildReservationViewModel(res);
+
+    it('sets timeLabel to from_time', () => {
+      expect(vm.timeLabel).toBe('08:15');
+    });
+    it('includes route as first line', () => {
+      expect(vm.detailLines[0]).toContain('Paris Gare de Lyon');
+      expect(vm.detailLines[0]).toContain('Lyon Part-Dieu');
+    });
+    it('includes carrier', () => {
+      expect(vm.detailLines[1]).toBe('SNCF');
+    });
+    it('includes dep/arr lines', () => {
+      expect(vm.detailLines[2]).toMatch(/Dep:/);
+      expect(vm.detailLines[3]).toMatch(/Arr:/);
+    });
+  });
+
+  describe('rental_car', () => {
+    const res = new Reservation(makeResRow({
+      type: 'rental_car',
+      details: JSON.stringify({
+        company: 'Hertz', vehicle_type: 'SUV',
+        pickup_location: 'CDG Terminal 2', pickup_date: '2025-06-01', pickup_time: '09:00',
+        dropoff_location: 'CDG Terminal 2', dropoff_date: '2025-06-07', dropoff_time: '18:00',
+      }),
+    }));
+    const vm = buildReservationViewModel(res);
+
+    it('sets timeLabel to pickup_time', () => {
+      expect(vm.timeLabel).toBe('09:00');
+    });
+    it('includes company and vehicle type', () => {
+      expect(vm.detailLines[0]).toBe('Hertz \u00B7 SUV');
+    });
+    it('includes pick-up line with location and date', () => {
+      expect(vm.detailLines[1]).toContain('CDG Terminal 2');
+      expect(vm.detailLines[1]).toContain('1 Jun 2025');
+    });
+    it('includes drop-off line with location and date', () => {
+      expect(vm.detailLines[2]).toContain('CDG Terminal 2');
+      expect(vm.detailLines[2]).toContain('7 Jun 2025');
+    });
+  });
+
+  describe('restaurant', () => {
+    const res = new Reservation(makeResRow({
+      type: 'restaurant',
+      details: JSON.stringify({
+        restaurant_name: 'Le Petit Bistro', location: '12 Rue de Rivoli',
+        date: '2025-06-03', time: '20:00', party_size: 4,
+      }),
+    }));
+    const vm = buildReservationViewModel(res);
+
+    it('sets timeLabel to reservation time', () => {
+      expect(vm.timeLabel).toBe('20:00');
+    });
+    it('includes location', () => {
+      expect(vm.detailLines[0]).toBe('12 Rue de Rivoli');
+    });
+    it('includes date at time', () => {
+      expect(vm.detailLines[1]).toBe('3 Jun 2025 at 20:00');
+    });
+    it('includes party size', () => {
+      expect(vm.detailLines[2]).toBe('Party of 4');
+    });
+  });
+
+  describe('other', () => {
+    it('puts description in detailLines', () => {
+      const res = new Reservation(makeResRow({
+        type: 'other',
+        details: JSON.stringify({ description: 'Visa appointment' }),
+      }));
+      expect(buildReservationViewModel(res).detailLines).toEqual(['Visa appointment']);
+    });
+    it('returns empty detailLines when description is absent', () => {
+      const res = new Reservation(makeResRow({ type: 'other', details: JSON.stringify({}) }));
+      expect(buildReservationViewModel(res).detailLines).toEqual([]);
+    });
+    it('sets timeLabel to null', () => {
+      const res = new Reservation(makeResRow({ type: 'other', details: JSON.stringify({}) }));
+      expect(buildReservationViewModel(res).timeLabel).toBeNull();
+    });
+  });
+
+  describe('bus and ferry (same shape as train)', () => {
+    it.each(['bus', 'ferry'] as const)('%s: sets timeLabel and route correctly', (type) => {
+      const res = new Reservation(makeResRow({
+        type,
+        details: JSON.stringify({
+          from_stop: 'Nice', to_stop: 'Monaco',
+          from_date: '2025-07-01', from_time: '10:00',
+          to_date: '2025-07-01', to_time: '10:45',
+        }),
+      }));
+      const vm = buildReservationViewModel(res);
+      expect(vm.timeLabel).toBe('10:00');
+      expect(vm.detailLines[0]).toContain('Nice');
+      expect(vm.detailLines[0]).toContain('Monaco');
+    });
   });
 });
