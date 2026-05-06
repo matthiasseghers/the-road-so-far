@@ -3,7 +3,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Spinner } from '@/components/ui/spinner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -169,6 +169,7 @@ export default function ActivityFormModal({
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit activity' : 'New activity'}</DialogTitle>
         </DialogHeader>
+        <DialogBody>
         <form className="activity-form pb-1" onSubmit={handleSubmit(onValid)}>
           {/* Title */}
           <div className="activity-form__field activity-form__field--required">
@@ -253,6 +254,7 @@ export default function ActivityFormModal({
             )}
           />
         </form>
+        </DialogBody>
         <DialogFooter>{footer}</DialogFooter>
       </DialogContent>
     </Dialog>

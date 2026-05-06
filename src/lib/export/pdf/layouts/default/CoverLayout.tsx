@@ -2,7 +2,7 @@
 // Visual output is identical to the former Classic + THEME_WARM output.
 // Colours come from colours.ts; no theme prop.
 
-import { View, Text, StyleSheet } from '@react-pdf/renderer';
+import { View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import type { CoverViewModel } from '../index';
 import { C } from './colours';
 import { PageWrapper, SectionHeader, Divider, StatusPill, NotesBlock, MapPinOverlay, MapSvg } from './_shared';
@@ -42,6 +42,18 @@ export function CoverLayout(vm: CoverViewModel): JSX.Element {
         <Text style={[s.mastheadBrand, { color: C.dark  }]}>THE ROAD SO FAR</Text>
         <Text style={[s.mastheadDate,  { color: C.muted }]}>Generated {vm.generatedLabel}</Text>
       </View>
+
+      {/* ── Cover photo (when available) ── */}
+      {vm.coverImageDataUrl && (
+        <View style={{ marginBottom: '4mm', position: 'relative' }}>
+          <Image src={vm.coverImageDataUrl} style={{ width: '100%', height: '45mm', objectFit: 'cover', borderRadius: 2 }} />
+          {vm.coverImageAttribution && (
+            <Text style={{ position: 'absolute', bottom: 3, right: 5, fontSize: 6, color: 'rgba(255,255,255,0.75)' }}>
+              {vm.coverImageAttribution}
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* ── Hero ── */}
       <Text style={[s.eyebrow,    { color: C.accent }]}>Travel Itinerary</Text>

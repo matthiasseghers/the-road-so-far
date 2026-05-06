@@ -697,6 +697,15 @@
   padding: 14px 20px 12px;
   flex-shrink: 0;
   margin: 12px 16px 0;
+  overflow: hidden;
+}
+
+/* Full-bleed photo strip at the top of the header card */
+.tdh-photo-strip {
+  height: 100px;
+  margin: -14px -20px 12px;
+  background-size: cover;
+  background-position: center;
 }
 
 .tdh-top {

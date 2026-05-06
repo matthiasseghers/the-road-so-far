@@ -3,7 +3,7 @@
 // stats as inline text, accommodation and day list in a clean typographic grid.
 // No colour bars or accent colours.
 
-import { View, Text, StyleSheet } from '@react-pdf/renderer';
+import { View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import type { CoverViewModel } from '../index';
 import { M } from './colours';
 import { PageWrapper } from './_shared';
@@ -41,10 +41,21 @@ export function CoverLayout(vm: CoverViewModel): JSX.Element {
       {/* ── Centred hero block ── */}
       <View style={s.hero}>
         <Text style={[s.brand,     { color: M.muted }]}>THE ROAD SO FAR</Text>
+        {/* Optional cover photo above the title */}
+        {vm.coverImageDataUrl && (
+          <View style={{ width: '100%', marginBottom: '5mm', position: 'relative' }}>
+            <Image src={vm.coverImageDataUrl} style={{ width: '100%', height: '40mm', objectFit: 'cover', borderRadius: 2 }} />
+            {vm.coverImageAttribution && (
+              <Text style={{ position: 'absolute', bottom: 3, right: 5, fontSize: 6, color: 'rgba(255,255,255,0.75)' }}>
+                {vm.coverImageAttribution}
+              </Text>
+            )}
+          </View>
+        )}
         <Text style={[s.title,     { color: M.text  }]}>{vm.tripTitle}</Text>
         <Text style={[s.dateRange, { color: M.muted }]}>{vm.dateRangeLabel}</Text>
         {vm.durationLabel.length > 0 && (
-          <Text style={[s.duration, { color: M.muted }]}>{vm.durationLabel}  \u00B7  Generated {vm.generatedLabel}</Text>
+          <Text style={[s.duration, { color: M.muted }]}>{vm.durationLabel}{'  ·  '}Generated {vm.generatedLabel}</Text>
         )}
         {(vm.stats.activitiesCount > 0 || vm.stats.reservationsCount > 0) && (
           <View style={s.statsRow}>
@@ -74,7 +85,7 @@ export function CoverLayout(vm: CoverViewModel): JSX.Element {
           {vm.lodgings.map(lod => (
             <View key={lod.id}>
               <Text style={[s.lodgingName, { color: M.text  }]}>{lod.name}</Text>
-              <Text style={[s.lodgingMeta, { color: M.muted }]}>{lod.dateRange}  \u00B7  {lod.status}</Text>
+              <Text style={[s.lodgingMeta, { color: M.muted }]}>{lod.dateRange}{'  ·  '}{lod.status}</Text>
             </View>
           ))}
         </View>

@@ -120,6 +120,12 @@ export interface CoverViewModel {
   routePoints:    Array<{ lat: number; lng: number; label: string }>; // for SVG map
   /** Pre-fetched static map image — set by generateTripPDF after building. */
   staticMap?:     StaticMapData;
+  /** Pre-fetched cover photo as base64 data URL — set by generateTripPDF when trip has a photo cover. */
+  coverImageDataUrl?:    string;
+  /** Attribution line for the cover photo. */
+  coverImageAttribution?: string;
+  /** The trip's gradient key — used as fallback when no photo is available. */
+  coverGradient:  string;
   stats: {
     activitiesCount:   number;
     reservationsCount: number;
@@ -282,20 +288,21 @@ function buildLodgingStripViewModel(
 // ── Exported builders ─────────────────────────────────────────────────────────
 
 export function buildDayViewModel(
-  day:            DayWithActivities,
+  day:             DayWithActivities,
   allReservations: Reservation[],
-  allLodgings:    Reservation[],
-  dayIndex:       number,
-  totalDays:      number,
-  pageNumber:     number,
-  totalPages:     number,
-  legSummary?:    DayLegSummary,
+  allLodgings:     Reservation[],
+  dayIndex:        number,
+  totalDays:       number,
+  pageNumber:      number,
+  totalPages:      number,
+  legSummary?:     DayLegSummary,
+  includeBookings: boolean = true,
 ): DayViewModel {
   const dayRes      = allReservations.filter(r => !r.isLodging() && r.day_id === day.id);
   const dayLodgings = allLodgings.filter(r => r.coversDay(day.date));
 
   const activities    = day.activities.map(buildActivityViewModel);
-  const reservations  = dayRes.map(buildReservationViewModel);
+  const reservations  = includeBookings ? dayRes.map(buildReservationViewModel) : [];
   const lodgingStrips = dayLodgings
     .map(r => buildLodgingStripViewModel(r, day.date))
     .filter((v): v is LodgingStripViewModel => v !== null);
@@ -396,6 +403,7 @@ export function buildCoverViewModel(
     lodgings:       lodgingSummaries,
     days:           daySummaries,
     routePoints,
+    coverGradient:  trip.cover_gradient,
     stats: {
       activitiesCount:   days.flatMap(d => d.activities).length,
       reservationsCount: reservations.length,

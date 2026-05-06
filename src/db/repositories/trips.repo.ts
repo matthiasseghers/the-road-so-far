@@ -129,6 +129,8 @@ export function updateTrip(id: number, input: UpdateTripInput): ParsedTripRow | 
        title = @title, emoji = @emoji, status = @status,
        start_date = @start_date, end_date = @end_date, tags = @tags,
        notes = @notes, cover_gradient = @cover_gradient,
+       cover_type = @cover_type, cover_image_path = @cover_image_path,
+       cover_image_attribution = @cover_image_attribution,
        distance_total_m = @distance_total_m, distance_synced_at = @distance_synced_at
      WHERE id = @id`,
   ).run({
@@ -142,6 +144,14 @@ export function updateTrip(id: number, input: UpdateTripInput): ParsedTripRow | 
     tags: input.tags !== undefined ? JSON.stringify(input.tags) : cur.tags,
     notes: input.notes !== undefined ? input.notes : cur.notes,
     cover_gradient: input.cover_gradient ?? cur.cover_gradient,
+    cover_type:
+      input.cover_type !== undefined ? input.cover_type : cur.cover_type,
+    cover_image_path:
+      input.cover_image_path !== undefined ? input.cover_image_path : cur.cover_image_path,
+    cover_image_attribution:
+      input.cover_image_attribution !== undefined
+        ? input.cover_image_attribution
+        : cur.cover_image_attribution,
     distance_total_m:
       input.distance_total_m !== undefined ? input.distance_total_m : cur.distance_total_m,
     distance_synced_at:
@@ -149,6 +159,22 @@ export function updateTrip(id: number, input: UpdateTripInput): ParsedTripRow | 
   });
 
   return findTripById(id);
+}
+
+/** Dedicated cover updater — only touches the three cover columns. */
+export function updateCover(
+  id:          number,
+  type:        'gradient' | 'photo',
+  imagePath:   string | null,
+  attribution: string | null,
+): void {
+  getDb()
+    .prepare(
+      `UPDATE trips
+       SET cover_type = ?, cover_image_path = ?, cover_image_attribution = ?
+       WHERE id = ?`,
+    )
+    .run(type, imagePath, attribution, id);
 }
 
 export function deleteTrip(id: number): void {

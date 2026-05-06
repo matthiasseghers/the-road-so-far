@@ -1,3 +1,4 @@
+import React from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -26,6 +27,10 @@ interface TripCardProps {
 export default function TripCard({ trip, onEdit, onDelete, onClick }: TripCardProps): JSX.Element {
   // Reason: gradient is dynamic data — must use inline style, not a CSS class
   const gradient = GRADIENT_MAP[trip.cover_gradient] ?? GRADIENT_MAP['warm-brown'];
+  const hasPhoto = trip.cover_type === 'photo' && trip.cover_image_path;
+  const bannerStyle: React.CSSProperties = hasPhoto
+    ? { backgroundImage: `url(/covers/${encodeURIComponent(trip.cover_image_path!)})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { background: gradient };
 
   const dateRange =
     trip.start_date && trip.end_date
@@ -56,7 +61,11 @@ export default function TripCard({ trip, onEdit, onDelete, onClick }: TripCardPr
 
       {/* ── Banner ─────────────────────────────────────────── */}
       {/* Reason: gradient applied as inline style — dynamic data-driven colour */}
-      <div className="trip-card__banner" style={{ background: gradient }}>
+      <div
+        className="trip-card__banner"
+        style={bannerStyle}
+        title={hasPhoto && trip.cover_image_attribution ? trip.cover_image_attribution : undefined}
+      >
         <div className="trip-card__banner-overlay" />
         <span className="trip-card__emoji" role="img" aria-label="trip emoji">
           {trip.emoji}

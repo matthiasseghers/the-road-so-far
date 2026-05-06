@@ -2,6 +2,8 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import fs from 'fs';
 import { router } from './router.js';
 import { getDb } from '../src/db/client.js';
 
@@ -25,6 +27,14 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+// Reason: covers/ stores downloaded trip cover photos.
+// Located alongside the DB file so it works identically in dev, Tauri, and Docker.
+const coversDir = path.join(process.cwd(), 'covers');
+if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
+
+// Reason: serve covers before /api so the static middleware short-circuits correctly.
+app.use('/covers', express.static(coversDir));
 
 // Reason: a broad rate limit guards against runaway local scripts and accidental
 // request loops. 300 req/min is far above normal interactive use.

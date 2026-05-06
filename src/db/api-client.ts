@@ -43,3 +43,58 @@ export const api = {
   put:    <T>(path: string, body: unknown) => request<T>('PUT',    path, body),
   delete: <T>(path: string)               => request<T>('DELETE', path),
 };
+
+// ─── Cover photo API ──────────────────────────────────────────────────────────
+
+export interface ImageSearchResult {
+  id:           string;
+  thumbUrl:     string;
+  fullUrl:      string;
+  altText:      string | null;
+  attribution:  string;
+  photographer: string;
+  provider:     string;
+}
+
+export interface ImageProviderPage {
+  photos:      ImageSearchResult[];
+  totalPages:  number;
+  currentPage: number;
+}
+
+export interface ConfiguredProvider {
+  id:    string;
+  label: string;
+}
+
+export function getConfiguredProviders(): Promise<{ providers: ConfiguredProvider[] }> {
+  return api.get<{ providers: ConfiguredProvider[] }>('/covers/providers');
+}
+
+export function searchCoverPhotos(
+  provider: string,
+  query:    string,
+  page:     number,
+): Promise<ImageProviderPage> {
+  return api.post<ImageProviderPage>('/covers/search', { provider, query, page });
+}
+
+export function downloadCoverPhoto(
+  tripId:      number,
+  fullUrl:     string,
+  provider:    string,
+  attribution: string,
+): Promise<{ filename: string; attribution: string }> {
+  return api.post<{ filename: string; attribution: string }>(
+    '/covers/download',
+    { tripId, fullUrl, provider, attribution },
+  );
+}
+
+export function getCoverBase64(filename: string): Promise<{ dataUrl: string }> {
+  return api.get<{ dataUrl: string }>(`/covers/${encodeURIComponent(filename)}/base64`);
+}
+
+export function removeCoverPhoto(tripId: number): Promise<void> {
+  return api.delete<void>(`/covers/${tripId}`);
+}

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogBody,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -19,7 +20,7 @@ import type { PdfLayout } from '@/lib/export/pdf/pdf';
 import type { StaticMapData } from '@/lib/export/pdf/helpers';
 import { DefaultLayout } from '@/lib/export/pdf/layouts/default';
 import { MinimalLayout } from '@/lib/export/pdf/layouts/minimal';
-import { api } from '@/db/api-client';
+import { api, getCoverBase64 } from '@/db/api-client';
 import type { TripWithDays } from '@/types/domain';
 import type { Reservation } from '@/domain/Reservation';
 import type { RouteLegRow } from '@/types/db';
@@ -72,9 +73,11 @@ export default function PdfExportModal({
   const [geoCounts,              setGeoCounts]              = useState<GeoPointCounts | null>(null);
   const [includeMap,             setIncludeMap]             = useState(false);
   const [includeTravelSummary,   setIncludeTravelSummary]   = useState(true);
+  const [includeBookings,        setIncludeBookings]        = useState(true);
   const [routeLegs,              setRouteLegs]              = useState<RouteLegRow[]>([]);
   const [exporting,              setExporting]              = useState(false);
   const [selectedLayout,         setSelectedLayout]         = useState<PdfLayout>(DefaultLayout);
+  const [coverDataUrl,           setCoverDataUrl]           = useState<string | undefined>(undefined);
 
   // Reason: fetch API key status, geo counts, and route legs each time the modal
   // opens so toggles reflect any changes made in Settings without remounting.
@@ -83,6 +86,7 @@ export default function PdfExportModal({
     setHasApiKey(null);
     setGeoCounts(null);
     setRouteLegs([]);
+    setCoverDataUrl(undefined);
     Promise.all([
       api.get<SettingsResponse>('/settings'),
       api.get<GeoPointCounts>(`/trips/${trip.id}/geo-point-counts`),
@@ -96,7 +100,14 @@ export default function PdfExportModal({
       setHasApiKey(false);
       setIncludeMap(false);
     });
-  }, [open, trip.id]);
+
+    // Prefetch cover photo base64 if this trip has a photo cover.
+    if (trip.cover_type === 'photo' && trip.cover_image_path) {
+      getCoverBase64(trip.cover_image_path)
+        .then(r => setCoverDataUrl(r.dataUrl))
+        .catch(() => setCoverDataUrl(undefined));
+    }
+  }, [open, trip.id, trip.cover_type, trip.cover_image_path]);
 
   // Reason: build an ordered list of legs for each day by following the geocoded
   // points in sort_order sequence (intra-day pairs, then the departing inter-day
@@ -224,7 +235,7 @@ export default function PdfExportModal({
         ? computeDayLegSummaries(distanceUnit)
         : undefined;
 
-      const blob     = await generateTripPDF(trip, reservations, { layout: selectedLayout, staticMap, dayStaticMaps, dayLegSummaries });
+      const blob     = await generateTripPDF(trip, reservations, { layout: selectedLayout, staticMap, dayStaticMaps, dayLegSummaries, includeBookings, coverImageDataUrl: coverDataUrl, coverImageAttribution: trip.cover_image_attribution ?? undefined });
       const filename = `${safeFilename(trip.title)}-itinerary.pdf`;
       const url = URL.createObjectURL(blob);
       const a   = document.createElement('a');
@@ -254,6 +265,7 @@ export default function PdfExportModal({
           <DialogTitle>Export PDF</DialogTitle>
         </DialogHeader>
 
+        <DialogBody>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0' }}>
           {/* Layout selector */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -306,6 +318,18 @@ export default function PdfExportModal({
             />
           </div>
 
+          {/* Bookings toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <Label htmlFor="pdf-include-bookings">
+              Include booking details
+            </Label>
+            <Switch
+              id="pdf-include-bookings"
+              checked={includeBookings}
+              onCheckedChange={setIncludeBookings}
+            />
+          </div>
+
           {/* No API key warning */}
           {hasApiKey === false && (
             <div style={{
@@ -337,6 +361,7 @@ export default function PdfExportModal({
             </div>
           )}
         </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={exporting}>

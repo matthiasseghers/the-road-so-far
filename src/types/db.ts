@@ -21,6 +21,9 @@ export interface TripRow {
   tags: string; // JSON string — parse with JSON.parse
   notes: string | null; // Tiptap JSON string
   cover_gradient: string;
+  cover_type: 'gradient' | 'photo';
+  cover_image_path: string | null;
+  cover_image_attribution: string | null;
   distance_total_m: number | null;
   distance_synced_at: string | null;
   external_id: string; // stable UUID for .trippack dedup

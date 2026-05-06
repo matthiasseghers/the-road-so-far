@@ -1,5 +1,8 @@
 import { Router, type Request, type Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 import { getDb } from '../src/db/client.js';
+import { IMAGE_PROVIDERS, ALLOWED_IMAGE_HOSTS } from './providers/index.js';
 import * as tripsRepo from '../src/db/repositories/trips.repo.js';
 import * as daysRepo from '../src/db/repositories/days.repo.js';
 import * as activitiesRepo from '../src/db/repositories/activities.repo.js';
@@ -76,6 +79,10 @@ const SETTING_SCHEMAS: Record<string, z.ZodTypeAny> = {
   geocoding_provider: z.enum(['nominatim', 'tomtom']),
   routing_provider:   z.enum(['tomtom']),
   maps_provider:      z.enum(['tomtom']),
+  pexels_api_key:     z.string().max(256).trim(),
+  unsplash_api_key:   z.string().max(256).trim(),
+  unsplash_app_name:  z.string().max(100).trim(),
+  pixabay_api_key:    z.string().max(256).trim(),
 };
 const SettingBodySchema     = z.object({ value: z.unknown() });
 const TemplateCreateSchema  = z.object({
@@ -621,9 +628,23 @@ router.get('/settings/tomtom_api_key', (_req: Request, res: Response) => {
   res.json({ tomtom_api_key });
 });
 
+// Dedicated read routes for image provider API keys (never returned in GET /settings).
+router.get('/settings/pexels_api_key', (_req: Request, res: Response) => {
+  res.json({ pexels_api_key: settingsRepo.getSetting<string>('pexels_api_key') ?? '' });
+});
+router.get('/settings/unsplash_api_key', (_req: Request, res: Response) => {
+  res.json({ unsplash_api_key: settingsRepo.getSetting<string>('unsplash_api_key') ?? '' });
+});
+router.get('/settings/unsplash_app_name', (_req: Request, res: Response) => {
+  res.json({ unsplash_app_name: settingsRepo.getSetting<string>('unsplash_app_name') ?? '' });
+});
+router.get('/settings/pixabay_api_key', (_req: Request, res: Response) => {
+  res.json({ pixabay_api_key: settingsRepo.getSetting<string>('pixabay_api_key') ?? '' });
+});
+
 // Reason: whitelist prevents arbitrary keys from being written to the settings table
 // by non-browser HTTP clients that bypass the frontend's fixed set of setting keys.
-const ALLOWED_SETTING_KEYS = ['theme', 'date_format', 'time_areas', 'tomtom_api_key', 'geocoding_provider', 'routing_provider', 'maps_provider'] as const;
+const ALLOWED_SETTING_KEYS = ['theme', 'date_format', 'time_areas', 'tomtom_api_key', 'geocoding_provider', 'routing_provider', 'maps_provider', 'pexels_api_key', 'unsplash_api_key', 'unsplash_app_name', 'pixabay_api_key'] as const;
 type AllowedSettingKey = typeof ALLOWED_SETTING_KEYS[number];
 
 router.put('/settings/:key', (req: Request, res: Response) => {
@@ -1059,4 +1080,149 @@ router.get('/trips/:tripId/static-map-image', async (req: Request, res: Response
   // Reason: return mapParams alongside the image so the client can overlay
   // precisely-projected SVG pins using Mercator math without a second request.
   res.json({ dataUrl: result.dataUrl, mapParams: { centerLat, centerLng, zoom, imgW, imgH } });
+});
+
+// ── Cover photo routes ────────────────────────────────────────────────────────
+
+const coversDir = path.join(process.cwd(), 'covers');
+
+// Returns the list of providers that have an API key configured.
+router.get('/covers/providers', (_req: Request, res: Response) => {
+  const configured = IMAGE_PROVIDERS
+    .filter(p => {
+      const key = settingsRepo.getSetting<string>(`${p.id}_api_key`) ?? '';
+      return key.length > 0;
+    })
+    .map(p => ({ id: p.id, label: p.label }));
+  res.json({ providers: configured });
+});
+
+const CoverSearchSchema = z.object({
+  query:    z.string().trim().min(1).max(512),
+  provider: z.string().trim().min(1),
+  page:     z.number().int().positive().optional().default(1),
+});
+
+router.post('/covers/search', async (req: Request, res: Response) => {
+  const parsed = CoverSearchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  const { query, provider: providerId, page } = parsed.data;
+
+  const provider = IMAGE_PROVIDERS.find(p => p.id === providerId);
+  if (!provider) { res.status(400).json({ error: 'Unknown provider' }); return; }
+
+  const apiKey = settingsRepo.getSetting<string>(`${providerId}_api_key`) ?? '';
+  if (!apiKey) { res.status(422).json({ error: 'Provider not configured — add an API key in Settings' }); return; }
+
+  const extra: Record<string, string> = {};
+  if (providerId === 'unsplash') {
+    extra['appName'] = settingsRepo.getSetting<string>('unsplash_app_name') ?? 'The Road So Far';
+  }
+
+  try {
+    const result = await provider.search(query, page, apiKey, extra);
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : 'Search failed' });
+  }
+});
+
+const CoverDownloadSchema = z.object({
+  tripId:      z.number().int().positive(),
+  fullUrl:     z.string().url(),
+  provider:    z.string().trim().min(1),
+  attribution: z.string().max(500),
+});
+
+router.post('/covers/download', async (req: Request, res: Response) => {
+  const parsed = CoverDownloadSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
+    return;
+  }
+  const { tripId, fullUrl, provider: providerId, attribution } = parsed.data;
+
+  // Validate the download URL is from an allowed host (SSRF prevention).
+  let urlHostname: string;
+  try { urlHostname = new URL(fullUrl).hostname; } catch { res.status(400).json({ error: 'Invalid URL' }); return; }
+  const allowed = ALLOWED_IMAGE_HOSTS[providerId];
+  if (!allowed || !allowed.includes(urlHostname)) {
+    res.status(400).json({ error: 'URL host not allowed for this provider' });
+    return;
+  }
+
+  const trip = tripsRepo.findTripById(tripId);
+  if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
+
+  // Remove previous cover file if any.
+  if (trip.cover_image_path) {
+    // Reason: validate stored path is a bare filename (no directory separators)
+    // before joining to prevent path traversal on read-back.
+    const safeName = path.basename(trip.cover_image_path);
+    const oldPath = path.join(coversDir, safeName);
+    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+  }
+
+  // Download image.
+  let imgBuffer: Buffer;
+  let ext = '.jpg';
+  try {
+    const imgRes = await fetch(fullUrl);
+    if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
+    const ct = imgRes.headers.get('content-type') ?? '';
+    if (ct.includes('png')) ext = '.png';
+    else if (ct.includes('webp')) ext = '.webp';
+    imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+  } catch (err) {
+    res.status(502).json({ error: err instanceof Error ? err.message : 'Download failed' });
+    return;
+  }
+
+  // Save to disk with a randomised filename to avoid collisions / enumeration.
+  const randRow  = getDb().prepare("SELECT lower(hex(randomblob(8))) AS v").get() as { v: string };
+  const filename = `${tripId}-${randRow.v}${ext}`;
+  const destPath = path.join(coversDir, filename);
+  fs.writeFileSync(destPath, imgBuffer);
+
+  tripsRepo.updateCover(tripId, 'photo', filename, attribution);
+
+  res.json({ filename, attribution });
+});
+
+// Returns the cover image for a trip as a base64 data URL (used by PDF export).
+// Reason: validate filename strictly to prevent directory traversal.
+router.get('/covers/:filename/base64', (req: Request, res: Response) => {
+  const raw = req.params['filename'] as string;
+  // Allow only: alphanumeric, hyphens, dots. No path separators or spaces.
+  if (!/^[A-Za-z0-9\-_.]+$/.test(raw)) {
+    res.status(400).json({ error: 'Invalid filename' });
+    return;
+  }
+  const filePath = path.join(coversDir, raw);
+  if (!fs.existsSync(filePath)) { res.status(404).json({ error: 'Not found' }); return; }
+  const buf = fs.readFileSync(filePath);
+  const ext = path.extname(raw).slice(1);
+  const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+  res.json({ dataUrl: `data:${mime};base64,${buf.toString('base64')}` });
+});
+
+// Deletes the cover photo file for a trip and resets cover_type to 'gradient'.
+router.delete('/covers/:tripId', (req: Request, res: Response) => {
+  const tripId = parseIdParam(req.params['tripId']);
+  if (!tripId) { res.status(400).json({ error: 'Invalid tripId' }); return; }
+
+  const trip = tripsRepo.findTripById(tripId);
+  if (!trip) { res.status(404).json({ error: 'Trip not found' }); return; }
+
+  if (trip.cover_image_path) {
+    const safeName = path.basename(trip.cover_image_path);
+    const filePath = path.join(coversDir, safeName);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+
+  tripsRepo.updateCover(tripId, 'gradient', null, null);
+  res.status(204).send();
 });

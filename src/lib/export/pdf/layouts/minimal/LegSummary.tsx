@@ -11,7 +11,7 @@ const s = StyleSheet.create({
 export function LegSummary({ vm }: LegSummaryProps): JSX.Element {
   return (
     <Text style={[s.text, { color: M.muted }]}>
-      {vm.from} \u2192 {vm.to}  \u00B7  {vm.modeLabel}  \u00B7  {vm.duration}  \u00B7  {vm.distance}
+      {vm.from}{' → '}{vm.to}{'  ·  '}{vm.modeLabel}{'  ·  '}{vm.duration}{'  ·  '}{vm.distance}
     </Text>
   );
 }

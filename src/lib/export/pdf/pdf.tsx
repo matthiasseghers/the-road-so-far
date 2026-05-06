@@ -33,6 +33,11 @@ export interface PdfGenerateOptions {
   staticMap?:       StaticMapData;
   dayStaticMaps?:   Record<number, StaticMapData>;
   dayLegSummaries?: Record<number, DayLegSummary>;
+  /** When false, reservation cards are omitted from every day page. Default: true. */
+  includeBookings?: boolean;
+  /** Pre-fetched cover photo as base64 data URL (for photo-type trips). */
+  coverImageDataUrl?:    string;
+  coverImageAttribution?: string;
 }
 
 /**
@@ -51,6 +56,9 @@ export async function generateTripPDF(
     staticMap,
     dayStaticMaps,
     dayLegSummaries,
+    includeBookings = true,
+    coverImageDataUrl,
+    coverImageAttribution,
   } = options;
 
   const allDays    = trip.days ?? [];
@@ -59,11 +67,15 @@ export async function generateTripPDF(
 
   const cover = buildCoverViewModel(trip, reservations, new Date());
   cover.staticMap = staticMap;
+  if (coverImageDataUrl) {
+    cover.coverImageDataUrl    = coverImageDataUrl;
+    cover.coverImageAttribution = coverImageAttribution;
+  }
 
   const days = allDays.map((day, i) => {
     const vm = buildDayViewModel(
       day, reservations, lodgings, i, allDays.length, i + 2, totalPages,
-      dayLegSummaries?.[day.id],
+      dayLegSummaries?.[day.id], includeBookings,
     );
     vm.staticMap = dayStaticMaps?.[day.id];
     return vm;

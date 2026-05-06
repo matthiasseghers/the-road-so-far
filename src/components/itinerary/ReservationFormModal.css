@@ -325,6 +325,8 @@
    focus rings at the left/right edge; -mx-4 px-4 on the element extends the div
    to the dialog edges so rings stay visible. */
 .rfm__scroll-area {
+  flex: 1;
+  min-height: 0;
   max-height: min(60svh, 520px);
   overflow-y: auto;
   padding-bottom: 4px;

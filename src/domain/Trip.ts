@@ -23,6 +23,9 @@ export class Trip {
   get start_date(): string | null { return this.data.start_date; }
   get end_date(): string | null { return this.data.end_date; }
   get cover_gradient(): string { return this.data.cover_gradient; }
+  get cover_type(): 'gradient' | 'photo' { return this.data.cover_type ?? 'gradient'; }
+  get cover_image_path(): string | null { return this.data.cover_image_path ?? null; }
+  get cover_image_attribution(): string | null { return this.data.cover_image_attribution ?? null; }
   get notes(): string | null { return this.data.notes; }
   get created_at(): string { return this.data.created_at; }
   get updated_at(): string { return this.data.updated_at; }

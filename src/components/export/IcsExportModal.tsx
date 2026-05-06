@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogBody,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -76,6 +77,7 @@ export default function IcsExportModal({
           <DialogTitle>Export Calendar (.ics)</DialogTitle>
         </DialogHeader>
 
+        <DialogBody>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: '4px 0' }}>
 
           {/* ── Trip coverage ── */}
@@ -136,6 +138,7 @@ export default function IcsExportModal({
           </div>
 
         </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} type="button">

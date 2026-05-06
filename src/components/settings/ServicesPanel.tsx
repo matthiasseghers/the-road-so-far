@@ -38,6 +38,16 @@ export default function ServicesPanel(): JSX.Element {
     maps_provider:      'tomtom',
   });
 
+  // Image provider keys
+  const [pexelsKey,       setPexelsKey]       = useState('');
+  const [pexelsSaved,     setPexelsSaved]     = useState(false);
+  const [unsplashKey,     setUnsplashKey]     = useState('');
+  const [unsplashSaved,   setUnsplashSaved]   = useState(false);
+  const [unsplashApp,     setUnsplashApp]     = useState('');
+  const [unsplashAppSaved,setUnsplashAppSaved]= useState(false);
+  const [pixabayKey,      setPixabayKey]      = useState('');
+  const [pixabaySaved,    setPixabaySaved]    = useState(false);
+
   useEffect(() => {
     api.get<{ tomtom_api_key: string }>('/settings/tomtom_api_key')
       .then(({ tomtom_api_key }) => { if (tomtom_api_key) setApiKey(tomtom_api_key); })
@@ -50,6 +60,16 @@ export default function ServicesPanel(): JSX.Element {
         maps_provider:      s.maps_provider       ?? 'tomtom',
       }))
       .catch(() => { /* ignore */ });
+
+    // Load image provider keys.
+    api.get<{ pexels_api_key: string }>('/settings/pexels_api_key')
+      .then(r => { if (r.pexels_api_key) setPexelsKey(r.pexels_api_key); }).catch(() => {});
+    api.get<{ unsplash_api_key: string }>('/settings/unsplash_api_key')
+      .then(r => { if (r.unsplash_api_key) setUnsplashKey(r.unsplash_api_key); }).catch(() => {});
+    api.get<{ unsplash_app_name: string }>('/settings/unsplash_app_name')
+      .then(r => { if (r.unsplash_app_name) setUnsplashApp(r.unsplash_app_name); }).catch(() => {});
+    api.get<{ pixabay_api_key: string }>('/settings/pixabay_api_key')
+      .then(r => { if (r.pixabay_api_key) setPixabayKey(r.pixabay_api_key); }).catch(() => {});
   }, []);
 
   async function saveApiKey(): Promise<void> {
@@ -57,6 +77,16 @@ export default function ServicesPanel(): JSX.Element {
       await api.put('/settings/tomtom_api_key', { value: apiKey.trim() });
       setApiKeySaved(true);
       setTimeout(() => setApiKeySaved(false), 2000);
+      toast.success('API key saved');
+    } catch {
+      toast.error('Failed to save API key');
+    }
+  }
+
+  async function saveImageKey(settingKey: string, value: string, onSaved: () => void): Promise<void> {
+    try {
+      await api.put(`/settings/${settingKey}`, { value: value.trim() });
+      onSaved();
       toast.success('API key saved');
     } catch {
       toast.error('Failed to save API key');
@@ -205,6 +235,108 @@ export default function ServicesPanel(): JSX.Element {
           </div>
         </div>
       )}
+
+      {/* Cover photos — image provider API keys */}
+      <div className="settings-section">
+        <h3 className="settings-subsection__title">Cover photos</h3>
+        <p className="settings-row__hint" style={{ marginBottom: 'var(--space-3)' }}>
+          Add an API key for at least one provider to enable photo search when picking a
+          trip cover. Keys are stored locally and never leave your device.
+        </p>
+
+        {/* Pexels */}
+        <div className="settings-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <div className="settings-row__info">
+            <span className="settings-row__label">Pexels API key</span>
+            <span className="settings-row__hint">
+              Free, unlimited. Get a key at{' '}
+              <a href="https://www.pexels.com/api/" target="_blank" rel="noreferrer" className="underline">pexels.com/api</a>.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 w-full">
+            <Input
+              type="password"
+              value={pexelsKey}
+              onChange={e => setPexelsKey(e.target.value)}
+              placeholder="Enter your Pexels API key…"
+              className="flex-1 font-mono text-xs"
+              aria-label="Pexels API key"
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('pexels_api_key', pexelsKey, () => { setPexelsSaved(true); setTimeout(() => setPexelsSaved(false), 2000); }); }}
+            />
+            <Button variant="outline" size="sm" disabled={pexelsSaved}
+              onClick={() => void saveImageKey('pexels_api_key', pexelsKey, () => { setPexelsSaved(true); setTimeout(() => setPexelsSaved(false), 2000); })}>
+              {pexelsSaved ? 'Saved!' : 'Save'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Unsplash */}
+        <div className="settings-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+          <div className="settings-row__info">
+            <span className="settings-row__label">Unsplash Access Key</span>
+            <span className="settings-row__hint">
+              Free. Register at{' '}
+              <a href="https://unsplash.com/developers" target="_blank" rel="noreferrer" className="underline">unsplash.com/developers</a>.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 w-full">
+            <Input
+              type="password"
+              value={unsplashKey}
+              onChange={e => setUnsplashKey(e.target.value)}
+              placeholder="Enter your Unsplash Access Key…"
+              className="flex-1 font-mono text-xs"
+              aria-label="Unsplash Access Key"
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('unsplash_api_key', unsplashKey, () => { setUnsplashSaved(true); setTimeout(() => setUnsplashSaved(false), 2000); }); }}
+            />
+            <Button variant="outline" size="sm" disabled={unsplashSaved}
+              onClick={() => void saveImageKey('unsplash_api_key', unsplashKey, () => { setUnsplashSaved(true); setTimeout(() => setUnsplashSaved(false), 2000); })}>
+              {unsplashSaved ? 'Saved!' : 'Save'}
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 w-full" style={{ marginTop: 'var(--space-1)' }}>
+            <Input
+              type="text"
+              value={unsplashApp}
+              onChange={e => setUnsplashApp(e.target.value)}
+              placeholder="App name (shown to Unsplash, e.g. The Road So Far)…"
+              className="flex-1 text-xs"
+              aria-label="Unsplash app name"
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('unsplash_app_name', unsplashApp, () => { setUnsplashAppSaved(true); setTimeout(() => setUnsplashAppSaved(false), 2000); }); }}
+            />
+            <Button variant="outline" size="sm" disabled={unsplashAppSaved}
+              onClick={() => void saveImageKey('unsplash_app_name', unsplashApp, () => { setUnsplashAppSaved(true); setTimeout(() => setUnsplashAppSaved(false), 2000); })}>
+              {unsplashAppSaved ? 'Saved!' : 'Save'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Pixabay */}
+        <div className="settings-row" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <div className="settings-row__info">
+            <span className="settings-row__label">Pixabay API key</span>
+            <span className="settings-row__hint">
+              Free. Get a key at{' '}
+              <a href="https://pixabay.com/api/docs/" target="_blank" rel="noreferrer" className="underline">pixabay.com/api/docs</a>.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 w-full">
+            <Input
+              type="password"
+              value={pixabayKey}
+              onChange={e => setPixabayKey(e.target.value)}
+              placeholder="Enter your Pixabay API key…"
+              className="flex-1 font-mono text-xs"
+              aria-label="Pixabay API key"
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('pixabay_api_key', pixabayKey, () => { setPixabaySaved(true); setTimeout(() => setPixabaySaved(false), 2000); }); }}
+            />
+            <Button variant="outline" size="sm" disabled={pixabaySaved}
+              onClick={() => void saveImageKey('pixabay_api_key', pixabayKey, () => { setPixabaySaved(true); setTimeout(() => setPixabaySaved(false), 2000); })}>
+              {pixabaySaved ? 'Saved!' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -366,7 +366,8 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
           <DialogHeader>
             <DialogTitle>Apply template</DialogTitle>
           </DialogHeader>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflowY: 'auto', padding: '4px 0' }}>
+          <DialogBody>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
             {availableTemplates.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>No templates found. Create one in Settings → Templates.</p>
             ) : (
@@ -390,6 +391,7 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
               ))
             )}
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => { setTemplatePickerOpen(false); setSelectedTemplateIds(new Set()); }} type="button">
               Cancel

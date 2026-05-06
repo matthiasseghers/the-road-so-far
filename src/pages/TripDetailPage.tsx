@@ -639,9 +639,20 @@ function TripHeader({
 
   const hasDates = !!(trip.start_date && trip.end_date);
   const completePct = Math.round(trip.computeProgress());
+  const hasPhoto = trip.cover_type === 'photo' && trip.cover_image_path;
 
   return (
     <div className="tdh">
+      {/* Photo strip — shown only for photo-type covers */}
+      {hasPhoto && (
+        <div
+          className="tdh-photo-strip"
+          style={{
+            backgroundImage: `url(/covers/${encodeURIComponent(trip.cover_image_path!)})`,
+          }}
+          title={trip.cover_image_attribution ?? undefined}
+        />
+      )}
       <div className="tdh-top">
         <div className="tdh-title-row">
           <div className="tdh-title">{trip.title}</div>
