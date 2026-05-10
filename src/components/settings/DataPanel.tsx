@@ -75,7 +75,10 @@ export default function DataPanel({ onDataWiped }: DataPanelProps): JSX.Element 
 
   async function handleWipe(): Promise<void> {
     try {
-      await api.delete('/data/wipe?confirm=wipe-all-data');
+      // Reason: obtain the server-generated ephemeral token first so the wipe
+      // confirmation string is never a static value in the compiled JS bundle.
+      const { token } = await api.get<{ token: string }>('/data/wipe-token');
+      await api.delete(`/data/wipe?confirm=${encodeURIComponent(token)}`);
       toast.success('All data wiped');
       onDataWiped();
     } catch {

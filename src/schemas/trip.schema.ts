@@ -11,13 +11,13 @@ export const TripStatusSchema = z.enum([
 // Define the base object first, build patch/update schemas from it, then
 // add the date-order refinement only to CreateTripSchema.
 const TripBaseSchema = z.object({
-  title:                   z.string().trim().min(1, 'Title is required'),
+  title:                   z.string().trim().min(1, 'Title is required').max(200),
   emoji:                   z.string().default('🗺️'),
   status:                  TripStatusSchema.default('draft'),
   start_date:              ISO_DATE,
   end_date:                ISO_DATE,
-  tags:                    z.array(z.string().trim()).default([]),
-  notes:                   z.string().nullable().optional(),
+  tags:                    z.array(z.string().trim().max(100)).max(50).default([]),
+  notes:                   z.string().max(50_000).nullable().optional(),
   cover_gradient:          z.string().default('warm-brown'),
 });
 

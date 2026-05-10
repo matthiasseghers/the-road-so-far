@@ -150,7 +150,7 @@ const ReservationBaseSchema = z.object({
   title:            z.string().trim().optional(),
   status:           z.enum(['pending','confirmed','cancelled']).default('pending'),
   confirmation_ref: z.string().trim().nullable().optional(),
-  notes:            z.string().trim().nullable().optional(),
+  notes:            z.string().trim().max(50_000).nullable().optional(),
   cost_amount:      z.number().nonnegative().nullable().optional(),
   cost_currency:    z.string().regex(/^[A-Z]{3}$/, 'Must be a 3-letter uppercase currency code').default('EUR'),
   details:          ReservationDetailsSchema,

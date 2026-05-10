@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { randomBytes } from 'node:crypto';
 import path from 'path';
 import fs from 'fs';
 import { getDb } from '../src/db/client.js';
@@ -44,11 +45,11 @@ function parseIdParam(val: string | string[] | undefined): number | null {
 
 const ReorderActivitiesSchema = z.object({
   dayId:      z.number().int().positive(),
-  orderedIds: z.array(z.number().int().positive()),
+  orderedIds: z.array(z.number().int().positive()).max(500),
 });
 const CopyTemplatesSchema   = z.object({
   tripId:      z.number().int().positive(),
-  templateIds: z.array(z.number().int().positive()),
+  templateIds: z.array(z.number().int().positive()).max(100),
 });
 const RenameCategorySchema  = z.object({ name: z.string().trim().min(1) });
 const TemplateItemCreateSchema = z.object({
@@ -62,9 +63,9 @@ const TemplateItemPatchSchema = z.object({
 });
 const TemplateReorderSchema = z.object({
   templateId: z.number().int().positive(),
-  ids:        z.array(z.number().int().positive()),
+  ids:        z.array(z.number().int().positive()).max(500),
 });
-const TripReorderSchema     = z.object({ ids: z.array(z.number().int().positive()) });
+const TripReorderSchema     = z.object({ ids: z.array(z.number().int().positive()).max(500) });
 // Reason: per-key validation so each setting is checked against its actual domain.
 // The key comes from req.params (URL), not the body, so we resolve the correct
 // Zod schema at runtime after the key whitelist check.
@@ -96,6 +97,13 @@ const TemplatePatchSchema   = z.object({
   icon_name:  z.string().trim().min(1).nullable().optional(),
   sort_order: z.number().int().nonnegative().optional(),
 });
+
+// Reason: ephemeral token generated at server startup. The static string
+// 'wipe-all-data' was in the compiled JS bundle and could be used by any
+// local process. A random per-session token requires a caller to first
+// obtain it via GET /data/wipe-token (CORS-protected), preventing
+// static curl one-liners from wiping data.
+const WIPE_CONFIRM_TOKEN: string = randomBytes(16).toString('hex');
 
 export const router = Router();
 
@@ -537,7 +545,7 @@ router.delete('/checklist-templates/:id', (req: Request, res: Response) => {
     checklistRepo.deleteTemplate(id);
     res.status(204).send();
   } catch (e) {
-    res.status(400).json({ error: (e as Error).message });
+    res.status(400).json({ error: e instanceof Error ? e.message : 'Failed to delete template' });
   }
 });
 
@@ -619,26 +627,33 @@ router.get('/settings', (_req: Request, res: Response) => {
   });
 });
 
-// Reason: dedicated route so the Settings panel can pre-fill the API key input.
-// Separated from GET /settings so other consumers never receive the raw key.
+// Reason: dedicated route so the Settings panel can check whether a key is
+// configured. Returns has_key + the last 4 characters only — never the raw
+// secret — so a script that enumerates this endpoint cannot exfiltrate the key.
 // Must be declared before PUT /settings/:key to avoid being caught as a param match.
+function maskedKey(raw: string): { has_key: boolean; last4: string | null } {
+  const key = raw.trim();
+  return { has_key: key.length > 0, last4: key.length >= 4 ? key.slice(-4) : null };
+}
+
 router.get('/settings/tomtom_api_key', (_req: Request, res: Response) => {
   const { tomtom_api_key } = settingsRepo.getAllSettings();
-  res.json({ tomtom_api_key });
+  res.json(maskedKey(tomtom_api_key));
 });
 
-// Dedicated read routes for image provider API keys (never returned in GET /settings).
+// Dedicated read routes for image provider API keys — masked for the same reason.
 router.get('/settings/pexels_api_key', (_req: Request, res: Response) => {
-  res.json({ pexels_api_key: settingsRepo.getSetting<string>('pexels_api_key') ?? '' });
+  res.json(maskedKey(settingsRepo.getSetting<string>('pexels_api_key') ?? ''));
 });
 router.get('/settings/unsplash_api_key', (_req: Request, res: Response) => {
-  res.json({ unsplash_api_key: settingsRepo.getSetting<string>('unsplash_api_key') ?? '' });
+  res.json(maskedKey(settingsRepo.getSetting<string>('unsplash_api_key') ?? ''));
 });
+// unsplash_app_name is a non-secret app identifier — return as-is.
 router.get('/settings/unsplash_app_name', (_req: Request, res: Response) => {
   res.json({ unsplash_app_name: settingsRepo.getSetting<string>('unsplash_app_name') ?? '' });
 });
 router.get('/settings/pixabay_api_key', (_req: Request, res: Response) => {
-  res.json({ pixabay_api_key: settingsRepo.getSetting<string>('pixabay_api_key') ?? '' });
+  res.json(maskedKey(settingsRepo.getSetting<string>('pixabay_api_key') ?? ''));
 });
 
 // Reason: whitelist prevents arbitrary keys from being written to the settings table
@@ -703,12 +718,18 @@ router.get('/trips/:tripId/export/trippack', (req: Request, res: Response) => {
   });
 });
 
+// Reason: expose the ephemeral wipe token so the browser UI can obtain it.
+// CORS already restricts this endpoint to allowed origins; non-browser clients
+// can still reach it, but the token now changes on every server restart,
+// preventing static curl one-liners.
+router.get('/data/wipe-token', (_req: Request, res: Response) => {
+  res.json({ token: WIPE_CONFIRM_TOKEN });
+});
+
 router.delete('/data/wipe', (req: Request, res: Response) => {
-  // Reason: confirmation guard prevents accidental data loss from non-browser HTTP clients
-  // (curl, scripts, LAN requests) that are not blocked by the browser CORS policy.
-  // Reason: do NOT reveal the expected confirmation string in the error message —
-  // doing so turns the 400 response into a self-documenting LAN wipe script primer.
-  if (req.query['confirm'] !== 'wipe-all-data') {
+  // Reason: compare against the server-generated ephemeral token, not a static
+  // string that is visible in the compiled JS bundle.
+  if (req.query['confirm'] !== WIPE_CONFIRM_TOKEN) {
     res.status(400).json({ error: 'Missing or invalid confirmation parameter' });
     return;
   }
@@ -886,10 +907,10 @@ router.get('/trips/:tripId/leg-modes', (req: Request, res: Response) => {
 });
 
 const SetLegModeSchema = z.object({
-  from_lat:    z.number(),
-  from_lng:    z.number(),
-  to_lat:      z.number(),
-  to_lng:      z.number(),
+  from_lat:    z.number().min(-90).max(90),
+  from_lng:    z.number().min(-180).max(180),
+  to_lat:      z.number().min(-90).max(90),
+  to_lng:      z.number().min(-180).max(180),
   travel_mode: z.enum(['car', 'pedestrian', 'bicycle']),
 });
 

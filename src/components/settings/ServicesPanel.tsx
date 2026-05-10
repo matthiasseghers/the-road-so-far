@@ -31,6 +31,8 @@ const MAPS_OPTIONS: { value: MapsProviderName; label: string; needsKey: boolean 
 
 export default function ServicesPanel(): JSX.Element {
   const [apiKey, setApiKey]       = useState('');
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(false);
+  const [apiKeyLast4, setApiKeyLast4] = useState<string | null>(null);
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [providers, setProviders] = useState<ProviderSettings>({
     geocoding_provider: 'nominatim',
@@ -39,18 +41,29 @@ export default function ServicesPanel(): JSX.Element {
   });
 
   // Image provider keys
-  const [pexelsKey,       setPexelsKey]       = useState('');
-  const [pexelsSaved,     setPexelsSaved]     = useState(false);
-  const [unsplashKey,     setUnsplashKey]     = useState('');
-  const [unsplashSaved,   setUnsplashSaved]   = useState(false);
-  const [unsplashApp,     setUnsplashApp]     = useState('');
-  const [unsplashAppSaved,setUnsplashAppSaved]= useState(false);
-  const [pixabayKey,      setPixabayKey]      = useState('');
-  const [pixabaySaved,    setPixabaySaved]    = useState(false);
+  const [pexelsKey,        setPexelsKey]        = useState('');
+  const [pexelsConfigured, setPexelsConfigured] = useState(false);
+  const [pexelsLast4,      setPexelsLast4]      = useState<string | null>(null);
+  const [pexelsSaved,      setPexelsSaved]      = useState(false);
+  const [unsplashKey,      setUnsplashKey]      = useState('');
+  const [unsplashConfigured,setUnsplashConfigured]=useState(false);
+  const [unsplashLast4,    setUnsplashLast4]    = useState<string | null>(null);
+  const [unsplashSaved,    setUnsplashSaved]    = useState(false);
+  const [unsplashApp,      setUnsplashApp]      = useState('');
+  const [unsplashAppSaved, setUnsplashAppSaved] = useState(false);
+  const [pixabayKey,       setPixabayKey]       = useState('');
+  const [pixabayConfigured,setPixabayConfigured]= useState(false);
+  const [pixabayLast4,     setPixabayLast4]     = useState<string | null>(null);
+  const [pixabaySaved,     setPixabaySaved]     = useState(false);
+
+  // Reason: response shape for API key endpoints is now { has_key, last4 } —
+  // never the raw secret. The settings panel shows a configured indicator
+  // rather than pre-filling the input, so the key cannot be read from the DOM.
+  type MaskedKey = { has_key: boolean; last4: string | null };
 
   useEffect(() => {
-    api.get<{ tomtom_api_key: string }>('/settings/tomtom_api_key')
-      .then(({ tomtom_api_key }) => { if (tomtom_api_key) setApiKey(tomtom_api_key); })
+    api.get<MaskedKey>('/settings/tomtom_api_key')
+      .then(({ has_key, last4 }) => { setApiKeyConfigured(has_key); setApiKeyLast4(last4); })
       .catch(() => { /* ignore */ });
 
     api.get<ProviderSettings>('/settings')
@@ -61,21 +74,24 @@ export default function ServicesPanel(): JSX.Element {
       }))
       .catch(() => { /* ignore */ });
 
-    // Load image provider keys.
-    api.get<{ pexels_api_key: string }>('/settings/pexels_api_key')
-      .then(r => { if (r.pexels_api_key) setPexelsKey(r.pexels_api_key); }).catch(() => {});
-    api.get<{ unsplash_api_key: string }>('/settings/unsplash_api_key')
-      .then(r => { if (r.unsplash_api_key) setUnsplashKey(r.unsplash_api_key); }).catch(() => {});
+    api.get<MaskedKey>('/settings/pexels_api_key')
+      .then(({ has_key, last4 }) => { setPexelsConfigured(has_key); setPexelsLast4(last4); }).catch(() => {});
+    api.get<MaskedKey>('/settings/unsplash_api_key')
+      .then(({ has_key, last4 }) => { setUnsplashConfigured(has_key); setUnsplashLast4(last4); }).catch(() => {});
     api.get<{ unsplash_app_name: string }>('/settings/unsplash_app_name')
       .then(r => { if (r.unsplash_app_name) setUnsplashApp(r.unsplash_app_name); }).catch(() => {});
-    api.get<{ pixabay_api_key: string }>('/settings/pixabay_api_key')
-      .then(r => { if (r.pixabay_api_key) setPixabayKey(r.pixabay_api_key); }).catch(() => {});
+    api.get<MaskedKey>('/settings/pixabay_api_key')
+      .then(({ has_key, last4 }) => { setPixabayConfigured(has_key); setPixabayLast4(last4); }).catch(() => {});
   }, []);
 
   async function saveApiKey(): Promise<void> {
+    if (!apiKey.trim()) return;
     try {
       await api.put('/settings/tomtom_api_key', { value: apiKey.trim() });
       setApiKeySaved(true);
+      setApiKeyConfigured(true);
+      setApiKeyLast4(apiKey.trim().slice(-4) || null);
+      setApiKey('');
       setTimeout(() => setApiKeySaved(false), 2000);
       toast.success('API key saved');
     } catch {
@@ -83,9 +99,16 @@ export default function ServicesPanel(): JSX.Element {
     }
   }
 
-  async function saveImageKey(settingKey: string, value: string, onSaved: () => void): Promise<void> {
+  async function saveImageKey(
+    settingKey: string,
+    value: string,
+    onSaved: () => void,
+    onConfigured: (last4: string | null) => void,
+  ): Promise<void> {
+    if (!value.trim()) return;
     try {
       await api.put(`/settings/${settingKey}`, { value: value.trim() });
+      onConfigured(value.trim().length >= 4 ? value.trim().slice(-4) : null);
       onSaved();
       toast.success('API key saved');
     } catch {
@@ -218,7 +241,9 @@ export default function ServicesPanel(): JSX.Element {
                 type="password"
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
-                placeholder="Enter your TomTom API key…"
+                placeholder={apiKeyConfigured
+                  ? `Key configured${apiKeyLast4 ? ` (…${apiKeyLast4})` : ''} — type a new key to replace`
+                  : 'Enter your TomTom API key…'}
                 className="flex-1 font-mono text-xs"
                 aria-label="TomTom API key"
                 onKeyDown={e => { if (e.key === 'Enter') void saveApiKey(); }}
@@ -227,7 +252,7 @@ export default function ServicesPanel(): JSX.Element {
                 variant="outline"
                 size="sm"
                 onClick={() => void saveApiKey()}
-                disabled={apiKeySaved}
+                disabled={apiKeySaved || !apiKey.trim()}
               >
                 {apiKeySaved ? 'Saved!' : 'Save'}
               </Button>
@@ -258,13 +283,15 @@ export default function ServicesPanel(): JSX.Element {
               type="password"
               value={pexelsKey}
               onChange={e => setPexelsKey(e.target.value)}
-              placeholder="Enter your Pexels API key…"
+              placeholder={pexelsConfigured
+                ? `Key configured${pexelsLast4 ? ` (…${pexelsLast4})` : ''} — type a new key to replace`
+                : 'Enter your Pexels API key…'}
               className="flex-1 font-mono text-xs"
               aria-label="Pexels API key"
-              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('pexels_api_key', pexelsKey, () => { setPexelsSaved(true); setTimeout(() => setPexelsSaved(false), 2000); }); }}
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('pexels_api_key', pexelsKey, () => { setPexelsSaved(true); setTimeout(() => setPexelsSaved(false), 2000); }, (l4) => { setPexelsConfigured(true); setPexelsLast4(l4); setPexelsKey(''); }); }}
             />
-            <Button variant="outline" size="sm" disabled={pexelsSaved}
-              onClick={() => void saveImageKey('pexels_api_key', pexelsKey, () => { setPexelsSaved(true); setTimeout(() => setPexelsSaved(false), 2000); })}>
+            <Button variant="outline" size="sm" disabled={pexelsSaved || !pexelsKey.trim()}
+              onClick={() => void saveImageKey('pexels_api_key', pexelsKey, () => { setPexelsSaved(true); setTimeout(() => setPexelsSaved(false), 2000); }, (l4) => { setPexelsConfigured(true); setPexelsLast4(l4); setPexelsKey(''); })}>
               {pexelsSaved ? 'Saved!' : 'Save'}
             </Button>
           </div>
@@ -284,13 +311,15 @@ export default function ServicesPanel(): JSX.Element {
               type="password"
               value={unsplashKey}
               onChange={e => setUnsplashKey(e.target.value)}
-              placeholder="Enter your Unsplash Access Key…"
+              placeholder={unsplashConfigured
+                ? `Key configured${unsplashLast4 ? ` (…${unsplashLast4})` : ''} — type a new key to replace`
+                : 'Enter your Unsplash Access Key…'}
               className="flex-1 font-mono text-xs"
               aria-label="Unsplash Access Key"
-              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('unsplash_api_key', unsplashKey, () => { setUnsplashSaved(true); setTimeout(() => setUnsplashSaved(false), 2000); }); }}
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('unsplash_api_key', unsplashKey, () => { setUnsplashSaved(true); setTimeout(() => setUnsplashSaved(false), 2000); }, (l4) => { setUnsplashConfigured(true); setUnsplashLast4(l4); setUnsplashKey(''); }); }}
             />
-            <Button variant="outline" size="sm" disabled={unsplashSaved}
-              onClick={() => void saveImageKey('unsplash_api_key', unsplashKey, () => { setUnsplashSaved(true); setTimeout(() => setUnsplashSaved(false), 2000); })}>
+            <Button variant="outline" size="sm" disabled={unsplashSaved || !unsplashKey.trim()}
+              onClick={() => void saveImageKey('unsplash_api_key', unsplashKey, () => { setUnsplashSaved(true); setTimeout(() => setUnsplashSaved(false), 2000); }, (l4) => { setUnsplashConfigured(true); setUnsplashLast4(l4); setUnsplashKey(''); })}>
               {unsplashSaved ? 'Saved!' : 'Save'}
             </Button>
           </div>
@@ -302,10 +331,10 @@ export default function ServicesPanel(): JSX.Element {
               placeholder="App name (shown to Unsplash, e.g. The Road So Far)…"
               className="flex-1 text-xs"
               aria-label="Unsplash app name"
-              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('unsplash_app_name', unsplashApp, () => { setUnsplashAppSaved(true); setTimeout(() => setUnsplashAppSaved(false), 2000); }); }}
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('unsplash_app_name', unsplashApp, () => { setUnsplashAppSaved(true); setTimeout(() => setUnsplashAppSaved(false), 2000); }, () => { /* app name not secret */ }); }}
             />
             <Button variant="outline" size="sm" disabled={unsplashAppSaved}
-              onClick={() => void saveImageKey('unsplash_app_name', unsplashApp, () => { setUnsplashAppSaved(true); setTimeout(() => setUnsplashAppSaved(false), 2000); })}>
+              onClick={() => void saveImageKey('unsplash_app_name', unsplashApp, () => { setUnsplashAppSaved(true); setTimeout(() => setUnsplashAppSaved(false), 2000); }, () => { /* app name not secret */ })}>
               {unsplashAppSaved ? 'Saved!' : 'Save'}
             </Button>
           </div>
@@ -325,13 +354,15 @@ export default function ServicesPanel(): JSX.Element {
               type="password"
               value={pixabayKey}
               onChange={e => setPixabayKey(e.target.value)}
-              placeholder="Enter your Pixabay API key…"
+              placeholder={pixabayConfigured
+                ? `Key configured${pixabayLast4 ? ` (…${pixabayLast4})` : ''} — type a new key to replace`
+                : 'Enter your Pixabay API key…'}
               className="flex-1 font-mono text-xs"
               aria-label="Pixabay API key"
-              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('pixabay_api_key', pixabayKey, () => { setPixabaySaved(true); setTimeout(() => setPixabaySaved(false), 2000); }); }}
+              onKeyDown={e => { if (e.key === 'Enter') void saveImageKey('pixabay_api_key', pixabayKey, () => { setPixabaySaved(true); setTimeout(() => setPixabaySaved(false), 2000); }, (l4) => { setPixabayConfigured(true); setPixabayLast4(l4); setPixabayKey(''); }); }}
             />
-            <Button variant="outline" size="sm" disabled={pixabaySaved}
-              onClick={() => void saveImageKey('pixabay_api_key', pixabayKey, () => { setPixabaySaved(true); setTimeout(() => setPixabaySaved(false), 2000); })}>
+            <Button variant="outline" size="sm" disabled={pixabaySaved || !pixabayKey.trim()}
+              onClick={() => void saveImageKey('pixabay_api_key', pixabayKey, () => { setPixabaySaved(true); setTimeout(() => setPixabaySaved(false), 2000); }, (l4) => { setPixabayConfigured(true); setPixabayLast4(l4); setPixabayKey(''); })}>
               {pixabaySaved ? 'Saved!' : 'Save'}
             </Button>
           </div>
