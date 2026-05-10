@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { locatableMixin } from './mixins/locatable.js';
 
-const ISO_DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD');
-const HH_MM    = z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM');
+const ISO_DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD')
+  .refine(s => !isNaN(Date.parse(s)), 'Invalid date');
+const HH_MM    = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Must be HH:MM (00:00–23:59)');
 
 // ── Details schemas (one per type) ───────────────────────────────────────────
 
@@ -28,14 +29,14 @@ export const LodgingDetailsSchema = z.object({
 
 export const FlightDetailsSchema = z.object({
   type:           z.literal('flight'),
-  airline:        z.string().trim().min(1, 'Airline is required'),
-  flight_number:  z.string().trim().min(1, 'Flight number is required'),
+  airline:        z.string().trim().min(1, 'Airline is required').max(200),
+  flight_number:  z.string().trim().min(1, 'Flight number is required').max(50),
   depart_date:    ISO_DATE,
   arrive_date:    ISO_DATE,
   depart_time:    HH_MM.optional(),
-  depart_airport: z.string().trim().optional(),
+  depart_airport: z.string().trim().max(200).optional(),
   arrive_time:    HH_MM.optional(),
-  arrive_airport: z.string().trim().optional(),
+  arrive_airport: z.string().trim().max(200).optional(),
 }).refine(
   d => d.arrive_date >= d.depart_date,
   { message: 'Arrival date must be on or after departure date', path: ['arrive_date'] },
@@ -43,13 +44,13 @@ export const FlightDetailsSchema = z.object({
 
 export const TrainDetailsSchema = z.object({
   type:      z.literal('train'),
-  from_stop: z.string().trim().min(1, 'Departure stop is required'),
+  from_stop: z.string().trim().min(1, 'Departure stop is required').max(500),
   from_date: ISO_DATE,
-  to_stop:   z.string().trim().min(1, 'Arrival stop is required'),
+  to_stop:   z.string().trim().min(1, 'Arrival stop is required').max(500),
   to_date:   ISO_DATE,
   from_time: HH_MM.optional(),
   to_time:   HH_MM.optional(),
-  carrier:   z.string().trim().optional(),
+  carrier:   z.string().trim().max(200).optional(),
 }).refine(
   d => d.to_date >= d.from_date,
   { message: 'Arrival date must be on or after departure date', path: ['to_date'] },
@@ -67,13 +68,13 @@ export const TrainDetailsSchema = z.object({
 function makeTransitSchema<T extends 'bus' | 'ferry'>(type: T) {
   return z.object({
     type:      z.literal(type),
-    from_stop: z.string().trim().min(1, 'Departure stop is required'),
+    from_stop: z.string().trim().min(1, 'Departure stop is required').max(500),
     from_date: ISO_DATE,
-    to_stop:   z.string().trim().min(1, 'Arrival stop is required'),
+    to_stop:   z.string().trim().min(1, 'Arrival stop is required').max(500),
     to_date:   ISO_DATE,
     from_time: HH_MM.optional(),
     to_time:   HH_MM.optional(),
-    carrier:   z.string().trim().optional(),
+    carrier:   z.string().trim().max(200).optional(),
   }).refine(
     d => d.to_date >= d.from_date,
     { message: 'Arrival date must be on or after departure date', path: ['to_date'] },
@@ -92,14 +93,14 @@ export const FerryDetailsSchema = makeTransitSchema('ferry');
 
 export const RentalCarDetailsSchema = z.object({
   type:             z.literal('rental_car'),
-  company:          z.string().trim().min(1, 'Company is required'),
-  pickup_location:  z.string().trim().min(1, 'Pick-up location is required'),
+  company:          z.string().trim().min(1, 'Company is required').max(200),
+  pickup_location:  z.string().trim().min(1, 'Pick-up location is required').max(500),
   pickup_date:      ISO_DATE,
-  dropoff_location: z.string().trim().min(1, 'Drop-off location is required'),
+  dropoff_location: z.string().trim().min(1, 'Drop-off location is required').max(500),
   dropoff_date:     ISO_DATE,
   pickup_time:      HH_MM.optional(),
   dropoff_time:     HH_MM.optional(),
-  vehicle_type:     z.string().trim().optional(),
+  vehicle_type:     z.string().trim().max(200).optional(),
 }).refine(
   d => d.dropoff_date >= d.pickup_date,
   { message: 'Drop-off date must be on or after pick-up date', path: ['dropoff_date'] },
@@ -114,8 +115,8 @@ export const RentalCarDetailsSchema = z.object({
 
 export const RestaurantDetailsSchema = z.object({
   type:            z.literal('restaurant'),
-  restaurant_name: z.string().trim().min(1, 'Restaurant name is required'),
-  location:        z.string().trim().optional(),
+  restaurant_name: z.string().trim().min(1, 'Restaurant name is required').max(200),
+  location:        z.string().trim().max(500).optional(),
   date:            ISO_DATE,
   time:            HH_MM,
   party_size:      z.coerce.number().int().positive().optional(),
@@ -151,7 +152,7 @@ const ReservationBaseSchema = z.object({
   confirmation_ref: z.string().trim().nullable().optional(),
   notes:            z.string().trim().nullable().optional(),
   cost_amount:      z.number().nonnegative().nullable().optional(),
-  cost_currency:    z.string().length(3).default('EUR'),
+  cost_currency:    z.string().regex(/^[A-Z]{3}$/, 'Must be a 3-letter uppercase currency code').default('EUR'),
   details:          ReservationDetailsSchema,
   // Reason: details is the validated object; serialisation to JSON string is handled
   // by the repository layer so the schema stays type-safe end-to-end.

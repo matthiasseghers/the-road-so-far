@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { locatableMixin } from './mixins/locatable.js';
 
-const HH_MM = z.string().regex(/^\d{2}:\d{2}$/, 'Must be HH:MM');
+const HH_MM = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Must be HH:MM (00:00–23:59)');
 
 export const ActivityTypeSchema = z.enum([
   'attraction', 'food', 'shopping', 'outdoors', 'cultural', 'note', 'other',
@@ -40,7 +40,10 @@ export const PatchActivitySchema = ActivityBaseSchema
     activity_type: ActivityTypeSchema.optional(),
   })
   .refine(
-    d => !(d.end_time && !d.start_time),
+    // Reason: in a partial schema, omitted start_time is `undefined` ("no change").
+    // Only reject when end_time is set AND start_time is explicitly nulled — meaning
+    // the caller is clearing start_time while keeping end_time, which is invalid.
+    d => !(d.end_time && d.start_time === null),
     { message: 'end_time requires start_time', path: ['end_time'] },
   );
 

@@ -23,17 +23,16 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*":            ["src/*"],
-      "@/db/*":         ["src/db/*"],
-      "@/services/*":   ["src/services/*"],
-      "@/hooks/*":      ["src/hooks/*"],
-      "@/components/*": ["src/components/*"],
-      "@/types/*":      ["src/types/*"],
-      "@/utils/*":      ["src/utils/*"],
-      "@/schemas/*":    ["src/schemas/*"],
-      "@/domain/*":     ["src/domain/*"]
+      "@/*":            ["./src/*"],
+      "@/db/*":         ["./src/db/*"],
+      "@/services/*":   ["./src/services/*"],
+      "@/hooks/*":      ["./src/hooks/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/types/*":      ["./src/types/*"],
+      "@/utils/*":      ["./src/utils/*"],
+      "@/schemas/*":    ["./src/schemas/*"],
+      "@/domain/*":     ["./src/domain/*"]
     }
   },
   "include": ["src"]

@@ -67,7 +67,7 @@ export function createActivity(input: CreateActivityInput): ActivityRow {
       lng:           input.lng ?? null,
     });
 
-  return findActivityById(result.lastInsertRowid as number)!;
+  return findActivityById(result.lastInsertRowid as number) ?? (() => { throw new Error('Insert succeeded but row not found'); })();
 }
 
 

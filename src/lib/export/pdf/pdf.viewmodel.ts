@@ -14,7 +14,7 @@ import {
   formatModeLabel,
 } from './helpers';
 import type { StaticMapData } from './helpers';
-import { formatActivityTime } from '@/utils/format';
+import { formatActivityTime, nightCount } from '@/utils/format';
 
 // ── Leg types (single source of truth — DayPage re-exports these) ─────────────
 
@@ -368,7 +368,7 @@ export function buildCoverViewModel(
     const inDate  = d.check_in_date  ? format(parseISO(d.check_in_date),  'd MMM') : '?';
     const outDate = d.check_out_date ? format(parseISO(d.check_out_date), 'd MMM') : '?';
     const nights  = d.check_in_date && d.check_out_date
-      ? Math.round((parseISO(d.check_out_date).getTime() - parseISO(d.check_in_date).getTime()) / 86_400_000)
+      ? nightCount(d.check_in_date, d.check_out_date)
       : 0;
     return {
       id:        res.id,
@@ -399,7 +399,7 @@ export function buildCoverViewModel(
     dateRangeLabel: `${startLabel} \u2013 ${endLabel}`,
     durationLabel:  dayCount > 0 ? `${dayCount} day${dayCount === 1 ? '' : 's'}` : '',
     status:         trip.status,
-    noteSubtitle:   rawNotes.length > 0 ? rawNotes.split('\n')[0] ?? null : null,
+    noteSubtitle:   rawNotes.length > 0 ? rawNotes.split('\n')[0] : null,
     lodgings:       lodgingSummaries,
     days:           daySummaries,
     routePoints,

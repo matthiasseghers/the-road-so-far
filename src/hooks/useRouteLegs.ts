@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '@/db/api-client';
+import { api, ApiError } from '@/db/api-client';
 import { RouteLeg } from '@/domain/RouteLeg';
 import type { RouteLegRow, LegModeRow, RouteLegTravelMode } from '@/types/db';
 import type { ExpectedLeg } from '@/db/repositories/route-legs.repo';
@@ -65,7 +65,7 @@ export function useRouteLegs(tripId: number): UseRouteLegsResult {
       void queryClient.invalidateQueries({ queryKey: ['route-legs', tripId] });
     },
     onError: (err) => {
-      if (err instanceof Error && err.message.includes('no_api_key')) {
+      if (err instanceof ApiError && err.status === 422) {
         toast.error('Add your TomTom API key in Settings → General first');
       } else {
         toast.error('Route sync failed');
@@ -94,7 +94,7 @@ export function useRouteLegs(tripId: number): UseRouteLegsResult {
       queryClient.setQueryData<LegModeRow[]>(['leg-modes', tripId], result.modes);
     },
     onError: (err) => {
-      if (err instanceof Error && err.message.includes('no_api_key')) {
+      if (err instanceof ApiError && err.status === 422) {
         toast.error('Add your TomTom API key in Settings → General first');
       } else {
         toast.error('Failed to update route mode');

@@ -51,8 +51,10 @@ export function getMonthsForRange(
   startISO: string,
   endISO: string,
 ): Array<{ year: number; month: number }> {
-  const [sy, sm] = startISO.split('-').map(Number) as [number, number, number];
-  const [ey, em] = endISO.split('-').map(Number) as [number, number, number];
+  const startParts = startISO.split('-').map(Number);
+  const endParts   = endISO.split('-').map(Number);
+  const sy = startParts[0] ?? 0, sm = startParts[1] ?? 1;
+  const ey = endParts[0] ?? 0,   em = endParts[1] ?? 1;
   const months: Array<{ year: number; month: number }> = [];
   let y = sy;
   let m = sm - 1; // convert to 0-indexed

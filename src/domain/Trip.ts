@@ -1,5 +1,6 @@
 import type { TripRow, TripStatus } from '@/types/db';
 import { todayISO, dateRangesOverlap } from '@/utils/dates';
+import { parseISO } from 'date-fns';
 
 // Reason: the constructor accepts tags as either the raw JSON string (TripRow)
 // or a pre-parsed string[] (when constructing from API responses that have
@@ -85,8 +86,8 @@ export class Trip {
 
   durationDays(): number {
     if (!this.data.start_date || !this.data.end_date) return 0;
-    const diff = new Date(this.data.end_date).getTime()
-               - new Date(this.data.start_date).getTime();
+    const diff = parseISO(this.data.end_date).getTime()
+               - parseISO(this.data.start_date).getTime();
     return Math.round(diff / 86_400_000) + 1;
   }
 }

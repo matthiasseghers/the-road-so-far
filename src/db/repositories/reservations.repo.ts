@@ -172,7 +172,7 @@ export function createReservation(input: CreateReservationInput): ReservationRow
       lat:              input.lat ?? null,
       lng:              input.lng ?? null,
     });
-  return findById(result.lastInsertRowid as number)!;
+  return findById(result.lastInsertRowid as number) ?? (() => { throw new Error('Insert succeeded but row not found'); })();
 }
 
 export function updateReservation(id: number, input: UpdateReservationInput): ReservationRow | null {

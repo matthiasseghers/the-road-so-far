@@ -69,8 +69,9 @@ export function formatProgress(pct: number): string {
 
 /** Number of nights between two ISO date strings (check-out minus check-in). */
 export function nightCount(checkIn: string, checkOut: string): number {
-  const a = new Date(checkIn).getTime();
-  const b = new Date(checkOut).getTime();
+  const a = parseISO(checkIn).getTime();
+  const b = parseISO(checkOut).getTime();
+  if (isNaN(a) || isNaN(b)) return 0;
   return Math.max(0, Math.round((b - a) / 86_400_000));
 }
 

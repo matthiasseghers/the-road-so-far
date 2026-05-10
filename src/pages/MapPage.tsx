@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin as MapPinIcon } from 'lucide-react';
@@ -63,40 +64,39 @@ interface ApiResponse {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MapPage(): JSX.Element {
-  const [pins, setPins]       = useState<GlobalPin[]>([]);
-  const [trips, setTrips]     = useState<ApiTrip[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hiddenTripIds, setHiddenTripIds] = useState<Set<number>>(new Set());
+  const { data, isLoading } = useQuery({
+    queryKey: ['map-pins'],
+    queryFn: () => api.get<ApiResponse>('/map/pins'),
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    api.get<ApiResponse>('/map/pins')
-      .then(data => {
-        const actPins: GlobalPin[] = data.activities.map(a => ({
-          id:         `activity-${a.id}`,
-          type:       'activity',
-          name:       a.title,
-          tripTitle:  a.trip_title,
-          tripId:     a.trip_id,
-          dayDate:    a.day_date,
-          lat:        a.lat,
-          lng:        a.lng,
-        }));
-        const resPins: GlobalPin[] = data.reservations.map(r => ({
-          id:         `reservation-${r.id}`,
-          type:       reservationPinType(r.type),
-          name:       r.title,
-          tripTitle:  r.trip_title,
-          tripId:     r.trip_id,
-          dayDate:    r.day_date,
-          lat:        r.lat,
-          lng:        r.lng,
-        }));
-        setPins([...actPins, ...resPins]);
-        setTrips(data.trips);
-        setIsLoading(false);
-      })
-      .catch(() => { setIsLoading(false); });
-  }, []);
+  const pins = useMemo<GlobalPin[]>(() => {
+    if (!data) return [];
+    const actPins: GlobalPin[] = data.activities.map(a => ({
+      id:         `activity-${a.id}`,
+      type:       'activity',
+      name:       a.title,
+      tripTitle:  a.trip_title,
+      tripId:     a.trip_id,
+      dayDate:    a.day_date,
+      lat:        a.lat,
+      lng:        a.lng,
+    }));
+    const resPins: GlobalPin[] = data.reservations.map(r => ({
+      id:         `reservation-${r.id}`,
+      type:       reservationPinType(r.type),
+      name:       r.title,
+      tripTitle:  r.trip_title,
+      tripId:     r.trip_id,
+      dayDate:    r.day_date,
+      lat:        r.lat,
+      lng:        r.lng,
+    }));
+    return [...actPins, ...resPins];
+  }, [data]);
+
+  const trips = useMemo(() => data?.trips ?? [], [data]);
+  const [hiddenTripIds, setHiddenTripIds] = useState<Set<number>>(new Set());
 
   const tripColorMap = useMemo(() => buildTripColorMap(trips.map(t => t.id)), [trips]);
   // Reason: filter before passing to BoundsFitter so re-fitting respects hidden trips.

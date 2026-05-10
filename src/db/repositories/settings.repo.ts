@@ -36,7 +36,11 @@ export function setSetting<T>(key: string, value: T): void {
 /** Returns all app settings, with defaults for any missing keys. */
 export function getAllSettings(): AppSettings {
   const rows = getDb().prepare('SELECT key, value FROM settings').all() as SettingRow[];
-  const map = new Map(rows.map(r => [r.key, JSON.parse(r.value) as unknown]));
+  const map = new Map<string, unknown>();
+  for (const r of rows) {
+    try { map.set(r.key, JSON.parse(r.value)); }
+    catch { /* skip malformed settings row */ }
+  }
 
   // Reason: provide safe defaults so callers never need to null-check settings
   return {

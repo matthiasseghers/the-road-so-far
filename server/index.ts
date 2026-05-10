@@ -26,7 +26,7 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Reason: covers/ stores downloaded trip cover photos.
 // Located alongside the DB file so it works identically in dev, Tauri, and Docker.
@@ -61,7 +61,7 @@ app.use('/api', (_req: Request, res: Response) => {
 // Reason: catch synchronous throws from routes (e.g. SqliteError from the import route)
 // and return JSON instead of the default HTML error page, which api-client.ts cannot parse.
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
+  console.error(`[server] ${err.name}: ${err.message}`);
   res.status(500).json({ error: err.message });
 });
 

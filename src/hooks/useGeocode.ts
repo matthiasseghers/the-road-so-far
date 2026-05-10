@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { api } from '@/db/api-client';
+import { api, ApiError } from '@/db/api-client';
 
 type GeocodeStatus = 'idle' | 'loading' | 'ok' | 'not_found' | 'error';
 
@@ -27,8 +27,8 @@ export function useGeocode(entity: 'activities' | 'reservations'): UseGeocodeRet
         return 'ok';
       } catch (e: unknown) {
         // Reason: 422 = location empty/invalid; 503 = geocoding returned no results.
-        const isNotFound = e instanceof Error &&
-          (e.message.includes('422') || e.message.includes('503'));
+        const isNotFound = e instanceof ApiError &&
+          (e.status === 422 || e.status === 503);
         const st: GeocodeStatus = isNotFound ? 'not_found' : 'error';
         setStatus(st);
         return st;

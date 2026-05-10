@@ -119,7 +119,9 @@ export function projectToMapPixels(
     return ((lng + 180) / 360) * scale;
   }
   function mercY(lat: number): number {
-    const sinLat = Math.sin(lat * Math.PI / 180);
+    // Clamp to Web Mercator limit to prevent Infinity from Math.log at poles.
+    const clamped = Math.max(-85.051129, Math.min(85.051129, lat));
+    const sinLat = Math.sin(clamped * Math.PI / 180);
     return (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale;
   }
 

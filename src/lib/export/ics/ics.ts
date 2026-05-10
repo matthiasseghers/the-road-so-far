@@ -17,7 +17,9 @@ function toIcsDate(isoDate: string): string {
 /** Format a date + HH:MM time as an iCalendar DATETIME value (YYYYMMDDTHHmmss). */
 function toIcsDateTime(isoDate: string, hhmm: string): string {
   const datePart = isoDate.replace(/-/g, '');
-  const [h, m]   = hhmm.split(':');
+  const parts = hhmm.split(':');
+  const h = parts[0] ?? '00';
+  const m = parts[1] ?? '00';
   return `${datePart}T${h}${m}00`;
 }
 
@@ -47,15 +49,17 @@ function escapeText(raw: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
+    .replace(/\r\n/g, '\\n')
+    .replace(/\r/g, '\\n')
     .replace(/\n/g, '\\n');
 }
 
-/** Add `days` to an ISO date string (YYYY-MM-DD) without UTC conversion. */
+/** Add `days` to an ISO date string (YYYY-MM-DD) using UTC to avoid DST shifts. */
 function addDays(isoDate: string, days: number): string {
   const [y, m, d] = isoDate.split('-').map(Number);
-  const dt = new Date(y, (m as number) - 1, (d as number) + days);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
   const pad = (n: number): string => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 }
 
 /** Produce a NOW timestamp in iCalendar format (UTC). */
@@ -156,9 +160,13 @@ function activityEvents(trip: TripWithDays, stamp: string, timedOnly: boolean): 
         if (act.end_time) {
           dtend = toIcsDateTime(day.date, act.end_time);
         } else {
-          const [h, m] = act.start_time.split(':').map(Number);
-          const endHour = String(h + 1).padStart(2, '0');
-          dtend = toIcsDateTime(day.date, `${endHour}:${String(m).padStart(2, '0')}`);
+          const parts = act.start_time.split(':').map(Number);
+          const h = parts[0] ?? 0;
+          const m = parts[1] ?? 0;
+          // Wrap past midnight: 23:xx → 00:xx on the next day.
+          const endDate = h >= 23 ? addDays(day.date, 1) : day.date;
+          const endHour = String((h + 1) % 24).padStart(2, '0');
+          dtend = toIcsDateTime(endDate, `${endHour}:${String(m).padStart(2, '0')}`);
         }
         const ev: VEventTimed = {
           kind:        'timed',

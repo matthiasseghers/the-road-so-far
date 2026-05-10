@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Reason: free-form since migration 003 dropped the CHECK constraint; nullable — items with no category show under "All items" only
+// Reason: free-form category (no CHECK constraint); nullable — items with no category show under "All items" only
 export const ChecklistCategorySchema = z.string().trim().min(1).nullable();
 
 export const CreateChecklistItemSchema = z.object({

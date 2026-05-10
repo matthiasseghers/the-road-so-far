@@ -11,6 +11,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { useTrip } from '@/hooks/useTrip';
 import { useTrips } from '@/hooks/useTrips';
+import { useDays } from '@/hooks/useDays';
 import { useReservations } from '@/hooks/useReservations';
 import { useMapData } from '@/hooks/useMapData';
 import { Activity as ActivityClass } from '@/domain/Activity';
@@ -52,6 +53,8 @@ import ExportButton from '@/components/export/ExportButton';
 import { useRouteLegs } from '@/hooks/useRouteLegs';
 import { useChecklist } from '@/hooks/useChecklist';
 import { usePreferences } from '@/hooks/usePreferences';
+import './TripDetailPage.css';
+import '@/components/trips/TripFormModal.css';
 import type { RouteLegTravelMode, LegModeRow } from '@/types/db';
 
 
@@ -108,8 +111,6 @@ function LegChipModePicker({
     </Popover>
   );
 }
-import './TripDetailPage.css';
-import '@/components/trips/TripFormModal.css';
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
@@ -139,6 +140,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   // Fetching here (rather than inside TripFormModal) avoids a redundant useTrips call
   // from a modal that is always mounted even when closed.
   const { trips: allTrips } = useTrips();
+  const { updateDay } = useDays(tripId);
   const {
     reservations,
     lodgingsForDate,
@@ -188,16 +190,12 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   const handleSaveDay = useCallback(
     async (input: { title: string | null; subtitle: string | null; notes: string | null }): Promise<void> => {
       if (!editingDay) return;
-      try {
-        await api.patch(`/days/${editingDay.id}`, input);
-        setDayEditOpen(false);
-        refetch();
-        toast.success('Day updated');
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to update day');
-      }
+      // Reason: useDays().updateDay invalidates both ['days', tripId] and ['trip', tripId],
+      // keeping all consumers (trip detail, calendar, etc.) in sync.
+      await updateDay(editingDay.id, input);
+      setDayEditOpen(false);
     },
-    [editingDay, refetch],
+    [editingDay, updateDay],
   );
 
   // ── Delete confirmations (activity + reservation) ─────────────────────────

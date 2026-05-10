@@ -46,6 +46,10 @@ export type GeocodingProviderName = 'nominatim' | 'tomtom';
 export type RoutingProviderName   = 'tomtom';
 export type MapsProviderName      = 'tomtom';
 
+// Reason: image provider API keys (pexels_api_key, unsplash_api_key, etc.) are
+// intentionally excluded from AppSettings. They are security-sensitive and only
+// accessed server-side via settingsRepo.getSetting<string>() individually.
+// GET /settings redacts them so they never reach the client.
 export interface AppSettings {
   theme: Theme;
   date_format: DateFormat;

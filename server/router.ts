@@ -22,6 +22,7 @@ import { CreateTripSchema, PatchTripSchema } from '../src/schemas/trip.schema.js
 import { CreateActivitySchema, PatchActivitySchema } from '../src/schemas/activity.schema.js';
 import { CreateReservationSchema, UpdateReservationSchema } from '../src/schemas/reservation.schema.js';
 import { CreateChecklistItemSchema, PatchChecklistItemSchema } from '../src/schemas/checklist.schema.js';
+import { PatchDaySchema } from '../src/schemas/day.schema.js';
 import { z } from 'zod';
 
 // ── Route parameter helpers ───────────────────────────────────────────────────
@@ -74,7 +75,7 @@ const SETTING_SCHEMAS: Record<string, z.ZodTypeAny> = {
     label: z.string().min(1).max(64),
     start: z.number().int().min(0).max(24),
     end:   z.number().int().min(0).max(24),
-  })),
+  }).refine(a => a.end > a.start, { message: 'end must be after start' })),
   tomtom_api_key:     z.string().max(256).trim(),
   geocoding_provider: z.enum(['nominatim', 'tomtom']),
   routing_provider:   z.enum(['tomtom']),
@@ -185,12 +186,6 @@ router.get('/days', (req: Request, res: Response) => {
   res.json(daysRepo.findDaysByTripId(tripId));
 });
 
-const PatchDaySchema = z.object({
-  title:    z.string().max(200).nullable().optional(),
-  subtitle: z.string().max(300).nullable().optional(),
-  notes:    z.string().nullable().optional(),
-});
-
 router.patch('/days/:id', (req: Request, res: Response) => {
   const parsed = PatchDaySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -260,8 +255,8 @@ const GeocodeBodySchema = z.object({
   location: z.string().trim().min(1).max(512),
   // Reason: when the client already has coordinates from autocomplete, skip
   // the external Nominatim call and use them directly.
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
 });
 
 router.patch('/activities/:id/geocode', (req: Request, res: Response) => {
@@ -500,6 +495,10 @@ router.delete('/trips/:tripId/checklist/category/:cat', (req: Request, res: Resp
 // Reason: /categories must be declared before /:id to prevent Express routing 'categories' as an id param
 router.get('/checklist-templates/categories', (_req: Request, res: Response) => {
   res.json(checklistRepo.getDistinctCategories());
+});
+
+router.get('/checklist-templates/full', (_req: Request, res: Response) => {
+  res.json(checklistRepo.findAllTemplatesWithItems());
 });
 
 router.get('/checklist-templates', (_req: Request, res: Response) => {
@@ -752,6 +751,11 @@ router.post('/import/trippack', (req: Request, res: Response) => {
   const toActivityType = (v: unknown): string => typeof v === 'string' && ['attraction','food','shopping','outdoors','cultural','note','other'].includes(v) ? v : 'note';
   const toResType      = (v: unknown): string => typeof v === 'string' && ['lodging','flight','train','bus','ferry','rental_car','restaurant','other'].includes(v) ? v : 'other';
   const toResStatus    = (v: unknown): string => typeof v === 'string' && ['pending','confirmed','cancelled'].includes(v) ? v : 'pending';
+  // Reason: import payloads may carry non-numeric values (e.g. "abc" for sort_order)
+  // where SQLite expects integers/reals. Coerce to number or fall back to a safe default.
+  const toInt          = (v: unknown, fallback = 0): number => { const n = Number(v); return Number.isFinite(n) ? Math.trunc(n) : fallback; };
+  const toFloat        = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+  const toStr          = (v: unknown): string | null => typeof v === 'string' ? v : null;
 
   const runImport = db.transaction(() => {
     for (const t of trips) {
@@ -808,8 +812,8 @@ router.post('/import/trippack', (req: Request, res: Response) => {
       ).run(
         newDayId, newTripId,
         a['title'] ?? '', toActivityType(a['activity_type']),
-        a['start_time'] ?? null, a['end_time'] ?? null, a['sort_order'] ?? 0,
-        a['notes'] ?? null, a['location'] ?? null, a['lat'] ?? null, a['lng'] ?? null,
+        toStr(a['start_time']), toStr(a['end_time']), toInt(a['sort_order']),
+        toStr(a['notes']), toStr(a['location']), toFloat(a['lat']), toFloat(a['lng']),
       );
     }
 
@@ -826,9 +830,9 @@ router.post('/import/trippack', (req: Request, res: Response) => {
       ).run(
         newTripId, newDayId,
         toResType(r['type']), r['title'] ?? '', toResStatus(r['status']),
-        r['confirmation_ref'] ?? null, r['notes'] ?? null,
-        r['cost_amount'] ?? null, r['cost_currency'] ?? 'EUR', details,
-        r['sort_order'] ?? 0,
+        toStr(r['confirmation_ref']), toStr(r['notes']),
+        toFloat(r['cost_amount']), typeof r['cost_currency'] === 'string' ? r['cost_currency'] : 'EUR', details,
+        toInt(r['sort_order']),
       );
     }
 
@@ -842,7 +846,7 @@ router.post('/import/trippack', (req: Request, res: Response) => {
          VALUES (?, ?, ?, ?, ?, ?)`,
       ).run(
         newTripId, ci['label'] ?? '', ci['category'] ?? 'General',
-        isChecked, ci['source'] ?? 'trip', ci['sort_order'] ?? 0,
+        isChecked, ci['source'] ?? 'trip', toInt(ci['sort_order']),
       );
     }
   });
@@ -903,12 +907,18 @@ router.post('/trips/:tripId/leg-modes', async (req: Request, res: Response) => {
   const { tomtom_api_key: apiKey } = settingsRepo.getAllSettings();
   if (!apiKey) { res.status(422).json({ error: 'no_api_key' }); return; }
 
-  const result = await fetchRouteLeg(
-    { lat: from_lat, lng: from_lng },
-    { lat: to_lat,   lng: to_lng },
-    apiKey,
-    travel_mode,
-  );
+  let result: Awaited<ReturnType<typeof fetchRouteLeg>>;
+  try {
+    result = await fetchRouteLeg(
+      { lat: from_lat, lng: from_lng },
+      { lat: to_lat,   lng: to_lng },
+      apiKey,
+      travel_mode,
+    );
+  } catch {
+    res.status(502).json({ error: 'route_fetch_failed' });
+    return;
+  }
   if (!result) { res.status(502).json({ error: 'route_fetch_failed' }); return; }
 
   const leg = routeLegsRepo.upsertLeg({
@@ -955,12 +965,17 @@ router.post('/trips/:tripId/route-legs/sync', async (req: Request, res: Response
     // Reason: leg already cached with the right travel mode — skip TomTom call.
     if (cachedKeys.has(cacheKey)) continue;
 
-    const result = await fetchRouteLeg(
-      { lat: expected.from_lat, lng: expected.from_lng },
-      { lat: expected.to_lat,   lng: expected.to_lng },
-      apiKey,
-      mode,
-    );
+    let result: Awaited<ReturnType<typeof fetchRouteLeg>>;
+    try {
+      result = await fetchRouteLeg(
+        { lat: expected.from_lat, lng: expected.from_lng },
+        { lat: expected.to_lat,   lng: expected.to_lng },
+        apiKey,
+        mode,
+      );
+    } catch {
+      continue;
+    }
     if (!result) continue;
     routeLegsRepo.upsertLeg({
       trip_id:     tripId,
@@ -1170,7 +1185,7 @@ router.post('/covers/download', async (req: Request, res: Response) => {
   let imgBuffer: Buffer;
   let ext = '.jpg';
   try {
-    const imgRes = await fetch(fullUrl);
+    const imgRes = await fetch(fullUrl, { redirect: 'error' });
     if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
     const ct = imgRes.headers.get('content-type') ?? '';
     if (ct.includes('png')) ext = '.png';

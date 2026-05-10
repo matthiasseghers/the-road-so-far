@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-const ISO_DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD');
+const ISO_DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD')
+  .refine(s => !isNaN(Date.parse(s)), 'Invalid date');
 
 export const TripStatusSchema = z.enum([
   'draft', 'planning', 'confirmed', 'ready', 'completed', 'archived',

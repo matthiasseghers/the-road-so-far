@@ -17,22 +17,12 @@ interface UseTemplateEditorReturn {
   reorderItems: (templateId: number, ids: number[]) => void;
 }
 
-async function fetchAllTemplates(): Promise<TemplateWithItems[]> {
-  const tmpl = await api.get<ChecklistTemplateRow[]>('/checklist-templates');
-  return Promise.all(
-    tmpl.map(async t => {
-      const items = await api.get<TemplateItemRow[]>(`/template-items?templateId=${t.id}`);
-      return { ...t, items };
-    }),
-  );
-}
-
 export function useTemplateEditor(): UseTemplateEditorReturn {
   const queryClient = useQueryClient();
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['templates'],
-    queryFn: fetchAllTemplates,
+    queryFn: () => api.get<TemplateWithItems[]>('/checklist-templates/full'),
     // Reason: templates are user-defined static data; every mutation already invalidates
     // this query, so background refetching is wasted work.
     staleTime: Infinity,

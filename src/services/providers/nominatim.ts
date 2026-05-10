@@ -12,11 +12,13 @@ interface NominatimResult {
 
 function parseSuggestion(r: NominatimResult): AutocompleteSuggestion {
   const parts = r.display_name.split(', ');
+  const lat = parseFloat(r.lat);
+  const lng = parseFloat(r.lon);
   return {
     name:    parts.slice(0, 2).join(', '),
     context: parts.slice(2, 4).join(', '),
-    lat:     parseFloat(r.lat),
-    lng:     parseFloat(r.lon),
+    lat:     Number.isNaN(lat) ? 0 : lat,
+    lng:     Number.isNaN(lng) ? 0 : lng,
   };
 }
 
@@ -36,7 +38,10 @@ const nominatimGeocoding: GeocodingProvider = {
       return null;
     }
     if (results.length === 0) return null;
-    return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+    const lat = parseFloat(results[0].lat);
+    const lng = parseFloat(results[0].lon);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+    return { lat, lng };
   },
 
   async autocomplete(query: string): Promise<AutocompleteSuggestion[]> {

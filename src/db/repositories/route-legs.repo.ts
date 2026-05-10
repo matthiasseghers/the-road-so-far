@@ -84,18 +84,21 @@ export function computeExpectedLegs(tripId: number): ExpectedLeg[] {
   const dates = [...byDate.keys()].sort();
   const legs: ExpectedLeg[] = [];
 
+  // Pre-sort each day's points once to avoid redundant re-sorting in the cross-day loop.
+  const sortedByDate = new Map<string, GeoPoint[]>();
   for (const date of dates) {
-    // Reason: sort within each day because lodging anchors are appended after
-    // SQL-ordered activity/reservation points and may not arrive in position.
-    const dayPts = byDate.get(date)!.slice().sort((a, b) => a.sort_order - b.sort_order);
+    sortedByDate.set(date, byDate.get(date)!.slice().sort((a, b) => a.sort_order - b.sort_order));
+  }
+
+  for (const date of dates) {
+    const dayPts = sortedByDate.get(date)!;
     for (let i = 0; i < dayPts.length - 1; i++) {
       legs.push({ from_lat: dayPts[i].lat, from_lng: dayPts[i].lng, to_lat: dayPts[i + 1].lat, to_lng: dayPts[i + 1].lng });
     }
   }
   for (let i = 0; i < dates.length - 1; i++) {
-    const sorted = (d: string) => byDate.get(d)!.slice().sort((a, b) => a.sort_order - b.sort_order);
-    const last  = sorted(dates[i]).at(-1)!;
-    const first = sorted(dates[i + 1])[0];
+    const last  = sortedByDate.get(dates[i])!.at(-1)!;
+    const first = sortedByDate.get(dates[i + 1])![0];
     legs.push({ from_lat: last.lat, from_lng: last.lng, to_lat: first.lat, to_lng: first.lng });
   }
   return legs;

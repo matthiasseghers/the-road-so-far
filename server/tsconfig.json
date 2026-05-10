@@ -4,15 +4,14 @@
     "lib": ["ES2022"],
     "module": "Preserve",
     "moduleResolution": "Bundler",
-    "baseUrl": "..",
     "paths": {
-      "@/*": ["src/*"],
-      "@/db/*": ["src/db/*"],
-      "@/services/*": ["src/services/*"],
-      "@/types/*": ["src/types/*"],
-      "@/utils/*": ["src/utils/*"],
-      "@/schemas/*": ["src/schemas/*"],
-      "@/domain/*": ["src/domain/*"]
+      "@/*": ["../src/*"],
+      "@/db/*": ["../src/db/*"],
+      "@/services/*": ["../src/services/*"],
+      "@/types/*": ["../src/types/*"],
+      "@/utils/*": ["../src/utils/*"],
+      "@/schemas/*": ["../src/schemas/*"],
+      "@/domain/*": ["../src/domain/*"]
     },
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

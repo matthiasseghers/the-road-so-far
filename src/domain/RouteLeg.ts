@@ -60,6 +60,20 @@ export class RouteLeg {
 
 const COORD_EPSILON = 0.00001; // ~1 m precision
 
+function coordsMatch(
+  fromLat1: number, fromLat2: number,
+  fromLng1: number, fromLng2: number,
+  toLat1: number, toLat2: number,
+  toLng1: number, toLng2: number,
+): boolean {
+  return (
+    Math.abs(fromLat1 - fromLat2) < COORD_EPSILON &&
+    Math.abs(fromLng1 - fromLng2) < COORD_EPSILON &&
+    Math.abs(toLat1 - toLat2) < COORD_EPSILON &&
+    Math.abs(toLng1 - toLng2) < COORD_EPSILON
+  );
+}
+
 /**
  * Find the cached leg connecting two geocoded points.
  * When `mode` is given, prefer the leg with that travel_mode; fall back to
@@ -73,11 +87,7 @@ export function findLeg(
 ): RouteLeg | null {
   if (!from || !to || from.lat == null || from.lng == null || to.lat == null || to.lng == null) return null;
   const byCoords = legs.filter(
-    l =>
-      Math.abs(l.from_lat - from.lat!) < COORD_EPSILON &&
-      Math.abs(l.from_lng - from.lng!) < COORD_EPSILON &&
-      Math.abs(l.to_lat   - to.lat!)   < COORD_EPSILON &&
-      Math.abs(l.to_lng   - to.lng!)   < COORD_EPSILON,
+    l => coordsMatch(l.from_lat, from.lat!, l.from_lng, from.lng!, l.to_lat, to.lat!, l.to_lng, to.lng!),
   );
   if (!mode) return byCoords[0] ?? null;
   // Reason: prefer the requested mode so the chip shows the correct route after sync;
@@ -96,10 +106,7 @@ export function findLegMode(
   fallback: RouteLegTravelMode,
 ): RouteLegTravelMode {
   const found = modes.find(m =>
-    Math.abs(m.from_lat - fromLat) < COORD_EPSILON &&
-    Math.abs(m.from_lng - fromLng) < COORD_EPSILON &&
-    Math.abs(m.to_lat   - toLat)   < COORD_EPSILON &&
-    Math.abs(m.to_lng   - toLng)   < COORD_EPSILON,
+    coordsMatch(m.from_lat, fromLat, m.from_lng, fromLng, m.to_lat, toLat, m.to_lng, toLng),
   );
   return found?.travel_mode ?? fallback;
 }

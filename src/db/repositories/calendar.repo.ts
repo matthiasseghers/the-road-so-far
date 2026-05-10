@@ -23,7 +23,8 @@ interface RawCalendarDay {
  *
  * Lodging is trip-level (day_id = NULL); it is matched by checking whether the
  * day's date falls within the reservation's check_in_date..check_out_date range
- * stored in the JSON details column.
+ * stored in the JSON details column. check_out_date is exclusive (checkout day
+ * has no lodging), consistent with reservations.repo.
  *
  * Single query — no N+1.
  */
@@ -42,17 +43,17 @@ export function getDaysForTrip(tripId: number): CalendarDayRow[] {
                         WHERE r.trip_id = d.trip_id
                           AND r.type = 'lodging'
                           AND json_extract(r.details, '$.check_in_date') <= d.date
-                          AND json_extract(r.details, '$.check_out_date') >= d.date
+                          AND json_extract(r.details, '$.check_out_date') > d.date
                         LIMIT 1), 0)
               AS INTEGER) AS has_lodging,
          (SELECT r.title FROM reservations r
           WHERE r.trip_id = d.trip_id
             AND r.type = 'lodging'
             AND json_extract(r.details, '$.check_in_date') <= d.date
-            AND json_extract(r.details, '$.check_out_date') >= d.date
+            AND json_extract(r.details, '$.check_out_date') > d.date
           LIMIT 1) AS lodging_title,
          CAST(COALESCE((SELECT 1 FROM reservations r
-                        WHERE r.day_id = d.id AND r.type IN ('train','bus','ferry') LIMIT 1), 0)
+                        WHERE r.day_id = d.id AND r.type IN ('train','bus','ferry','rental_car') LIMIT 1), 0)
               AS INTEGER) AS has_transit,
          CASE
            WHEN EXISTS(
@@ -65,7 +66,7 @@ export function getDaysForTrip(tripId: number): CalendarDayRow[] {
               WHERE r.trip_id = d.trip_id
                 AND r.type = 'lodging'
                 AND json_extract(r.details, '$.check_in_date') <= d.date
-                AND json_extract(r.details, '$.check_out_date') >= d.date
+                AND json_extract(r.details, '$.check_out_date') > d.date
             ) THEN 'ok'
            WHEN (SELECT COUNT(*) FROM activities a WHERE a.day_id = d.id) > 0
             THEN 'gap'

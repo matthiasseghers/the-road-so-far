@@ -116,7 +116,7 @@ export function createTrip(input: CreateTripInput): ParsedTripRow {
       cover_gradient: input.cover_gradient ?? 'warm-brown',
     });
   // Reason: lastInsertRowid is always a number for AUTOINCREMENT tables
-  return findTripById(result.lastInsertRowid as number)!;
+  return findTripById(result.lastInsertRowid as number) ?? (() => { throw new Error('Insert succeeded but row not found'); })();
 }
 
 export function updateTrip(id: number, input: UpdateTripInput): ParsedTripRow | null {

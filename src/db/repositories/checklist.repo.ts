@@ -132,6 +132,31 @@ export function findAllTemplates(): ChecklistTemplateRow[] {
     .all() as ChecklistTemplateRow[];
 }
 
+export interface TemplateWithItems extends ChecklistTemplateRow {
+  items: TemplateItemRow[];
+}
+
+// Reason: single query fetches all templates + items in one round-trip, avoiding
+// the N+1 pattern of fetching templates then items per template individually.
+export function findAllTemplatesWithItems(): TemplateWithItems[] {
+  const db = getDb();
+  const templates = db
+    .prepare('SELECT * FROM checklist_templates ORDER BY sort_order ASC')
+    .all() as ChecklistTemplateRow[];
+  const allItems = db
+    .prepare('SELECT * FROM template_items ORDER BY sort_order ASC')
+    .all() as TemplateItemRow[];
+
+  const byTemplateId = new Map<number, TemplateItemRow[]>();
+  for (const item of allItems) {
+    const bucket = byTemplateId.get(item.template_id) ?? [];
+    bucket.push(item);
+    byTemplateId.set(item.template_id, bucket);
+  }
+
+  return templates.map(t => ({ ...t, items: byTemplateId.get(t.id) ?? [] }));
+}
+
 export function findTemplateById(id: number): ChecklistTemplateRow | null {
   const row = getDb()
     .prepare('SELECT * FROM checklist_templates WHERE id = ?')

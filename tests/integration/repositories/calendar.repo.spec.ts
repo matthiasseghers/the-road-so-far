@@ -41,7 +41,7 @@ function insertReservation(db: Database.Database, tripId: number, dayId: number,
 }
 
 // Reason: lodging has day_id = NULL; it is matched by check_in_date..check_out_date
-// in the JSON details column. check_out_date is inclusive.
+// in the JSON details column. check_out_date is exclusive (checkout day has no lodging).
 function insertLodging(
   db: Database.Database,
   tripId: number,
@@ -148,7 +148,7 @@ describe('calendar.repo — getDaysForTrip', () => {
     expect(day?.status).toBe('travel');
   });
 
-  it('sets has_transit for train/bus/ferry (not rental_car)', () => {
+  it('sets has_transit for train/bus/ferry/rental_car', () => {
     const tripId = insertTrip(db);
     const dayId = insertDay(db, tripId, '2025-06-01');
     insertReservation(db, tripId, dayId, 'train');
@@ -202,14 +202,15 @@ describe('calendar.repo — getDaysForTrip', () => {
     insertDay(db, tripId, '2025-06-01');
     insertDay(db, tripId, '2025-06-02');
     insertDay(db, tripId, '2025-06-03');
-    // check-out on June 3 means June 1, 2, and 3 are covered (check_out_date is inclusive)
+    // check-in June 1, check-out June 3 → June 1 & 2 are sleeping nights; June 3 is checkout (no lodging)
     insertLodging(db, tripId, '2025-06-01', '2025-06-03', 'Grand Hotel');
 
     const days = getDaysForTrip(tripId);
     expect(days[0]?.has_lodging).toBe(true);
     expect(days[1]?.has_lodging).toBe(true);
-    expect(days[2]?.has_lodging).toBe(true);
-    expect(days.every(d => d.lodging_title === 'Grand Hotel')).toBe(true);
+    expect(days[2]?.has_lodging).toBe(false); // checkout day
+    expect(days[0]?.lodging_title).toBe('Grand Hotel');
+    expect(days[1]?.lodging_title).toBe('Grand Hotel');
   });
 
   it('lodging does not cover days outside its range', () => {
@@ -217,12 +218,13 @@ describe('calendar.repo — getDaysForTrip', () => {
     insertDay(db, tripId, '2025-06-01');
     insertDay(db, tripId, '2025-06-02');
     insertDay(db, tripId, '2025-06-03');
-    insertLodging(db, tripId, '2025-06-02', '2025-06-02', 'B&B');
+    // 1-night stay: check-in June 2, check-out June 3 → only June 2 has lodging
+    insertLodging(db, tripId, '2025-06-02', '2025-06-03', 'B&B');
 
     const days = getDaysForTrip(tripId);
     expect(days[0]?.has_lodging).toBe(false);
     expect(days[1]?.has_lodging).toBe(true);
-    expect(days[2]?.has_lodging).toBe(false);
+    expect(days[2]?.has_lodging).toBe(false); // checkout day
   });
 });
 
