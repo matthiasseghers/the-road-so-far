@@ -44,6 +44,7 @@ import type { ActivityRow } from '@/types/db';
 import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories/activities.repo';
 import type { UpdateTripInput } from '@/db/repositories/trips.repo';
 import { findLeg, findLegMode } from '@/domain/RouteLeg';
+import type { RouteLeg } from '@/domain/RouteLeg';
 import { api } from '@/db/api-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorScreen } from '@/components/ui/ErrorScreen';
@@ -55,7 +56,7 @@ import { useChecklist } from '@/hooks/useChecklist';
 import { usePreferences } from '@/hooks/usePreferences';
 import './TripDetailPage.css';
 import '@/components/trips/TripFormModal.css';
-import type { RouteLegTravelMode, LegModeRow } from '@/types/db';
+import type { RouteLegTravelMode, LegModeRow, ReservationType } from '@/types/db';
 
 
 const TRAVEL_MODE_ICON: Record<RouteLegTravelMode, LucideIcon> = {
@@ -261,7 +262,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   const [entryModalOpen,       setEntryModalOpen]       = useState(false);
   const [entryDayId,           setEntryDayId]           = useState<number | null>(null);
   const [entryDefaultCategory, setEntryDefaultCategory] = useState<'activity' | 'reservation' | null>(null);
-  const [entryInitialType,     setEntryInitialType]     = useState<import('@/types/db').ReservationType | null>(null);
+  const [entryInitialType,     setEntryInitialType]     = useState<ReservationType | null>(null);
   const [editingReservation,   setEditingReservation]   = useState<Reservation | null>(null);
 
   function openAddEntry(dayId: number | null): void {
@@ -462,7 +463,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
             onEditReservation={openEditReservation}
             onDeleteReservation={(id, title) => handleDeleteReservation(id, title)}
             onReorderDayItems={(dayId, items) => { void handleReorderDayItems(dayId, items); }}
-            onSetLegMode={handleSetLegMode}
+            onSetLegMode={(fromLat, fromLng, toLat, toLng, mode) => { void handleSetLegMode(fromLat, fromLng, toLat, toLng, mode); }}
             unroutedPairCount={unroutedPairCount}
             isSyncing={isRouteSyncing}
             onSyncRoutes={() => { void syncRoutes(); }}
@@ -646,7 +647,7 @@ function TripHeader({
         <div
           className="tdh-photo-strip"
           style={{
-            backgroundImage: `url(/covers/${encodeURIComponent(trip.cover_image_path!)})`,
+            backgroundImage: `url(/covers/${encodeURIComponent(trip.cover_image_path)})`,
           }}
           title={trip.cover_image_attribution ?? undefined}
         />
@@ -667,7 +668,7 @@ function TripHeader({
       </div>
 
       <div className="tdh-meta">
-        {hasDates && <span>{formatDateRange(trip.start_date!, trip.end_date!)}</span>}
+        {hasDates && <span>{formatDateRange(trip.start_date, trip.end_date)}</span>}
         {hasDates && <span className="tdh-meta-sep">·</span>}
         <span>{trip.durationDays()} day{trip.durationDays() !== 1 ? 's' : ''}</span>
         {trip.tags.map(tag => <span key={tag} className="tdh-tag">{tag}</span>)}
@@ -949,7 +950,7 @@ function OverviewTab({ trip, reservations, onAddEntry, onAddLodging, onEditReser
 interface ItineraryTabProps {
   trip: TripWithDays;
   reservations: Reservation[];
-  routeLegs: import('@/domain/RouteLeg').RouteLeg[];
+  routeLegs: RouteLeg[];
   legModes: LegModeRow[];
   distanceUnit: 'km' | 'mi';
   lodgingsForDate: (date: string) => Reservation[];
@@ -1143,7 +1144,7 @@ interface ItineraryDayCardProps {
   lodgings: Reservation[];
   isGap: boolean;
   isLastDay: boolean;
-  routeLegs: import('@/domain/RouteLeg').RouteLeg[];
+  routeLegs: RouteLeg[];
   legModes: LegModeRow[];
   distanceUnit: 'km' | 'mi';
   legSummary: { distance_m: number; duration_s: number } | null;
@@ -1622,11 +1623,13 @@ function DayEditModal({
   const [saving,   setSaving]   = useState(false);
 
   // Sync fields when the modal opens for a different day
+  /* eslint-disable react-hooks/set-state-in-effect -- sync form state with prop */
   useEffect(() => {
     setTitle(day?.title ?? '');
     setSubtitle(day?.subtitle ?? '');
     setNotes(day?.notes ?? '');
   }, [day]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();

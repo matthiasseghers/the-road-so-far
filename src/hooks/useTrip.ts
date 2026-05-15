@@ -30,7 +30,7 @@ export function buildTripWithDays(raw: RawTripWithDays): TripWithDays {
   }));
   // Reason: Object.assign adds days onto the Trip class instance so all
   // domain methods (isOngoing, computeProgress, etc.) remain callable.
-  return Object.assign(new Trip(tripFields), { days }) as TripWithDays;
+  return Object.assign(new Trip(tripFields), { days });
 }
 
 export function useTrip(id: number): UseTripReturn {

@@ -49,6 +49,7 @@ export default function LocationField({
   const skipNextFetchRef = useRef(false);
   const debounceRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- clearing suggestions on short input */
   useEffect(() => {
     if (skipNextFetchRef.current) {
       skipNextFetchRef.current = false;
@@ -62,7 +63,7 @@ export default function LocationField({
     }
     debounceRef.current = setTimeout(() => {
       setIsFetching(true);
-      fetchAutocomplete(value).then(results => {
+      void fetchAutocomplete(value).then(results => {
         setSuggestions(results);
         setOpen(results.length > 0);
         setIsFetching(false);
@@ -71,6 +72,7 @@ export default function LocationField({
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [value]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function selectSuggestion(s: AutocompleteSuggestion): void {
     skipNextFetchRef.current = true;

@@ -5,6 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import type { buttonVariants } from "@/components/ui/button.variants"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -89,7 +90,7 @@ function InputGroupButton({
   variant = "ghost",
   size = "xs",
   ...props
-}: Omit<React.ComponentProps<typeof Button>, "size"> &
+}: Omit<React.ComponentProps<"button"> & VariantProps<typeof buttonVariants> & { asChild?: boolean }, "size"> &
   VariantProps<typeof inputGroupButtonVariants>) {
   return (
     <Button

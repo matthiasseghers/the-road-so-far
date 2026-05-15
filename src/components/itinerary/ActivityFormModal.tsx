@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { Spinner } from '@/components/ui/spinner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -130,9 +130,9 @@ export default function ActivityFormModal({
 
     let savedRow: ActivityRow;
     if (isEditing) {
-      savedRow = await onSave(base as UpdateActivityInput, activity.id);
+      savedRow = await onSave(base, activity.id);
     } else {
-      savedRow = await onSave({ ...base, day_id: dayId ?? null, trip_id: tripId } as CreateActivityInput);
+      savedRow = await onSave({ ...base, day_id: dayId ?? null, trip_id: tripId });
     }
 
     if (locationTrimmed) {
@@ -154,7 +154,7 @@ export default function ActivityFormModal({
       <Button
         variant="default"
         disabled={isSubmitting}
-        onClick={handleSubmit(onValid)}
+        onClick={() => { void handleSubmit(onValid)(); }}
       >
         {isSubmitting
           ? <><Spinner className="mr-1.5 size-3.5" />{isEditing ? 'Saving…' : 'Adding…'}</>
@@ -170,7 +170,7 @@ export default function ActivityFormModal({
           <DialogTitle>{isEditing ? 'Edit activity' : 'New activity'}</DialogTitle>
         </DialogHeader>
         <DialogBody>
-        <form className="activity-form pb-1" onSubmit={handleSubmit(onValid)}>
+        <form className="activity-form pb-1" onSubmit={(e) => { void handleSubmit(onValid)(e); }}>
           {/* Title */}
           <div className="activity-form__field activity-form__field--required">
             <Label htmlFor="af-title">Title</Label>

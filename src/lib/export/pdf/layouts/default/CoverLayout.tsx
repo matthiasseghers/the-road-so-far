@@ -136,7 +136,6 @@ export function CoverLayout(vm: CoverViewModel): JSX.Element {
 
       </View>
 
-      {/* eslint-disable-next-line react/jsx-curly-brace-presence */}
       <View style={{ position: 'absolute', bottom: '8mm', left: '20mm', right: '20mm', borderTopWidth: 0.5, borderTopColor: C.line, paddingTop: 3, flexDirection: 'row', justifyContent: 'space-between' }}>
         <Text style={{ fontSize: 7.5, color: C.vmuted }}>{'\u2022  The Road So Far'}</Text>
         <Text style={{ fontSize: 7.5, color: C.vmuted }}>Page 1</Text>

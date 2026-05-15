@@ -4,7 +4,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React from 'react';
-import { ThemeProvider, useThemeContext } from '@/context/ThemeContext';
+import { ThemeProvider } from '@/context/ThemeContext';
+import { useThemeContext } from '@/hooks/useThemeContext';
 
 // ── Browser API stubs ─────────────────────────────────────────────────────────
 // Reason: jsdom without a URL does not implement localStorage or matchMedia.

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { generateTripPDF } from '@/lib/export/pdf/pdf';
-import type { PdfLayout } from '@/lib/export/pdf/pdf';
+import type { PdfLayout } from '@/lib/export/pdf/layouts';
 import type { StaticMapData } from '@/lib/export/pdf/helpers';
 import { DefaultLayout } from '@/lib/export/pdf/layouts/default';
 import { MinimalLayout } from '@/lib/export/pdf/layouts/minimal';
@@ -81,6 +81,7 @@ export default function PdfExportModal({
 
   // Reason: fetch API key status, geo counts, and route legs each time the modal
   // opens so toggles reflect any changes made in Settings without remounting.
+  /* eslint-disable react-hooks/set-state-in-effect -- reset state when modal opens */
   useEffect(() => {
     if (!open) return;
     setHasApiKey(null);
@@ -108,6 +109,7 @@ export default function PdfExportModal({
         .catch(() => setCoverDataUrl(undefined));
     }
   }, [open, trip.id, trip.cover_type, trip.cover_image_path]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Reason: build an ordered list of legs for each day by following the geocoded
   // points in sort_order sequence (intra-day pairs, then the departing inter-day
@@ -355,7 +357,7 @@ export default function PdfExportModal({
             }}>
               <AlertCircle size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginTop: 1 }} />
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                {geoCounts!.geocodedPoints} of {geoCounts!.totalPoints} activities and reservations have a location.
+                {geoCounts.geocodedPoints} of {geoCounts.totalPoints} activities and reservations have a location.
                 {' '}The map will only show geocoded entries.
               </span>
             </div>

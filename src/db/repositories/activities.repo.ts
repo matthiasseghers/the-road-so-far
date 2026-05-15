@@ -123,5 +123,5 @@ export function reorderActivities(dayId: number, orderedIds: number[]): number {
     ids.forEach((actId, index) => { matched += update.run(index, actId, dayId).changes; });
     return matched;
   });
-  return txn(orderedIds) as number;
+  return txn(orderedIds);
 }

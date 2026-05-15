@@ -29,7 +29,7 @@ export default function TripCard({ trip, onEdit, onDelete, onClick }: TripCardPr
   const gradient = GRADIENT_MAP[trip.cover_gradient] ?? GRADIENT_MAP['warm-brown'];
   const hasPhoto = trip.cover_type === 'photo' && trip.cover_image_path;
   const bannerStyle: React.CSSProperties = hasPhoto
-    ? { backgroundImage: `url(/covers/${encodeURIComponent(trip.cover_image_path!)})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    ? { backgroundImage: `url(/covers/${encodeURIComponent(trip.cover_image_path)})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: gradient };
 
   const dateRange =

@@ -13,20 +13,7 @@ import type { DayLegSummary } from './pdf.viewmodel';
 import type { StaticMapData } from './helpers';
 import { ItineraryDocument } from './ItineraryDocument';
 
-// Re-export pure helpers so existing tests continue to import from '@/lib/export/pdf/pdf'.
-export {
-  reservationTypeLabel,
-  activityTypeLabel,
-  formatDayHeader,
-  buildLodgingStripText,
-  stripTiptapJson,
-} from './helpers';
-
 // ── Public API ────────────────────────────────────────────────────────────────
-
-export type { PdfLayout } from './layouts';
-export { DefaultLayout } from './layouts/default';
-export { MinimalLayout } from './layouts/minimal';
 
 export interface PdfGenerateOptions {
   layout?:          PdfLayout;

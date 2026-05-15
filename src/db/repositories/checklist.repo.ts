@@ -59,7 +59,7 @@ export function createChecklistItem(input: CreateChecklistItemInput): ChecklistI
 
   return db
     .prepare('SELECT * FROM checklist_items WHERE id = ?')
-    .get(result.lastInsertRowid as number) as ChecklistItemRow;
+    .get(result.lastInsertRowid) as ChecklistItemRow;
 }
 
 export interface UpdateChecklistItemInput {
@@ -203,7 +203,7 @@ export function createTemplate(input: CreateTemplateInput): ChecklistTemplateRow
 
   return db
     .prepare('SELECT * FROM checklist_templates WHERE id = ?')
-    .get(result.lastInsertRowid as number) as ChecklistTemplateRow;
+    .get(result.lastInsertRowid) as ChecklistTemplateRow;
 }
 
 export interface UpdateTemplateInput {
@@ -321,7 +321,7 @@ export function createTemplateItem(
 
   return db
     .prepare('SELECT * FROM template_items WHERE id = ?')
-    .get(result.lastInsertRowid as number) as TemplateItemRow;
+    .get(result.lastInsertRowid) as TemplateItemRow;
 }
 
 export function updateTemplateItem(
@@ -365,7 +365,7 @@ export function reorderChecklistItems(tripId: number, ids: number[]): number {
     let matched = 0;
     orderedIds.forEach((id, idx) => { matched += stmt.run({ id, trip_id: tripId, sort_order: idx }).changes; });
     return matched;
-  })(ids) as number;
+  })(ids);
 }
 
 /**
@@ -382,5 +382,5 @@ export function reorderTemplateItems(templateId: number, ids: number[]): number 
     let matched = 0;
     orderedIds.forEach((id, idx) => { matched += stmt.run({ id, template_id: templateId, sort_order: idx }).changes; });
     return matched;
-  })(ids) as number;
+  })(ids);
 }

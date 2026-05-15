@@ -15,7 +15,7 @@ const TRIP_PALETTE = [
 ] as const;
 
 function tripColor(index: number): string {
-  return TRIP_PALETTE[index % TRIP_PALETTE.length] as string;
+  return TRIP_PALETTE[index % TRIP_PALETTE.length];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

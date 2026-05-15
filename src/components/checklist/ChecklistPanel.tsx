@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, Fragment } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, Fragment } from 'react';
 import confetti from 'canvas-confetti';
 import { Plus, Check, X, MoreHorizontal, Pencil, Trash2, PackageOpen, LibraryBig } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -56,11 +56,13 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
   ).sort((a, b) => a.localeCompare(b));
 
   // Remove a pending category once it has real items
+  /* eslint-disable react-hooks/set-state-in-effect -- sync pending list with real data */
   useEffect(() => {
     setPendingCategories(prev => prev.filter(p => !occupiedCategories.includes(p)));
   // Reason: keep pending list clean — occupied categories are now real
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [occupiedCategories.join(',')]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Confetti when all items transition to fully checked
   const prevAllChecked = useRef(false);
@@ -110,9 +112,10 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
   }, [removeCategory, activeCategory, deleteTarget]);
 
   // Items shown in the right panel
-  const visibleItems = activeCategory === ALL_KEY
-    ? items
-    : (grouped[activeCategory] ?? []);
+  const visibleItems = useMemo(
+    () => activeCategory === ALL_KEY ? items : (grouped[activeCategory] ?? []),
+    [activeCategory, items, grouped],
+  );
 
   const checkedCount = visibleItems.filter(i => i.isChecked).length;
   const totalCount = visibleItems.length;
@@ -307,8 +310,8 @@ export default function ChecklistPanel({ tripId }: ChecklistPanelProps) {
                   )}
                   <ChecklistItem
                     item={item}
-                    onToggle={toggle}
-                    onDelete={remove}
+                    onToggle={(id, checked) => { void toggle(id, checked); }}
+                    onDelete={(id) => { void remove(id); }}
                     showCategory={activeCategory === ALL_KEY}
                     draggable={activeCategory !== ALL_KEY}
                     onDragStart={setDraggedId}

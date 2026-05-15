@@ -14,7 +14,7 @@ import MapPage from '@/pages/MapPage';
 import SettingsPage from '@/pages/SettingsPage';
 import type { Screen } from '@/types/domain';
 import { Toaster } from '@/components/ui/sonner';
-import { useThemeContext } from '@/context/ThemeContext';
+import { useThemeContext } from '@/hooks/useThemeContext';
 
 // Reason: screens that render their own <Topbar> declare it here so App.tsx
 // never needs an if/else per screen — add a new screen, set the flag once.

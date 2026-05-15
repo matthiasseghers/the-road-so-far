@@ -16,7 +16,7 @@ The same codebase runs in three modes:
 |---|---|---|
 | Development | `npm run dev` | Vite dev server (5173) + Express sidecar (3001) via concurrently |
 | Home server | `docker compose up` | Express serves the built frontend as static files on a single port; SQLite is volume-mounted |
-| Desktop | `npm run tauri build` | Tauri bundles the frontend and Express sidecar into a native `.dmg` / `.exe` |
+| Desktop | _planned_ | Tauri — requires [Rust toolchain](https://tauri.app/start/prerequisites/) |
 
 ---
 
@@ -67,18 +67,6 @@ npm test                  # run once
 npm run test:watch        # watch mode
 npm run test:coverage     # coverage report
 ```
-
----
-
-## Building for desktop (Tauri)
-
-```bash
-npm run tauri build
-```
-
-Produces a native installer in `src-tauri/target/release/bundle/`.
-Requires the [Tauri prerequisites](https://tauri.app/start/prerequisites/)
-for your platform (Rust toolchain + platform SDK).
 
 ---
 

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { format, parseISO, isValid } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
+import type { Matcher } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
@@ -35,7 +36,7 @@ export function DatePicker({
 
   // Reason: build disabled matchers only when bounds are provided; DayPicker
   // DateInterval requires non-optional Date values, so split into separate matchers.
-  const disabledMatchers: import('react-day-picker').Matcher[] = [];
+  const disabledMatchers: Matcher[] = [];
   if (minDate) disabledMatchers.push({ before: minDate });
   if (maxDate) disabledMatchers.push({ after: maxDate });
 

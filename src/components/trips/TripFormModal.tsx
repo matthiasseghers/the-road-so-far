@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -143,6 +143,7 @@ export default function TripFormModal({
     } else {
       setOverlapConfirmOpen(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeProvider intentionally excluded to only set on first open
   }, [open, trip, reset]);
 
   // Reason: trip.notes can be updated inline without opening this modal.
@@ -152,8 +153,10 @@ export default function TripFormModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip?.notes]);
 
+  /* eslint-disable react-hooks/incompatible-library -- react-hook-form watch() is not memoizable */
   const watchedStartDate = watch('start_date');
   const watchedEndDate   = watch('end_date');
+  /* eslint-enable react-hooks/incompatible-library */
 
   const pastWarning: string | null =
     watchedEndDate && watchedEndDate < todayISO()
@@ -198,7 +201,7 @@ export default function TripFormModal({
       await onUpdate(trip.id, {
         ...data,
         cover_type: coverTab === 'photo' && trip?.cover_image_path ? 'photo' : 'gradient',
-      } as UpdateTripInput);
+      });
     } else {
       await onCreate?.(data);
     }
@@ -248,7 +251,7 @@ export default function TripFormModal({
           </DialogHeader>
 
           <DialogBody>
-          <form className="trip-form pb-1" onSubmit={handleSubmit(onValidWithOverlap)}>
+          <form className="trip-form pb-1" onSubmit={(e) => { void handleSubmit(onValidWithOverlap)(e); }}>
 
             {/* Title */}
             <div className="trip-form__field trip-form__field--required">
@@ -552,7 +555,7 @@ export default function TripFormModal({
             <Button variant="outline" onClick={onClose} type="button">Cancel</Button>
             <Button
               variant="default"
-              onClick={handleSubmit(onValidWithOverlap)}
+              onClick={() => { void handleSubmit(onValidWithOverlap)(); }}
               disabled={isSubmitting || downloadingPhoto}
               type="submit"
             >

@@ -8,13 +8,13 @@ import type { ChecklistItemRow } from '@/types/db';
 interface UseChecklistReturn {
   items: ChecklistItem[];
   grouped: Record<string, ChecklistItem[]>;
-  add(label: string, category: string | null): Promise<void>;
-  toggle(id: number, checked: boolean): Promise<void>;
-  remove(id: number): Promise<void>;
-  renameCategory(oldCat: string, newCat: string): Promise<void>;
-  removeCategory(cat: string): Promise<void>;
-  applyTemplates(templateIds: number[]): Promise<void>;
-  reorder(ids: number[]): void;
+  add: (label: string, category: string | null) => Promise<void>;
+  toggle: (id: number, checked: boolean) => void;
+  remove: (id: number) => Promise<void>;
+  renameCategory: (oldCat: string, newCat: string) => Promise<void>;
+  removeCategory: (cat: string) => Promise<void>;
+  applyTemplates: (templateIds: number[]) => Promise<void>;
+  reorder: (ids: number[]) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -171,7 +171,7 @@ export function useChecklist(tripId: number): UseChecklistReturn {
     } catch { /* onError handles toast */ }
   };
 
-  const toggle = async (id: number, checked: boolean): Promise<void> => {
+  const toggle = (id: number, checked: boolean): void => {
     // Reason: use mutate (fire-and-forget) since onMutate already applied the
     // optimistic update synchronously — no need to await the API response.
     toggleMutation.mutate({ id, checked });

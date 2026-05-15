@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { BedDouble, Plane, Train, Bus, Ship, Car, Utensils, Tag, Camera, ShoppingBag, TreePine, Landmark, FileText } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -197,7 +197,7 @@ const RESERVATION_TYPE_DATE_KEY: Partial<Record<ReservationType, string>> = Obje
       return dateField ? [[type, dateField.key]] : [];
     },
   ),
-) as Partial<Record<ReservationType, string>>;
+);
 
 const TYPE_LABELS: Record<ReservationType, string> = {
   lodging:    'Lodging',
@@ -386,7 +386,7 @@ function ReservationSubForm({
               </div>
             );
           }
-          const f = item as FieldDef;
+          const f = item;
           return (
             <div key={f.key} className={`rfm__field${f.required ? ' rfm__field--required' : ''}`}>
               <Label htmlFor={`rfm-${f.key}`}>{f.label}</Label>
@@ -624,6 +624,7 @@ export default function ReservationFormModal({
   const submittingRef = useRef(false);
 
   // Seed form from editing props / reset on close
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional reset when modal closes */
   useEffect(() => {
     if (!open) {
       setResErrors({});
@@ -688,8 +689,10 @@ export default function ReservationFormModal({
     setResType('lodging');
     actReset(BLANK_ACTIVITY);
     setResForm(BLANK_RESERVATION);
-  // Reason: actReset is stable (RHF); including it avoids the exhaustive-deps lint warning.
+  // Reason: actReset is stable (RHF); actGeocode/resGeocode excluded to avoid re-runs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editingActivity, editingReservation, initialType, defaultCategory, actReset]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 

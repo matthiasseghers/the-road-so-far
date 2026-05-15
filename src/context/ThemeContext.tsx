@@ -2,8 +2,9 @@
 // Moved here from App.tsx so consumers (GeneralPanel, AppSidebar) can read/write
 // theme without prop drilling through SettingsPage.
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import type { Theme } from '@/types/domain';
+import { ThemeContext } from './ThemeContext.def';
 
 const THEME_STORAGE_KEY = 'rsf-theme';
 
@@ -29,16 +30,6 @@ function applyTheme(theme: Theme): void {
   root.classList.toggle('lt', resolved === 'light');
   requestAnimationFrame(() => root.classList.remove('no-transitions'));
 }
-
-interface ThemeContextValue {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  // Reason: sidebar toggle cycles explicit light/dark rather than exposing a
-  // raw setTheme call — resolves auto to the effective colour before flipping.
-  toggleTheme: () => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }): JSX.Element {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
@@ -71,10 +62,4 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): JSX.
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useThemeContext(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useThemeContext must be used inside ThemeProvider');
-  return ctx;
 }

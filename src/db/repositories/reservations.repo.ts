@@ -286,5 +286,5 @@ export function reorderDayItems(
     });
     return matched;
   });
-  return txn(items) as number;
+  return txn(items);
 }

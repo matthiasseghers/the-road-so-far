@@ -32,13 +32,13 @@ vi.mock('@react-pdf/renderer', () => {
 });
 
 // Import after mocks are established.
+const { generateTripPDF } = await import('@/lib/export/pdf/pdf');
 const {
   reservationTypeLabel,
   activityTypeLabel,
   formatDayHeader,
   buildLodgingStripText,
-  generateTripPDF,
-} = await import('@/lib/export/pdf/pdf');
+} = await import('@/lib/export/pdf/helpers');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

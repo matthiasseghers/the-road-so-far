@@ -1,4 +1,4 @@
-import { useState, Fragment, type KeyboardEvent } from 'react';
+import { useState, Fragment, type KeyboardEvent, type MouseEvent } from 'react';
 import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -226,7 +226,7 @@ function TemplateCard({
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 shrink-0"
-                onClick={e => e.stopPropagation()}
+                onClick={(e: MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
               >
                 <Trash2 size={13} />
               </Button>

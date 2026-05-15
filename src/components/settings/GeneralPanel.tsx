@@ -1,7 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { usePreferences } from '@/hooks/usePreferences';
-import { useThemeContext } from '@/context/ThemeContext';
+import { useThemeContext } from '@/hooks/useThemeContext';
 import type { Theme } from '@/types/domain';
 
 export default function GeneralPanel(): JSX.Element {
