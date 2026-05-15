@@ -24,7 +24,7 @@ The same codebase runs in three modes:
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, Vite, TypeScript 5 (strict) |
+| Frontend | React 18, Vite, TypeScript 6 (strict) |
 | UI components | shadcn/ui (Radix primitives), Tailwind CSS v4 |
 | Forms & validation | React Hook Form v7, Zod v4 |
 | Data fetching | TanStack Query v5 |
@@ -93,9 +93,25 @@ This app is designed for **local, single-user use only**.
 - **`/export/all`** returns all trip data in a single unauthenticated
   request. This is intentional for a local tool — do not expose the
   sidecar publicly.
-- **API keys** (TomTom) are stored in the local SQLite settings table
-  and transmitted only to those services by the sidecar. They are never
-  sent to the frontend.
+- **API keys** (TomTom, Pexels, Unsplash, Pixabay) are stored in the
+  local SQLite settings table and transmitted only to those services
+  by the sidecar. They are redacted from `GET /settings` responses
+  and never sent to the frontend.
+
+### Hardening measures
+
+- **Helmet** sets secure HTTP headers (X-Content-Type-Options,
+  X-Frame-Options, Referrer-Policy, etc.).
+- **CORS** restricts origins to the Vite dev server and Tauri webview.
+- **Rate limiting** caps the API at 300 requests per minute.
+- **Zod validation** on all mutation routes — every POST, PATCH, and PUT
+  body is parsed with `safeParse` before reaching the database.
+- **Parameterised SQL** throughout — no string interpolation in queries.
+- **SSRF prevention** for cover image downloads via hostname allowlist
+  and `redirect: 'error'`.
+- **Path traversal prevention** for cover filenames via regex validation
+  and `path.basename()`.
+- **Body size limit** of 1 MB on `express.json()`.
 
 ---
 
