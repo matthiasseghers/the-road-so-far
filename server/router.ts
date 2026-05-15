@@ -1120,7 +1120,8 @@ router.get('/trips/:tripId/static-map-image', async (req: Request, res: Response
 
 // ── Cover photo routes ────────────────────────────────────────────────────────
 
-const coversDir = path.join(process.cwd(), 'covers');
+const dataDir = process.env['DB_PATH'] ? path.dirname(process.env['DB_PATH']) : process.cwd();
+const coversDir = path.join(dataDir, 'covers');
 
 // Returns the list of providers that have an API key configured.
 router.get('/covers/providers', (_req: Request, res: Response) => {

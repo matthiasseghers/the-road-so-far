@@ -13,7 +13,7 @@ let _db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (!_db) {
-    const dbPath = join(process.cwd(), 'road-so-far.db');
+    const dbPath = process.env['DB_PATH'] ?? join(process.cwd(), 'road-so-far.db');
     _db = new Database(dbPath);
     _db.pragma('journal_mode = WAL');
     _db.pragma('synchronous = NORMAL');
