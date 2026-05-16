@@ -39,7 +39,6 @@ export to PDF or your calendar app.
 |---|---|---|
 | Development | `npm run dev` | Vite dev server (5173) + Express API (3001) via concurrently |
 | Docker | `docker compose up` | Single container serving frontend + API on port 3000; SQLite volume-mounted for persistence |
-| Desktop | _planned_ | Tauri — requires [Rust toolchain](https://tauri.app/start/prerequisites/) |
 
 ## Getting started
 
@@ -98,7 +97,7 @@ This app is designed for **local, single-user use only**.
 ### Hardening
 
 - **Helmet** — secure HTTP headers
-- **CORS** — restricted to Vite dev server and Tauri webview origins
+- **CORS** — restricted to Vite dev server origin
 - **Rate limiting** — 300 req/min
 - **Zod validation** — all mutation bodies parsed with `safeParse`
 - **Parameterised SQL** — no string interpolation in queries

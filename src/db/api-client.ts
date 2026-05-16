@@ -1,6 +1,5 @@
 // The only file in src/ that knows about the Express dev server.
 // All hooks call this, not fetch directly.
-// When migrating to Tauri, replace this file with Tauri invoke() calls.
 
 const BASE = '/api';
 

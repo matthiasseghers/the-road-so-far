@@ -13,11 +13,9 @@ const app = express();
 // Referrer-Policy, etc.) with a single middleware call.
 app.use(helmet());
 
-// Reason: all three distribution targets need CORS — Vite dev, Tauri macOS/Linux, Tauri Windows.
+// Reason: CORS whitelist for the Vite dev server origin.
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',   // Vite dev
-  'tauri://localhost',       // Tauri macOS/Linux
-  'http://localhost:1420',   // Tauri Windows
 ];
 app.use(cors({
   origin: (origin, cb) => {
@@ -29,7 +27,7 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 
 // Reason: covers/ stores downloaded trip cover photos.
-// Located alongside the DB file so it works identically in dev, Tauri, and Docker.
+// Located alongside the DB file so it works identically in dev and Docker.
 const dataDir = process.env['DB_PATH'] ? path.dirname(process.env['DB_PATH']) : process.cwd();
 const coversDir = path.join(dataDir, 'covers');
 if (!fs.existsSync(coversDir)) fs.mkdirSync(coversDir, { recursive: true });
@@ -49,9 +47,6 @@ const apiLimiter = rateLimit({
 app.use('/api', apiLimiter);
 
 app.use('/api', router);
-
-// Ensure DB is initialised and all migrations run before accepting requests
-getDb();
 
 // Reason: return JSON 404 for any /api route that didn't match a handler so
 // api-client.ts gets a parseable ApiError instead of an HTML Express 404 page.
@@ -77,7 +72,10 @@ if (fs.existsSync(distDir)) {
   });
 }
 
+export { app };
+
 const PORT = Number(process.env['PORT'] ?? 3001);
+getDb();
 app.listen(PORT, () => {
   console.warn(`The Road So Far — running on http://localhost:${PORT}`);
 });

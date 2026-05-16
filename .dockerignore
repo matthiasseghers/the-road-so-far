@@ -7,5 +7,4 @@ covers
 .git
 .github
 tests
-src-tauri
 *.md

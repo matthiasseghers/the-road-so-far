@@ -16,16 +16,12 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 // retry: 1 — one automatic retry on transient failure (server is local, so more
 // retries would just stall the UI).
 // gcTime: 300_000 — unused cache entries are kept for 5 min before garbage collection.
-// refetchOnWindowFocus: disabled inside Tauri because window focus events fire
-// frequently when switching native windows, causing spurious server round-trips.
-const isTauri = '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
       retry: 1,
       gcTime: 300_000,
-      refetchOnWindowFocus: isTauri ? false : true,
     },
   },
 });
