@@ -1,42 +1,45 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+[![CI](https://github.com/matthiasseghers/the-road-so-far/actions/workflows/ci.yml/badge.svg)](https://github.com/matthiasseghers/the-road-so-far/actions/workflows/ci.yml)
+
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![Zod](https://img.shields.io/badge/Zod-4-3E67B1?logo=zod&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white)
+![Leaflet](https://img.shields.io/badge/Leaflet-199900?logo=leaflet&logoColor=white)
 
 # The Road So Far
 
-A personal, offline-first travel planner. Trips, days, activities, and
-reservations are stored locally in a SQLite database — no account, no
-cloud sync, no data ever leaves the machine.
+A personal, offline-first travel planner that keeps everything on your
+machine — no accounts, no cloud sync, no telemetry. Plan multi-day trips
+with a full itinerary, track reservations, visualise routes on a map, and
+export to PDF or your calendar app.
 
-The frontend is a React SPA; a thin Express sidecar handles all database
-access and proxies optional third-party API calls (TomTom geocoding,
-routing, and static maps) so API keys stay server-side.
+## Features
 
-The same codebase runs in three modes:
+- **Multi-day itineraries** — organise activities per day with drag-and-drop reordering
+- **Reservations** — lodging, flights, trains, buses, ferries, car rentals, and restaurants
+- **Interactive map** — geocoded locations, route visualisation, and static map snapshots
+- **Checklists** — per-trip packing or to-do lists
+- **Calendar view** — see all trips at a glance in a month/year overview
+- **Cover images** — search Pexels, Unsplash, or Pixabay directly from the app
+- **PDF export** — generate a printable itinerary with multiple layout options
+- **Calendar export** — ICS files compatible with Google Calendar, Apple Calendar, Outlook
+- **Activity templates** — save and reuse common activity types
+- **Dark and light themes**
+- **Fully offline** — works without any network connection; external APIs are optional enhancements
 
-| Mode | Command | How it works |
+## Deployment modes
+
+| Mode | Command | Description |
 |---|---|---|
-| Development | `npm run dev` | Vite dev server (5173) + Express sidecar (3001) via concurrently |
-| Home server | `docker compose up` | Express serves the built frontend as static files on a single port; SQLite is volume-mounted |
+| Development | `npm run dev` | Vite dev server (5173) + Express API (3001) via concurrently |
+| Docker | `docker compose up` | Single container serving frontend + API on port 3000; SQLite volume-mounted for persistence |
 | Desktop | _planned_ | Tauri — requires [Rust toolchain](https://tauri.app/start/prerequisites/) |
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | React 18, Vite, TypeScript 6 (strict) |
-| UI components | shadcn/ui (Radix primitives), Tailwind CSS v4 |
-| Forms & validation | React Hook Form v7, Zod v4 |
-| Data fetching | TanStack Query v5 |
-| Database | SQLite via better-sqlite3, plain `.sql` migrations |
-| Backend bridge | Express 5 — DB access and API proxying only, zero business logic |
-| Mapping | Leaflet + react-leaflet (TomTom tiles) |
-| PDF export | @react-pdf/renderer |
-| Calendar export | RFC 5545 ICS — no external dependency |
-| Testing | Vitest, @testing-library/react |
-| Desktop | Tauri |
-
----
 
 ## Getting started
 
@@ -47,18 +50,30 @@ npm install
 npm run dev
 ```
 
-The app is available at `http://localhost:5173`.
-The API bridge runs at `http://localhost:3001` (dev only — not exposed in Docker or Tauri).
+The app opens at `http://localhost:5173`.
+
+### Docker
+
+```bash
+docker compose up -d
+```
+
+Available at `http://localhost:3000`. Trip data persists in a named Docker volume.
 
 ### Third-party API keys (optional)
 
-TomTom geocoding, routing, and static maps are optional. If you want them,
-add your TomTom API key in the app's Settings page after first launch.
-Keys are stored in the local SQLite database and never sent to the frontend.
-The app is fully usable without them — maps will load without custom tiles,
-and route distances will not be calculated.
+TomTom geocoding, routing, and static maps are optional extras. Add your
+API key in **Settings** after first launch. Keys are stored in the local
+SQLite database and proxied server-side — they never reach the browser.
 
----
+Cover image search supports Pexels, Unsplash, and Pixabay — configure any
+or all in Settings.
+
+The app is fully usable without any API keys.
+
+## Tech stack
+
+shadcn/ui · TanStack Query v5 · React Hook Form · @react-pdf/renderer · RFC 5545 ICS export · GitHub Actions CI
 
 ## Running tests
 
@@ -68,40 +83,28 @@ npm run test:watch        # watch mode
 npm run test:coverage     # coverage report
 ```
 
----
-
 ## Security
 
 This app is designed for **local, single-user use only**.
 
-- **Port 3001** (the Express sidecar) has no authentication layer.
-  In development it is bound to localhost only. In Docker, port 3001
-  is not published — only the frontend port is exposed. Never manually
-  publish port 3001 on an untrusted network.
-- **`/export/all`** returns all trip data in a single unauthenticated
-  request. This is intentional for a local tool — do not expose the
-  sidecar publicly.
-- **API keys** (TomTom, Pexels, Unsplash, Pixabay) are stored in the
-  local SQLite settings table and transmitted only to those services
-  by the sidecar. They are redacted from `GET /settings` responses
-  and never sent to the frontend.
+- The Express API has **no authentication**. In dev it binds to localhost;
+  in Docker only port 3000 (frontend) is published.
+- **`/export/all`** returns all trip data in a single request — intentional
+  for a local tool. Do not expose the API publicly.
+- **API keys** (TomTom, Pexels, Unsplash, Pixabay) are stored in SQLite,
+  transmitted only to those services server-side, and redacted from
+  frontend-facing responses.
 
-### Hardening measures
+### Hardening
 
-- **Helmet** sets secure HTTP headers (X-Content-Type-Options,
-  X-Frame-Options, Referrer-Policy, etc.).
-- **CORS** restricts origins to the Vite dev server and Tauri webview.
-- **Rate limiting** caps the API at 300 requests per minute.
-- **Zod validation** on all mutation routes — every POST, PATCH, and PUT
-  body is parsed with `safeParse` before reaching the database.
-- **Parameterised SQL** throughout — no string interpolation in queries.
-- **SSRF prevention** for cover image downloads via hostname allowlist
-  and `redirect: 'error'`.
-- **Path traversal prevention** for cover filenames via regex validation
-  and `path.basename()`.
-- **Body size limit** of 1 MB on `express.json()`.
-
----
+- **Helmet** — secure HTTP headers
+- **CORS** — restricted to Vite dev server and Tauri webview origins
+- **Rate limiting** — 300 req/min
+- **Zod validation** — all mutation bodies parsed with `safeParse`
+- **Parameterised SQL** — no string interpolation in queries
+- **SSRF prevention** — cover image downloads use a hostname allowlist and `redirect: 'error'`
+- **Path traversal prevention** — cover filenames validated with regex + `path.basename()`
+- **Body size limit** — 1 MB on `express.json()`
 
 ## License
 
