@@ -1,0 +1,11 @@
+node_modules
+dist
+covers
+*.db
+*.db-wal
+*.db-shm
+.git
+.github
+tests
+src-tauri
+*.md

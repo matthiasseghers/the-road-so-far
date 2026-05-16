@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - travel-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  travel-data:
