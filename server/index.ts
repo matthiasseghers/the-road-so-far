@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+import type { ServerResponse } from 'http';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -9,9 +11,30 @@ import { getDb } from '../src/db/client.js';
 
 const app = express();
 
+// Reason: generate a cryptographic nonce per request so the inline theme script
+// in index.html can execute without 'unsafe-inline', and the nonce cannot be
+// predicted or reused across requests.
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.locals['cspNonce'] = crypto.randomBytes(16).toString('base64');
+  next();
+});
+
 // Reason: helmet sets safe HTTP headers (X-Content-Type-Options, X-Frame-Options,
 // Referrer-Policy, etc.) with a single middleware call.
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", (_req, res) => `'nonce-${(res as ServerResponse & { locals: Record<string, string> }).locals['cspNonce']}'`],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "https:"],
+      },
+    },
+  }),
+);
 
 // Reason: CORS whitelist for the Vite dev server origin.
 const ALLOWED_ORIGINS = [
@@ -63,12 +86,21 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 // ── Production static file serving ───────────────────────────────────────────
 // In Docker (and any non-dev environment), Express serves the Vite build output.
-// SPA fallback: any non-API, non-covers request returns index.html.
+// SPA fallback: any non-API, non-covers request returns index.html with a nonce
+// injected into the inline theme script.
 const distDir = path.join(process.cwd(), 'dist');
 if (fs.existsSync(distDir)) {
-  app.use(express.static(distDir));
+  // Serve all static assets except index.html (JS, CSS, images, etc.).
+  app.use(express.static(distDir, { index: false }));
+
+  const indexPath = path.join(distDir, 'index.html');
+  const indexTemplate = fs.readFileSync(indexPath, 'utf-8');
+
+  // For every page request, inject the per-request nonce into the inline <script>.
   app.get('{*path}', (_req: Request, res: Response) => {
-    res.sendFile(path.join(distDir, 'index.html'));
+    const nonce = res.locals['cspNonce'] as string;
+    const html = indexTemplate.replace('<script>', `<script nonce="${nonce}">`);
+    res.type('html').send(html);
   });
 }
 
