@@ -1,3 +1,4 @@
+import React from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Activity } from '@/types/domain';
@@ -12,12 +13,11 @@ interface ActivityItemProps {
 }
 
 export default function ActivityItem({ activity, onEdit, onDelete }: ActivityItemProps): JSX.Element {
-  const Icon = resolveIcon(activity.activity_type_icon);
   const timeLabel = formatActivityTime(activity.start_time, activity.end_time) || null;
 
   return (
     <div className={`activity-item activity-item--${activity.activity_type}`}>
-      <span className="activity-item__icon" aria-hidden="true"><Icon size={15} /></span>
+      <span className="activity-item__icon" aria-hidden="true">{React.createElement(resolveIcon(activity.activity_type_icon), { size: 15 })}</span>
 
       <div className="activity-item__body">
         <span className="activity-item__title">{activity.title}</span>

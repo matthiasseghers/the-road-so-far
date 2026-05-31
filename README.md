@@ -58,7 +58,7 @@ on port 3001 and is proxied automatically.
 - **Cover images** — search Pexels, Unsplash, or Pixabay directly from the app
 - **PDF export** — generate a printable itinerary with multiple layout options
 - **Calendar export** — ICS files compatible with Google Calendar, Apple Calendar, Outlook
-- **Activity templates** — save and reuse common activity types
+- **Checklist templates** — save and reuse common checklist item sets across trips
 - **Dark and light themes**
 
 ## API keys (optional)

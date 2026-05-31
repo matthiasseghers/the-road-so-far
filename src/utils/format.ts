@@ -98,6 +98,56 @@ export function formatProgress(pct: number): string {
   return `${Math.round(pct)}%`;
 }
 
+// ── Reservation date/time range ──────────────────────────────────────────────
+
+/**
+ * Returns a human-readable date/time range string for a reservation's details.
+ * e.g. "Mon 2 Jun · 10:00 – Thu 5 Jun · 11:00" for lodging.
+ * Returns null when no date information is present.
+ */
+export function formatReservationRange(type: ReservationType, details: Record<string, string>): string | null {
+  function fmtDT(iso: string | undefined, time: string | undefined): string | null {
+    if (!iso) return null;
+    const d = parseISO(`${iso}T12:00:00`);
+    const dateStr = isValid(d) ? dateFnsFormat(d, 'EEE d MMM') : null;
+    if (!dateStr) return null;
+    return time ? `${dateStr} · ${time}` : dateStr;
+  }
+
+  switch (type) {
+    case 'lodging': {
+      const a = fmtDT(details['check_in_date'], details['check_in_time']);
+      const b = fmtDT(details['check_out_date'], details['check_out_time']);
+      if (!a && !b) return null;
+      return [a, b].filter(Boolean).join(' – ');
+    }
+    case 'flight': {
+      const a = fmtDT(details['depart_date'], details['depart_time']);
+      const b = fmtDT(details['arrive_date'], details['arrive_time']);
+      if (!a && !b) return null;
+      return [a, b].filter(Boolean).join(' → ');
+    }
+    case 'train':
+    case 'bus':
+    case 'ferry': {
+      const a = fmtDT(details['from_date'], details['from_time']);
+      const b = fmtDT(details['to_date'], details['to_time']);
+      if (!a && !b) return null;
+      return [a, b].filter(Boolean).join(' → ');
+    }
+    case 'rental_car': {
+      const a = fmtDT(details['pickup_date'], details['pickup_time']);
+      const b = fmtDT(details['dropoff_date'], details['dropoff_time']);
+      if (!a && !b) return null;
+      return [a, b].filter(Boolean).join(' → ');
+    }
+    case 'restaurant':
+      return fmtDT(details['date'], details['time']);
+    default:
+      return null;
+  }
+}
+
 // ── Night count ───────────────────────────────────────────────────────────────
 
 /** Number of nights between two ISO date strings (check-out minus check-in). */

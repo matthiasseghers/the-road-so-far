@@ -195,6 +195,21 @@ export default function ActivityFormModal({
             />
           </div>
 
+          {/* Location — Controller required: custom LocationField component */}
+          <Controller
+            name="location"
+            control={control}
+            render={({ field }) => (
+              <LocationField
+                value={field.value ?? ''}
+                onChange={val => { coordsRef.current = undefined; addressRef.current = undefined; field.onChange(val); }}
+                onCoordinates={(lat, lng) => { coordsRef.current = { lat, lng }; }}
+                onStructuredAddress={a => { addressRef.current = a; }}
+                status={geoHook.status}
+              />
+            )}
+          />
+
           {/* Time window */}
           <div className="activity-form__row">
             <div className="activity-form__field">
@@ -228,21 +243,6 @@ export default function ActivityFormModal({
               {...register('notes')}
             />
           </div>
-
-          {/* Location — Controller required: custom LocationField component */}
-          <Controller
-            name="location"
-            control={control}
-            render={({ field }) => (
-              <LocationField
-                value={field.value ?? ''}
-                onChange={val => { coordsRef.current = undefined; addressRef.current = undefined; field.onChange(val); }}
-                onCoordinates={(lat, lng) => { coordsRef.current = { lat, lng }; }}
-                onStructuredAddress={a => { addressRef.current = a; }}
-                status={geoHook.status}
-              />
-            )}
-          />
         </form>
         </DialogBody>
         <DialogFooter>{footer}</DialogFooter>

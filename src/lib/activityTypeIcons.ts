@@ -4,8 +4,10 @@ import {
   Plane, Ship, Bus, Train, Car, Footprints, Mountain, Sunset,
   Palette, Book, Gamepad2, Dumbbell, Waves, Tent, Church,
   Building2, GraduationCap, Sparkles, Globe, Compass,
+  BedDouble,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { ReservationType } from '@/types/db';
 
 // ── Curated icon set for activity types ───────────────────────────────────────
 // Maps Lucide icon name strings (as stored in the DB) to components.
@@ -59,4 +61,22 @@ export function resolveIcon(iconName: string | null | undefined): LucideIcon {
     return ACTIVITY_TYPE_ICON_MAP[iconName];
   }
   return Tag;
+}
+
+// ── Reservation type icons ────────────────────────────────────────────────────
+
+const RESERVATION_TYPE_ICON_MAP: Record<ReservationType, LucideIcon> = {
+  lodging:    BedDouble,
+  flight:     Plane,
+  train:      Train,
+  bus:        Bus,
+  ferry:      Ship,
+  rental_car: Car,
+  restaurant: Utensils,
+  other:      Tag,
+};
+
+/** Resolve a ReservationType to its Lucide icon component. */
+export function resolveReservationTypeIcon(type: ReservationType): LucideIcon {
+  return RESERVATION_TYPE_ICON_MAP[type] ?? Tag;
 }

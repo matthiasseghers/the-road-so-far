@@ -161,6 +161,10 @@ export default function LocationField({
         </PopoverContent>
       </Popover>
 
+      <p className="text-sm text-muted-foreground">
+        Enter a general location, full address, or place name — we&apos;ll look it up automatically.
+      </p>
+
       {status === 'not_found' && (
         <span className="text-xs text-destructive">Location not found</span>
       )}

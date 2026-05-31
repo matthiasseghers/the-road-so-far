@@ -3,8 +3,9 @@
 
 import React, { useState, useCallback, useMemo, useEffect, useRef, Suspense, lazy } from 'react';
 import { toast } from 'sonner';
-import { Pencil, Trash2, GripVertical, BedDouble, AlertTriangle, Plus, LayoutGrid, FileText, CalendarDays, CheckSquare, Map, Plane, Bus, Car, UtensilsCrossed, MapPin, NotebookPen, CalendarPlus, Footprints, Bike, Check, X, Route, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, GripVertical, BedDouble, AlertTriangle, Plus, LayoutGrid, FileText, CalendarDays, CheckSquare, Map, Car, MapPin, NotebookPen, CalendarPlus, Footprints, Bike, Check, X, Route, Loader2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { resolveIcon, resolveReservationTypeIcon } from '@/lib/activityTypeIcons';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage } from '@/components/ui/breadcrumb';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -24,7 +25,6 @@ import ActivityFormModal from '@/components/itinerary/ActivityFormModal';
 import ReservationFormModal from '@/components/itinerary/ReservationFormModal';
 import TripFormModal from '@/components/trips/TripFormModal';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -33,7 +33,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatDate } from '@/utils/dates';
-import { formatDateRange, nightCount, formatActivityTime, formatDuration, formatDistance, formatStructuredAddress } from '@/utils/format';
+import { formatDateRange, formatActivityTime, formatDuration, formatDistance, formatStructuredAddress, formatReservationRange } from '@/utils/format';
 import { sortActivities } from '@/utils/activity';
 import { isCheckinDay } from '@/utils/lodging';
 import { RESERVATION_SORT_OFFSET } from '@/utils/sort';
@@ -148,6 +148,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
     createReservation,
     updateReservation,
     deleteReservation,
+    refetch: refetchReservations,
   } = useReservations(tripId);
   const { pins, mapDays, missingCount, error: mapDataError, refetch: refetchMapData } = useMapData(tripId);
   const { legs: routeLegs, expectedLegs, isStale: routesStale, legModes, isSyncing: isRouteSyncing, sync: syncRoutes, setLegMode, error: routeLegsError } = useRouteLegs(tripId);
@@ -265,15 +266,6 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
   const [entryInitialType,     setEntryInitialType]     = useState<ReservationType | null>(null);
   const [editingReservation,   setEditingReservation]   = useState<Reservation | null>(null);
 
-  function openAddEntry(dayId: number | null): void {
-    setEntryDayId(dayId);
-    setEntryDefaultCategory(null);
-    setEntryInitialType(null);
-    setEditingReservation(null);
-    setEditingActivity(null);
-    setEntryModalOpen(true);
-  }
-
   function openAddActivity(dayId: number | null): void {
     setEntryDayId(dayId);
     setEntryDefaultCategory('activity');
@@ -287,15 +279,6 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
     setEntryDayId(dayId);
     setEntryDefaultCategory('reservation');
     setEntryInitialType(null);
-    setEditingReservation(null);
-    setEditingActivity(null);
-    setEntryModalOpen(true);
-  }
-
-  function openAddLodging(): void {
-    setEntryDayId(null);
-    setEntryDefaultCategory(null);
-    setEntryInitialType('lodging');
     setEditingReservation(null);
     setEditingActivity(null);
     setEntryModalOpen(true);
@@ -331,8 +314,9 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
     async (dayId: number, items: { id: number; itemType: 'activity' | 'reservation' }[]): Promise<void> => {
       await api.patch(`/days/${dayId}/reorder`, { items });
       refetch();
+      refetchReservations();
     },
-    [refetch],
+    [refetch, refetchReservations],
   );
 
   const handleSetLegMode = useCallback(
@@ -445,7 +429,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
       {/* ── Tab content ──────────────────────────────── */}
       <div className={`tdp__content${activeTab === 'map' ? ' tdp__content--map' : ''}`}>
         {activeTab === 'overview' && (
-          <OverviewTab trip={trip} reservations={reservations} onAddEntry={() => openAddEntry(null)} onAddLodging={openAddLodging} onEditReservation={openEditReservation} onDeleteReservation={(id, title) => handleDeleteReservation(id, title)} onSaveNotes={async (notes) => { await updateTrip({ notes }); }} />
+          <OverviewTab trip={trip} reservations={reservations} onSaveNotes={async (notes) => { await updateTrip({ notes }); }} />
         )}
         {activeTab === 'itinerary' && (
           <ItineraryTab
@@ -698,129 +682,15 @@ function TripHeader({
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
-function LodgingCard({
-  reservation,
-  onEdit,
-  onDelete,
-}: {
-  reservation: Reservation;
-  onEdit: (r: Reservation) => void;
-  onDelete: (id: number, title: string) => void;
-}): JSX.Element {
-  const d = reservation.parsedDetails<LodgingDetails>();
-  const nights = d.check_in_date && d.check_out_date
-    ? nightCount(d.check_in_date, d.check_out_date)
-    : null;
+const TRANSIT_TYPES: ReservationType[] = ['train', 'bus', 'ferry'];
 
-  return (
-    <div className="tdp__lodging-card">
-      <div className="tdp__lc-header">
-        <div className="tdp__lc-name-block">
-          <div className="tdp__lc-name">{d.property_name ?? reservation.title}</div>
-          <Badge className={`tdp__status-badge tdp__status-badge--${reservation.status}`}>
-            {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-          </Badge>
-        </div>
-        <div className="tdp__lc-actions">
-          <Button variant="ghost" size="icon-xs" onClick={() => onEdit(reservation)} type="button" aria-label={`Edit ${reservation.title}`}>
-            <Pencil size={11} />
-          </Button>
-          <Button variant="ghost" size="icon-xs" className="hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete(reservation.id, reservation.title)} type="button" aria-label={`Delete ${reservation.title}`}>
-            <Trash2 size={11} />
-          </Button>
-        </div>
-      </div>
-      {(reservation.location ?? d.location) && (
-        <div className="tdp__lc-loc"><MapPin size={10} /><span>{formatStructuredAddress(reservation.data, reservation.location) ?? d.location}</span></div>
-      )}
-      <div className="tdp__lc-dates">
-        <div className="tdp__lc-date-col">
-          <div className="tdp__lc-date-lbl">Check-in</div>
-          <div className="tdp__lc-date-val">{d.check_in_date ? formatDate(d.check_in_date, 'EEE d MMM') : '—'}</div>
-          {d.check_in_time && <div className="tdp__lc-time">{d.check_in_time}</div>}
-        </div>
-        {nights !== null && (
-          <div className="tdp__lc-nights">
-            <div className="tdp__lc-nights-num">{nights}</div>
-            <div className="tdp__lc-nights-lbl">night{nights !== 1 ? 's' : ''}</div>
-          </div>
-        )}
-        <div className="tdp__lc-date-col tdp__lc-date-col--right">
-          <div className="tdp__lc-date-lbl">Check-out</div>
-          <div className="tdp__lc-date-val">{d.check_out_date ? formatDate(d.check_out_date, 'EEE d MMM') : '—'}</div>
-          {d.check_out_time && <div className="tdp__lc-time">{d.check_out_time}</div>}
-        </div>
-      </div>
-      {(reservation.confirmation_ref || reservation.cost_amount != null) && (
-        <div className="tdp__lc-meta">
-          {reservation.confirmation_ref && (
-            <span className="tdp__lc-ref">Ref: {reservation.confirmation_ref}</span>
-          )}
-          {reservation.cost_amount != null && (
-            <span className="tdp__lc-cost">{reservation.cost_currency} {reservation.cost_amount.toFixed(2)}</span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface OverviewTabProps {  trip: TripWithDays;
+interface OverviewTabProps {
+  trip: TripWithDays;
   reservations: Reservation[];
-  onAddEntry: () => void;
-  onAddLodging: () => void;
-  onEditReservation: (r: Reservation) => void;
-  onDeleteReservation: (id: number, title: string) => void;
   onSaveNotes: (notes: string) => Promise<void>;
 }
 
-function OverviewTabSection({ title, icon, items, emptyMsg, onAdd, addLabel, onEdit, onDelete }: {
-  title: string;
-  icon: React.ReactNode;
-  items: Reservation[];
-  emptyMsg: string;
-  onAdd?: () => void;
-  addLabel?: string;
-  onEdit: (r: Reservation) => void;
-  onDelete: (id: number, title: string) => void;
-}): JSX.Element {
-  return (
-    <div className="tdp__section-card">
-      <div className="tdp__section-head">
-        <span className="tdp__section-title">{icon}{title}</span>
-        {onAdd && (
-          <Button size="sm" variant="outline" onClick={onAdd} type="button">
-            {addLabel ?? '+ Add'}
-          </Button>
-        )}
-      </div>
-      <div className="tdp__section-body">
-        {items.length === 0
-          ? <p className="tdp__section-empty">{emptyMsg}</p>
-          : items.map(r => (
-              <div key={r.id} className="tdp__overview-item">
-                <div className="tdp__ov-body">
-                  <div className="tdp__ov-name">{r.title}</div>
-                  <div className="tdp__ov-meta">{r.autoTitle()}</div>
-                </div>
-                <div className="tdp__act-actions">
-                  <Button variant="ghost" size="icon-xs" onClick={() => onEdit(r)} type="button" aria-label={`Edit ${r.title}`}><Pencil size={11} /></Button>
-                  <Button variant="ghost" size="icon-xs" className="hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete(r.id, r.title)} type="button" aria-label={`Delete ${r.title}`}><Trash2 size={11} /></Button>
-                </div>
-              </div>
-            ))
-        }
-      </div>
-    </div>
-  );
-}
-
-function OverviewTab({ trip, reservations, onAddEntry, onAddLodging, onEditReservation, onDeleteReservation, onSaveNotes }: OverviewTabProps): JSX.Element {
-  const byType = (type: string): Reservation[] => reservations.filter(r => r.type === type);
-  const transitRes = ['train', 'bus', 'ferry'].flatMap(t => byType(t));
-
-  const placeActivities = trip.days.flatMap(d => d.activities).filter(a => a.activity_type === 'attraction');
-
+function OverviewTab({ trip, reservations, onSaveNotes }: OverviewTabProps): JSX.Element {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(trip.notes ?? '');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
@@ -840,66 +710,107 @@ function OverviewTab({ trip, reservations, onAddEntry, onAddLodging, onEditReser
     setEditingNotes(false);
   }
 
+  const hasAnything = trip.days.some(day => {
+    const hasLodging = reservations.some(r => r.isLodging() && r.coversDay(day.date));
+    const hasTransit = reservations.some(r => {
+      if (!TRANSIT_TYPES.includes(r.type)) return false;
+      if (r.day_id === day.id) return true;
+      if (r.day_id == null) {
+        const d = r.parsedDetails<Record<string, string>>();
+        return d['from_date'] === day.date;
+      }
+      return false;
+    });
+    return hasLodging || hasTransit;
+  });
+
   return (
     <>
-      {/* Lodging: always shown, with full detail cards */}
-      <div className="tdp__section-card">
-        <div className="tdp__section-head">
-          <span className="tdp__section-title"><BedDouble size={14} />Lodging</span>
-          <Button size="sm" variant="outline" onClick={onAddLodging} type="button">
-            + Add lodging
-          </Button>
+      {/* ── Day-by-day accommodation & transport summary ─────────── */}
+      {trip.days.length === 0 && (
+        <div className="tdp__section-card">
+          <div className="tdp__section-body">
+            <p className="tdp__section-empty">No days planned yet — set trip dates to see the day-by-day overview.</p>
+          </div>
         </div>
-        <div className="tdp__section-body">
-          {byType('lodging').length === 0
-            ? <p className="tdp__section-empty">No lodging added yet.</p>
-            : byType('lodging').map(r => (
-                <LodgingCard key={r.id} reservation={r} onEdit={onEditReservation} onDelete={onDeleteReservation} />
-              ))
+      )}
+
+      {trip.days.length > 0 && !hasAnything && (
+        <div className="tdp__section-card">
+          <div className="tdp__section-body">
+            <p className="tdp__section-empty">No accommodation or transport added yet. Add them from the Itinerary tab.</p>
+          </div>
+        </div>
+      )}
+
+      {trip.days.map((day, idx) => {
+        const lodgingsForDay = reservations.filter(r => r.isLodging() && r.coversDay(day.date));
+        const transitForDay = reservations.filter(r => {
+          if (!TRANSIT_TYPES.includes(r.type)) return false;
+          if (r.day_id === day.id) return true;
+          if (r.day_id == null) {
+            const d = r.parsedDetails<Record<string, string>>();
+            return d['from_date'] === day.date;
           }
-        </div>
-      </div>
+          return false;
+        });
 
-      {/* Remaining sections: hidden when empty */}
-      {byType('flight').length > 0 && (
-        <OverviewTabSection title="Flights" icon={<Plane size={14} />} items={byType('flight')} emptyMsg="" onAdd={onAddEntry} addLabel="+ Add flight" onEdit={onEditReservation} onDelete={onDeleteReservation} />
-      )}
-      {transitRes.length > 0 && (
-        <OverviewTabSection title="Ground transport" icon={<Bus size={14} />} items={transitRes} emptyMsg="" onAdd={onAddEntry} addLabel="+ Add transport" onEdit={onEditReservation} onDelete={onDeleteReservation} />
-      )}
-      {byType('rental_car').length > 0 && (
-        <OverviewTabSection title="Rental cars" icon={<Car size={14} />} items={byType('rental_car')} emptyMsg="" onAdd={onAddEntry} addLabel="+ Add rental car" onEdit={onEditReservation} onDelete={onDeleteReservation} />
-      )}
-      {byType('restaurant').length > 0 && (
-        <OverviewTabSection title="Restaurants" icon={<UtensilsCrossed size={14} />} items={byType('restaurant')} emptyMsg="" onAdd={onAddEntry} addLabel="+ Add restaurant" onEdit={onEditReservation} onDelete={onDeleteReservation} />
-      )}
+        if (lodgingsForDay.length === 0 && transitForDay.length === 0) return null;
 
-      {/* Places of interest (attraction-type activities) */}
-      <div className="tdp__section-card">
-        <div className="tdp__section-head">
-          <span className="tdp__section-title"><MapPin size={14} />Places of interest</span>
-        </div>
-        <div className="tdp__section-body">
-          {placeActivities.length === 0
-            ? <p className="tdp__section-empty">No attraction activities added yet.</p>
-            : placeActivities.map(a => (
-                <div key={a.id} className="tdp__overview-item">
-                  <div className="tdp__ov-body">
-                    <div className="tdp__ov-name">{a.title}</div>
-                    {a.location && (
-                      <div className="tdp__ov-meta tdp__act-loc">
-                        <MapPin size={11} /><span>{a.location}</span>
-                      </div>
-                    )}
-                    {a.notes && <div className="tdp__ov-meta">{a.notes}</div>}
+        return (
+          <div key={day.id} className="tdp__ov-day-card">
+            <div className="tdp__ov-day-header">
+              <span className="tdp__ov-day-num">Day {idx + 1}</span>
+              <span className="tdp__ov-day-date">{formatDate(day.date, 'EEE, d MMM yyyy')}</span>
+              {day.title && <span className="tdp__ov-day-title">{day.title}</span>}
+            </div>
+
+            {lodgingsForDay.map(l => {
+              const d = l.parsedDetails<LodgingDetails>();
+              const addr = formatStructuredAddress(l.data, l.location) ?? d.location ?? null;
+              const stripLabel = l.lodgingStripLabel(day.date);
+              const labelText = stripLabel === 'check-in' ? 'Check-in' : stripLabel === 'check-out' ? 'Check-out' : 'Staying';
+              return (
+                <div key={l.id} className="tdp__ov-day-row">
+                  <span className="tdp__ov-day-row-icon" style={{ color: 'var(--res-lodging)' }}>
+                    <BedDouble size={13} />
+                  </span>
+                  <div className="tdp__ov-day-row-body">
+                    <div className="tdp__ov-day-row-name">
+                      {d.property_name ?? l.title}
+                      {stripLabel && (
+                        <span className="tdp__ov-day-badge tdp__ov-day-badge--lodging">{labelText}</span>
+                      )}
+                    </div>
+                    {addr && <div className="tdp__ov-day-row-meta">{addr}</div>}
                   </div>
                 </div>
-              ))
-          }
-        </div>
-      </div>
+              );
+            })}
 
-      {/* Trip notes */}
+            {transitForDay.map(r => {
+              const range = formatReservationRange(r.type, r.parsedDetails<Record<string, string>>());
+              const typeLabel = RES_TYPE_LABELS[r.type] ?? r.type;
+              return (
+                <div key={r.id} className="tdp__ov-day-row">
+                  <span className="tdp__ov-day-row-icon">
+                    {React.createElement(resolveReservationTypeIcon(r.type), { size: 13 })}
+                  </span>
+                  <div className="tdp__ov-day-row-body">
+                    <div className="tdp__ov-day-row-name">
+                      <span className="tdp__ov-day-badge">{typeLabel}</span>
+                      {r.autoTitle()}
+                    </div>
+                    {range && <div className="tdp__ov-day-row-meta">{range}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+
+      {/* ── Trip notes ───────────────────────────────────────────── */}
       <div className="tdp__section-card">
         <div className="tdp__section-head">
           <span className="tdp__section-title"><NotebookPen size={14} />Trip notes</span>
@@ -1030,6 +941,14 @@ function ItineraryTab({
         const isGap = activities.length === 0 && dayReservations.length === 0;
         const lodgings = lodgingsForDate(day.date);
 
+        // Reason: lodgings with check_out_date set but no check_in_date won't appear
+        // in lodgingsForDate (coversDay requires both). Surface a warning banner instead.
+        const checkoutOnlyWarnings = isLastDay ? [] : reservations.filter(r => {
+          if (!r.isLodging()) return false;
+          const d = r.parsedDetails<{ check_in_date?: string; check_out_date?: string }>();
+          return !d.check_in_date && d.check_out_date === day.date;
+        });
+
         // Reason: use coord-based lookup rather than positional index so the
         // correct inter-day leg is found even when some days have no geocoded points.
         const geocodedInDay = [...activities, ...dayReservations].filter(x => x.lat != null);
@@ -1098,6 +1017,7 @@ function ItineraryTab({
                 activities={activities}
                 dayReservations={dayReservations}
                 lodgings={lodgings}
+                checkoutOnlyWarnings={checkoutOnlyWarnings}
                 isGap={isGap}
                 isLastDay={isLastDay}
                 routeLegs={routeLegs}
@@ -1142,6 +1062,8 @@ interface ItineraryDayCardProps {
   activities: Activity[];
   dayReservations: Reservation[];
   lodgings: Reservation[];
+  /** Lodging reservations that have check_out_date = this day but no check_in_date. */
+  checkoutOnlyWarnings: Reservation[];
   isGap: boolean;
   isLastDay: boolean;
   routeLegs: RouteLeg[];
@@ -1168,9 +1090,10 @@ interface DayInfoBannerProps {
   text: string;
   borderColor: string;
   gradient: string;
+  onEdit?: () => void;
 }
 
-function DayInfoBanner({ icon, iconBg, iconColor, text, borderColor, gradient }: DayInfoBannerProps): JSX.Element {
+function DayInfoBanner({ icon, iconBg, iconColor, text, borderColor, gradient, onEdit }: DayInfoBannerProps): JSX.Element {
   return (
     <div
       className="tdp__day-banner"
@@ -1183,6 +1106,18 @@ function DayInfoBanner({ icon, iconBg, iconColor, text, borderColor, gradient }:
         {icon}
       </div>
       <span className="tdp__day-banner-text">{text}</span>
+      {onEdit && (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onEdit}
+          type="button"
+          aria-label="Edit accommodation"
+          className="tdp__day-banner-edit"
+        >
+          <Pencil size={16} />
+        </Button>
+      )}
     </div>
   );
 }
@@ -1195,8 +1130,9 @@ function ItineraryDayCard({
   activities,
   dayReservations,
   lodgings,
+  checkoutOnlyWarnings,
   isGap,
-  isLastDay: _isLastDay,
+  isLastDay,
   routeLegs,
   legModes,
   distanceUnit,
@@ -1229,17 +1165,30 @@ function ItineraryDayCard({
   // ── Unified drag-to-reorder (activities + reservations) ───────────────────
   type DragItem = { id: number; itemType: 'activity' | 'reservation' };
   const draggedItem = useRef<DragItem | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [dropIndicator, setDropIndicator] = useState<{ id: number; itemType: 'activity' | 'reservation'; position: 'above' | 'below' } | null>(null);
 
-  // Combined list sorted by sort_order for unified rendering
-  const combinedItems: DragItem[] = useMemo(() => {
-    const acts: (DragItem & { sort_order: number })[] = activities.map(a => ({ id: a.id, itemType: 'activity' as const, sort_order: a.sort_order }));
-    const ress: (DragItem & { sort_order: number })[] = dayReservations.map(r => ({ id: r.id, itemType: 'reservation' as const, sort_order: r.sort_order }));
-    return [...acts, ...ress].sort((a, b) => a.sort_order - b.sort_order);
+  // Combined list sorted by sort_order for unified rendering.
+  // After reorderDayItems the server assigns globally-unique sort_orders (0,1,2…) across both
+  // tables, so sort_order alone is sufficient. For items that have never been explicitly reordered
+  // (both tables default from 0), use a secondary stable key: activities first, then reservations.
+  const serverItems: DragItem[] = useMemo(() => {
+    const acts: (DragItem & { sort_order: number; typeRank: number })[] = activities.map(a => ({ id: a.id, itemType: 'activity' as const, sort_order: a.sort_order, typeRank: 0 }));
+    const ress: (DragItem & { sort_order: number; typeRank: number })[] = dayReservations.map(r => ({ id: r.id, itemType: 'reservation' as const, sort_order: r.sort_order, typeRank: 1 }));
+    return [...acts, ...ress].sort((a, b) => a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.typeRank - b.typeRank);
   }, [activities, dayReservations]);
+
+  // Optimistic local order — applied immediately on drop, cleared when server data arrives
+  const [optimisticOrder, setOptimisticOrder] = useState<DragItem[] | null>(null);
+  useEffect(() => {
+    if (optimisticOrder) setOptimisticOrder(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear optimistic state only when server data changes
+  }, [serverItems]);
+  const combinedItems = optimisticOrder ?? serverItems;
 
   function handleDragStart(item: DragItem): void {
     draggedItem.current = item;
+    setIsDragging(true);
   }
 
   function handleDragOver(e: React.DragEvent, targetId: number, targetType: 'activity' | 'reservation', position: 'above' | 'below'): void {
@@ -1251,9 +1200,16 @@ function ItineraryDayCard({
     setDropIndicator(null);
   }
 
+  function handleDragEnd(): void {
+    draggedItem.current = null;
+    setIsDragging(false);
+    setDropIndicator(null);
+  }
+
   function handleDrop(e: React.DragEvent, targetId: number, targetType: 'activity' | 'reservation', position: 'above' | 'below'): void {
     e.preventDefault();
     setDropIndicator(null);
+    setIsDragging(false);
     const from = draggedItem.current;
     draggedItem.current = null;
     if (!from || (from.id === targetId && from.itemType === targetType)) return;
@@ -1267,6 +1223,9 @@ function ItineraryDayCard({
     const newToIdx = reordered.findIndex(i => i.id === targetId && i.itemType === targetType);
     const insertAt = position === 'above' ? newToIdx : newToIdx + 1;
     reordered.splice(insertAt, 0, from);
+
+    // Apply optimistic order immediately so the UI updates without waiting for the server
+    setOptimisticOrder(reordered);
     onReorderDayItems(day.id, reordered.map(({ id, itemType }) => ({ id, itemType })));
   }
 
@@ -1293,13 +1252,15 @@ function ItineraryDayCard({
         </div>
         <div className="tdp__day-header-actions">
           <Button variant="ghost" size="icon-xs" onClick={onEditDay} type="button" aria-label="Edit day">
-            <Pencil size={12} />
+            <Pencil size={16} />
           </Button>
         </div>
       </div>
 
       {/* ── Banners (below header) ──────────────────── */}
-      {lodgings.length === 0 && (
+      {/* Warn when there is no overnight lodging: either no lodging at all, or all
+          banners are check-out (the guest is leaving, no place to stay that night). */}
+      {!isLastDay && (lodgings.length === 0 || (lodgingBanners.length > 0 && lodgingBanners.every(b => b.label === 'check-out'))) && (
         <DayInfoBanner
           icon={<AlertTriangle size={12} />}
           iconBg="color-mix(in srgb, var(--toast-warning-border) 15%, transparent)"
@@ -1327,7 +1288,35 @@ function ItineraryDayCard({
             text={text}
             borderColor="rgba(155,145,212,.25)"
             gradient="linear-gradient(to right, rgba(184,175,223,.08), transparent)"
+            onEdit={() => onEditReservation(lodging)}
           />
+        );
+      })}
+
+      {/* Check-out without check-in: show a check-out banner + warning underneath */}
+      {checkoutOnlyWarnings.map(lodging => {
+        const details = lodging.parsedDetails<LodgingDetails>();
+        const propertyName = details.property_name ?? lodging.title;
+        return (
+          <React.Fragment key={`checkout-only-${lodging.id}`}>
+            <DayInfoBanner
+              icon={<BedDouble size={12} />}
+              iconBg="rgba(155,145,212,.15)"
+              iconColor="var(--res-lodging)"
+              text={`${propertyName} · Check-out${details.check_out_time ? ` · ${details.check_out_time}` : ''}`}
+              borderColor="rgba(155,145,212,.25)"
+              gradient="linear-gradient(to right, rgba(184,175,223,.08), transparent)"
+              onEdit={() => onEditReservation(lodging)}
+            />
+            <DayInfoBanner
+              icon={<AlertTriangle size={12} />}
+              iconBg="color-mix(in srgb, var(--toast-warning-border) 15%, transparent)"
+              iconColor="var(--toast-warning-text)"
+              text={`${propertyName} · Check-in date is missing`}
+              borderColor="color-mix(in srgb, var(--toast-warning-border) 15%, transparent)"
+              gradient="linear-gradient(to right, color-mix(in srgb, var(--toast-warning-border) 8%, transparent), transparent)"
+            />
+          </React.Fragment>
         );
       })}
 
@@ -1363,23 +1352,27 @@ function ItineraryDayCard({
             ? findLeg(routeLegs, fromCoords, toCoords, intraMode)
             : null;
 
+          const isDropAbove = dropIndicator?.id === item.id && dropIndicator.itemType === item.itemType && dropIndicator.position === 'above';
+          const isDropBelow = dropIndicator?.id === item.id && dropIndicator.itemType === item.itemType && dropIndicator.position === 'below';
+          const isLastItem = itemIdx === combinedItems.length - 1;
+
           if (item.itemType === 'activity') {
             const activity = activities.find(a => a.id === item.id)!;
-            const actIdx = activities.indexOf(activity);
             return (
               <React.Fragment key={`act-${activity.id}`}>
+                {isDropAbove && <div className="tdp__drop-indicator" />}
                 <ItineraryActivityCard
                   activity={activity}
-                  number={actIdx + 1}
                   onEdit={onEditActivity}
                   onDelete={onDeleteActivity}
                   onDragStart={() => handleDragStart({ id: activity.id, itemType: 'activity' })}
                   onDragOver={(e, position) => handleDragOver(e, activity.id, 'activity', position)}
                   onDrop={(e, position) => handleDrop(e, activity.id, 'activity', position)}
                   onDragLeave={handleDragLeave}
-                  isDropTarget={dropIndicator?.id === activity.id && dropIndicator.itemType === 'activity' ? dropIndicator.position : null}
+                  onDragEnd={handleDragEnd}
                 />
-                {intraLeg && (
+                {isDropBelow && isLastItem && <div className="tdp__drop-indicator" />}
+                {!isDragging && intraLeg && (
                   <div className="tdp__leg-chip tdp__leg-chip--intra">
                     <LegChipModePicker
                       mode={findLegMode(legModes, intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, intraLeg.travel_mode)}
@@ -1395,21 +1388,16 @@ function ItineraryDayCard({
             );
           } else {
             const reservation = dayReservations.find(r => r.id === item.id)!;
-            const resIdx = dayReservations.indexOf(reservation);
             return (
               <React.Fragment key={`res-${reservation.id}`}>
+                {isDropAbove && <div className="tdp__drop-indicator" />}
                 <ItineraryReservationCard
                   reservation={reservation}
-                  number={resIdx + 1}
                   onEdit={onEditReservation}
                   onDelete={onDeleteReservation}
-                  onDragStart={() => handleDragStart({ id: reservation.id, itemType: 'reservation' })}
-                  onDragOver={(e, position) => handleDragOver(e, reservation.id, 'reservation', position)}
-                  onDrop={(e, position) => handleDrop(e, reservation.id, 'reservation', position)}
-                  onDragLeave={handleDragLeave}
-                  isDropTarget={dropIndicator?.id === reservation.id && dropIndicator.itemType === 'reservation' ? dropIndicator.position : null}
                 />
-                {intraLeg && (
+                {isDropBelow && isLastItem && <div className="tdp__drop-indicator" />}
+                {!isDragging && intraLeg && (
                   <div className="tdp__leg-chip tdp__leg-chip--intra">
                     <LegChipModePicker
                       mode={findLegMode(legModes, intraLeg.from_lat, intraLeg.from_lng, intraLeg.to_lat, intraLeg.to_lng, intraLeg.travel_mode)}
@@ -1429,40 +1417,57 @@ function ItineraryDayCard({
 
       {/* ── Footer with add buttons ─────────────────── */}
       <div className="tdp__day-footer">
-        <Button variant="ghost" className="tdp__add-btn" onClick={onAddActivity} type="button">
-          <Plus size={12} /> Add activity
-        </Button>
         <Button variant="ghost" className="tdp__add-btn" onClick={onAddReservation} type="button">
           <Plus size={12} /> Add reservation
+        </Button>
+        <Button variant="ghost" className="tdp__add-btn" onClick={onAddActivity} type="button">
+          <Plus size={12} /> Add activity
         </Button>
       </div>
     </div>
   );
 }
 
+// ── Truncated notes helper ────────────────────────────────────────────────────
+
+const NOTES_CLAMP_THRESHOLD = 90; // characters before offering "show more"
+
+function TruncatedNotes({ text }: { text: string }): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > NOTES_CLAMP_THRESHOLD;
+  return (
+    <p className={`tdp__act-notes${isLong && !expanded ? ' tdp__act-notes--clamped' : ''}`}>
+      {text}
+      {isLong && (
+        <button
+          type="button"
+          className="tdp__notes-toggle"
+          onClick={e => { e.stopPropagation(); setExpanded(x => !x); }}
+        >
+          {expanded ? 'show less' : 'show more'}
+        </button>
+      )}
+    </p>
+  );
+}
+
 // ── Activity card ─────────────────────────────────────────────────────────────
 
-function ItineraryActivityCard({ activity, number, onEdit, onDelete, onDragStart, onDragOver, onDrop, onDragLeave, isDropTarget }: {
+function ItineraryActivityCard({ activity, onEdit, onDelete, onDragStart, onDragOver, onDrop, onDragLeave, onDragEnd }: {
   activity: Activity;
-  number: number;
   onEdit: (activity: Activity) => void;
   onDelete: (id: number, title: string) => void;
   onDragStart: () => void;
   onDragOver: (e: React.DragEvent, position: 'above' | 'below') => void;
   onDrop: (e: React.DragEvent, position: 'above' | 'below') => void;
   onDragLeave: () => void;
-  isDropTarget: 'above' | 'below' | null;
+  onDragEnd: () => void;
 }): JSX.Element {
   const timeLabel = formatActivityTime(activity.start_time, activity.end_time) || null;
 
   return (
     <div
-      className={[
-        'tdp__act-item',
-        `tdp__act-item--${activity.activity_type}`,
-        isDropTarget === 'above' ? 'act--drop-above' : '',
-        isDropTarget === 'below' ? 'act--drop-below' : '',
-      ].filter(Boolean).join(' ')}
+      className={`tdp__act-item tdp__act-item--${activity.activity_type}`}
       draggable
       onDragStart={onDragStart}
       onDragOver={e => {
@@ -1477,11 +1482,14 @@ function ItineraryActivityCard({ activity, number, onEdit, onDelete, onDragStart
         onDrop(e, position);
       }}
       onDragLeave={onDragLeave}
+      onDragEnd={onDragEnd}
     >
       <span className="tdp__act-drag" aria-hidden="true">
         <GripVertical size={14} />
       </span>
-      <span className="tdp__act-num" aria-label={`Activity ${number}`}>{number}</span>
+      <span className="tdp__act-num" aria-label={activity.activity_type}>
+        {React.createElement(resolveIcon(activity.activity_type_icon), { size: 12 })}
+      </span>
       <div className="tdp__act-body">
         <div className="tdp__act-title">{activity.title}</div>
         <div className="tdp__act-meta">
@@ -1492,10 +1500,8 @@ function ItineraryActivityCard({ activity, number, onEdit, onDelete, onDragStart
           <span className={`tdp__type-badge tdp__type-badge--${activity.activity_type}`}>
             {activity.activity_type.charAt(0).toUpperCase() + activity.activity_type.slice(1)}
           </span>
-          {activity.notes && (
-            <span className="tdp__act-note">{activity.notes}</span>
-          )}
         </div>
+        {activity.notes && <TruncatedNotes text={activity.notes} />}
       </div>
       <div className="tdp__act-actions">
         <Button variant="ghost" size="icon-xs"
@@ -1503,7 +1509,7 @@ function ItineraryActivityCard({ activity, number, onEdit, onDelete, onDragStart
           type="button"
           aria-label={`Edit ${activity.title}`}
         >
-          <Pencil size={11} />
+          <Pencil size={16} />
         </Button>
         <Button variant="ghost" size="icon-xs" className="hover:text-destructive hover:bg-destructive/10"
           onClick={() => onDelete(activity.id, activity.title)}
@@ -1530,59 +1536,39 @@ function resTypeBadgeClass(type: string): string {
   return type;
 }
 
-function ItineraryReservationCard({ reservation, number, onEdit, onDelete, onDragStart, onDragOver, onDrop, onDragLeave, isDropTarget }: {
+function ItineraryReservationCard({ reservation, onEdit, onDelete }: {
   reservation: Reservation;
-  number: number;
   onEdit: (r: Reservation) => void;
   onDelete: (id: number, title: string) => void;
-  onDragStart: () => void;
-  onDragOver: (e: React.DragEvent, position: 'above' | 'below') => void;
-  onDrop: (e: React.DragEvent, position: 'above' | 'below') => void;
-  onDragLeave: () => void;
-  isDropTarget: 'above' | 'below' | null;
 }): JSX.Element {
   const subTitle = reservation.autoTitle();
+  const dateRange = formatReservationRange(reservation.type, reservation.parsedDetails<Record<string, string>>());
 
   return (
     <div
-      className={[
-        'tdp__act-item',
-        `tdp__act-item--res-${reservation.type}`,
-        isDropTarget === 'above' ? 'act--drop-above' : '',
-        isDropTarget === 'below' ? 'act--drop-below' : '',
-      ].filter(Boolean).join(' ')}
-      draggable
-      onDragStart={onDragStart}
-      onDragOver={e => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const position: 'above' | 'below' = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
-        onDragOver(e, position);
-      }}
-      onDrop={e => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const position: 'above' | 'below' = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
-        onDrop(e, position);
-      }}
-      onDragLeave={onDragLeave}
+      className={`tdp__act-item tdp__act-item--res-${reservation.type}`}
     >
-      <span className="tdp__act-drag" aria-hidden="true">
-        <GripVertical size={14} />
+      <span className="tdp__act-num" aria-label={reservation.type}>
+        {React.createElement(resolveReservationTypeIcon(reservation.type), { size: 12 })}
       </span>
-      <span className="tdp__act-num" aria-label={`Reservation ${number}`}>{number}</span>
       <div className="tdp__act-body">
         <div className="tdp__act-title">{reservation.title}</div>
         <div className="tdp__act-meta">
           <span className={`tdp__res-badge tdp__res-badge--${resTypeBadgeClass(reservation.type)}`}>
             {RES_TYPE_LABELS[reservation.type] ?? reservation.type}
           </span>
+          <span className={`tdp__type-badge tdp__type-badge--res-status-${reservation.status}`}>
+            {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+          </span>
+          {dateRange && <span className="tdp__act-time">{dateRange}</span>}
           {reservation.location && (
             <span className="tdp__act-loc"><MapPin size={11} /><span>{formatStructuredAddress(reservation.data, reservation.location)}</span></span>
           )}
           {subTitle && <span className="tdp__act-note">{subTitle}</span>}
-          <span className={`tdp__type-badge tdp__type-badge--res-status-${reservation.status}`}>
-            {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-          </span>
+          {reservation.confirmation_ref && <span className="tdp__act-note">Ref: {reservation.confirmation_ref}</span>}
+          {reservation.cost_amount != null && <span className="tdp__act-note">{reservation.cost_currency} {reservation.cost_amount.toFixed(2)}</span>}
         </div>
+        {reservation.notes && <TruncatedNotes text={reservation.notes} />}
       </div>
       <div className="tdp__act-actions">
         <Button variant="ghost" size="icon-xs"
@@ -1590,7 +1576,7 @@ function ItineraryReservationCard({ reservation, number, onEdit, onDelete, onDra
           type="button"
           aria-label={`Edit ${reservation.title}`}
         >
-          <Pencil size={11} />
+          <Pencil size={16} />
         </Button>
         <Button variant="ghost" size="icon-xs" className="hover:text-destructive hover:bg-destructive/10"
           onClick={() => onDelete(reservation.id, reservation.title)}

@@ -12,14 +12,13 @@ interface IconPickerProps {
 
 export default function IconPicker({ value, onChange }: IconPickerProps): JSX.Element {
   const [open, setOpen] = useState(false);
-  const CurrentIcon = resolveIcon(value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" type="button"
           aria-label="Pick icon">
-          <CurrentIcon size={16} />
+          {resolveIcon(value)({ size: 16 })}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-2" align="start">

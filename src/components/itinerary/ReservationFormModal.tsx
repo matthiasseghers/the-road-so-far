@@ -235,6 +235,8 @@ function ReservationSubForm({
   onShared,
   onTransitTypeChange,
   errors,
+  warnings,
+  onFieldBlur,
   apiError,
   locationStatus,
   onLocationCoordinates,
@@ -246,6 +248,9 @@ function ReservationSubForm({
   onShared: (field: keyof ReservationFormState, value: string) => void;
   onTransitTypeChange: (t: ReservationType) => void;
   errors: Record<string, string>;
+  warnings: Record<string, string>;
+  /** Called when a detail field loses focus — used to trigger non-blocking warnings. */
+  onFieldBlur?: (key: string, value: string) => void;
   apiError: string | null;
   locationStatus: ReturnType<typeof useGeocode>['status'];
   onLocationCoordinates?: (lat: number, lng: number) => void;
@@ -366,7 +371,7 @@ function ReservationSubForm({
                 <div className="rfm__datetime-row">
                   <DatePicker
                     value={form.details[df.key] ?? ''}
-                    onChange={v => onField(df.key, v)}
+                    onChange={v => { onField(df.key, v); onFieldBlur?.(df.key, v); }}
                     placeholder={df.label}
                     hasError={!!errors[df.key]}
                   />
@@ -376,7 +381,8 @@ function ReservationSubForm({
                     onChange={v => onField(tf.key, v)}
                   />
                 </div>
-                {errors[df.key] && <span className="form-field-error">{errors[df.key]}</span>}
+                {errors[df.key]    && <span className="form-field-error">{errors[df.key]}</span>}
+                {!errors[df.key] && warnings[df.key] && <span className="form-field-warning">{warnings[df.key]}</span>}
               </div>
             );
           }
@@ -602,7 +608,26 @@ export default function ReservationFormModal({
   // ── Reservation form ──────────────────────────────────────────────────────
   const [resForm, setResForm] = useState<ReservationFormState>(BLANK_RESERVATION);
   const [resErrors, setResErrors] = useState<Record<string, string>>({});
+  const [resWarnings, setResWarnings] = useState<Record<string, string>>({});
   const [apiError, setApiError]   = useState<string | null>(null);
+
+  // Reason: non-blocking warning — check-out without check-in is almost always a mistake.
+  // Exception: suppress if check_out_date is the last day of the trip (departure-only lodging).
+  function checkLodgingWarning(details: DetailsState): void {
+    if (resType !== 'lodging') return;
+    const checkIn  = (details['check_in_date']  ?? '').trim();
+    const checkOut = (details['check_out_date'] ?? '').trim();
+    if (checkOut && !checkIn) {
+      const lastDay = days && days.length > 0
+        ? [...days].sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.date
+        : undefined;
+      if (checkOut !== lastDay) {
+        setResWarnings(prev => ({ ...prev, check_out_date: 'Check-out is set but check-in is missing — is that intentional?' }));
+        return;
+      }
+    }
+    setResWarnings(prev => { const next = { ...prev }; delete next['check_out_date']; return next; });
+  }
 
   // ── Geocoding ─────────────────────────────────────────────────────────────
   const actGeocode = useGeocode('activities');
@@ -625,6 +650,7 @@ export default function ReservationFormModal({
   useEffect(() => {
     if (!open) {
       setResErrors({});
+      setResWarnings({});
       setApiError(null);
       setResIsSubmitting(false);
       submittingRef.current = false;
@@ -761,6 +787,8 @@ export default function ReservationFormModal({
 
   async function handleSubmit(): Promise<void> {
     setApiError(null);
+    // Refresh warnings on submit so user sees them even if they skipped the blur.
+    checkLodgingWarning(resForm.details);
     if (submittingRef.current) return;
 
     // Reservation
@@ -958,6 +986,8 @@ export default function ReservationFormModal({
                 onShared={handleResSharedChange}
                 onTransitTypeChange={t => setResType(t)}
                 errors={resErrors}
+                warnings={resWarnings}
+                onFieldBlur={(key, value) => checkLodgingWarning({ ...resForm.details, [key]: value })}
                 apiError={apiError}
                 locationStatus={resGeocode.status}
               onLocationCoordinates={(lat, lng) => { resCoordsRef.current = { lat, lng }; }}

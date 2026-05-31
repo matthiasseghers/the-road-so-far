@@ -415,6 +415,14 @@ img, svg {
   margin-top: 2px;
 }
 
+/* ── Form field warning ── */
+/* Reason: non-blocking notice — amber distinguishes from the red hard error. */
+.form-field-warning {
+  font-size: var(--text-xs);
+  color: #b08540;
+  margin-top: 2px;
+}
+
 /* ── Form field label states ── */
 /* Reason: replicates shadcn Field label-colouring via :has so we don't need
    Field wrappers on every existing form — aria-invalid on the input is enough. */
