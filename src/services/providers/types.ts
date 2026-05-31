@@ -69,6 +69,12 @@ export interface AutocompleteSuggestion {
   context: string;
   lat: number;
   lng: number;
+  /** Optional structured address components populated by the geocoding provider. */
+  addressStreet?:     string;
+  addressNumber?:     string;
+  addressPostalCode?: string;
+  addressCity?:       string;
+  addressCountry?:    string;
 }
 
 export type GeocodingProviderName = 'nominatim' | 'tomtom';

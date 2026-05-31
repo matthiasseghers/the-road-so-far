@@ -902,13 +902,16 @@ router.post('/import/trippack', (req: Request, res: Response) => {
       if (newTripId == null) continue;
       db.prepare(
         `INSERT INTO activities
-           (day_id, trip_id, title, activity_type_id, start_time, end_time, sort_order, notes, location, lat, lng)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (day_id, trip_id, title, activity_type_id, start_time, end_time, sort_order, notes, location, lat, lng,
+            address_street, address_number, address_postal_code, address_city, address_country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         newDayId, newTripId,
         a['title'] ?? '', resolveActivityTypeId(a['activity_type']),
         toStr(a['start_time']), toStr(a['end_time']), toInt(a['sort_order']),
         toStr(a['notes']), toStr(a['location']), toFloat(a['lat']), toFloat(a['lng']),
+        toStr(a['address_street']), toStr(a['address_number']), toStr(a['address_postal_code']),
+        toStr(a['address_city']), toStr(a['address_country']),
       );
     }
 
@@ -920,14 +923,18 @@ router.post('/import/trippack', (req: Request, res: Response) => {
       const details = typeof r['details'] === 'string' ? r['details'] : JSON.stringify(r['details'] ?? {});
       db.prepare(
         `INSERT INTO reservations
-           (trip_id, day_id, type, title, status, confirmation_ref, notes, cost_amount, cost_currency, details, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (trip_id, day_id, type, title, status, confirmation_ref, notes, cost_amount, cost_currency, details, sort_order,
+            location, lat, lng, address_street, address_number, address_postal_code, address_city, address_country)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         newTripId, newDayId,
         toResType(r['type']), r['title'] ?? '', toResStatus(r['status']),
         toStr(r['confirmation_ref']), toStr(r['notes']),
         toFloat(r['cost_amount']), typeof r['cost_currency'] === 'string' ? r['cost_currency'] : 'EUR', details,
         toInt(r['sort_order']),
+        toStr(r['location']), toFloat(r['lat']), toFloat(r['lng']),
+        toStr(r['address_street']), toStr(r['address_number']), toStr(r['address_postal_code']),
+        toStr(r['address_city']), toStr(r['address_country']),
       );
     }
 

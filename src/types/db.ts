@@ -59,6 +59,11 @@ export interface ActivityRow {
   location: string | null;
   lat: number | null;
   lng: number | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_postal_code: string | null;
+  address_city: string | null;
+  address_country: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +92,11 @@ export interface ReservationRow {
   location: string | null;
   lat: number | null;
   lng: number | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_postal_code: string | null;
+  address_city: string | null;
+  address_country: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -18,6 +18,11 @@ export class Activity {
   get location(): string | null { return this.data.location; }
   get lat(): number | null { return this.data.lat; }
   get lng(): number | null { return this.data.lng; }
+  get address_street(): string | null { return this.data.address_street; }
+  get address_number(): string | null { return this.data.address_number; }
+  get address_postal_code(): string | null { return this.data.address_postal_code; }
+  get address_city(): string | null { return this.data.address_city; }
+  get address_country(): string | null { return this.data.address_country; }
   get created_at(): string { return this.data.created_at; }
   get updated_at(): string { return this.data.updated_at; }
 

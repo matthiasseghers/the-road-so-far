@@ -149,28 +149,33 @@ export function createReservation(input: CreateReservationInput): ReservationRow
     .prepare(
       `INSERT INTO reservations
          (trip_id, day_id, type, title, status, confirmation_ref, notes,
-          cost_amount, cost_currency, details, sort_order, location, lat, lng)
+          cost_amount, cost_currency, details, sort_order, location, lat, lng,
+          address_street, address_number, address_postal_code, address_city, address_country)
        VALUES
          (@trip_id, @day_id, @type, @title, @status, @confirmation_ref, @notes,
-          @cost_amount, @cost_currency, @details, @sort_order, @location, @lat, @lng)`,
+          @cost_amount, @cost_currency, @details, @sort_order, @location, @lat, @lng,
+          @address_street, @address_number, @address_postal_code, @address_city, @address_country)`,
     )
     .run({
-      trip_id:          input.trip_id,
-      day_id:           input.day_id ?? null,
-      type:             input.type,
+      trip_id:             input.trip_id,
+      day_id:              input.day_id ?? null,
+      type:                input.type,
       title,
-      status:           input.status ?? 'pending',
-      confirmation_ref: input.confirmation_ref ?? null,
-      notes:            input.notes ?? null,
-      cost_amount:      input.cost_amount ?? null,
-      cost_currency:    input.cost_currency ?? 'EUR',
-      // Reason: details is the validated Zod object; serialise to JSON here so
-      // the DB stores a single text column and the hook/domain class parses it.
-      details:          JSON.stringify(input.details),
-      sort_order:       sortOrder,
-      location:         input.location ?? null,
-      lat:              input.lat ?? null,
-      lng:              input.lng ?? null,
+      status:              input.status ?? 'pending',
+      confirmation_ref:    input.confirmation_ref ?? null,
+      notes:               input.notes ?? null,
+      cost_amount:         input.cost_amount ?? null,
+      cost_currency:       input.cost_currency ?? 'EUR',
+      details:             JSON.stringify(input.details),
+      sort_order:          sortOrder,
+      location:            input.location ?? null,
+      lat:                 input.lat ?? null,
+      lng:                 input.lng ?? null,
+      address_street:      input.address_street ?? null,
+      address_number:      input.address_number ?? null,
+      address_postal_code: input.address_postal_code ?? null,
+      address_city:        input.address_city ?? null,
+      address_country:     input.address_country ?? null,
     });
   return findById(result.lastInsertRowid as number) ?? (() => { throw new Error('Insert succeeded but row not found'); })();
 }
@@ -194,23 +199,31 @@ export function updateReservation(id: number, input: UpdateReservationInput): Re
        confirmation_ref = @confirmation_ref, notes = @notes,
        cost_amount = @cost_amount, cost_currency = @cost_currency,
        details = @details, sort_order = @sort_order,
-       location = @location, lat = @lat, lng = @lng
+       location = @location, lat = @lat, lng = @lng,
+       address_street = @address_street, address_number = @address_number,
+       address_postal_code = @address_postal_code, address_city = @address_city,
+       address_country = @address_country
      WHERE id = @id`,
   ).run({
     id,
-    day_id:           input.day_id   !== undefined ? (input.day_id ?? null) : cur.day_id,
-    type:             newType,
+    day_id:              input.day_id   !== undefined ? (input.day_id ?? null) : cur.day_id,
+    type:                newType,
     title,
-    status:           input.status           ?? cur.status,
-    confirmation_ref: input.confirmation_ref !== undefined ? (input.confirmation_ref ?? null) : cur.confirmation_ref,
-    notes:            input.notes            !== undefined ? (input.notes ?? null) : cur.notes,
-    cost_amount:      input.cost_amount      !== undefined ? (input.cost_amount ?? null) : cur.cost_amount,
-    cost_currency:    input.cost_currency    ?? cur.cost_currency,
-    details:          input.details !== undefined ? JSON.stringify(input.details) : cur.details,
-    sort_order:       cur.sort_order,
-    location:         input.location !== undefined ? (input.location ?? null) : cur.location,
-    lat:              input.lat      !== undefined ? (input.lat ?? null) : cur.lat,
-    lng:              input.lng      !== undefined ? (input.lng ?? null) : cur.lng,
+    status:              input.status           ?? cur.status,
+    confirmation_ref:    input.confirmation_ref !== undefined ? (input.confirmation_ref ?? null) : cur.confirmation_ref,
+    notes:               input.notes            !== undefined ? (input.notes ?? null) : cur.notes,
+    cost_amount:         input.cost_amount      !== undefined ? (input.cost_amount ?? null) : cur.cost_amount,
+    cost_currency:       input.cost_currency    ?? cur.cost_currency,
+    details:             input.details !== undefined ? JSON.stringify(input.details) : cur.details,
+    sort_order:          cur.sort_order,
+    location:            input.location !== undefined ? (input.location ?? null) : cur.location,
+    lat:                 input.lat      !== undefined ? (input.lat ?? null) : cur.lat,
+    lng:                 input.lng      !== undefined ? (input.lng ?? null) : cur.lng,
+    address_street:      input.address_street      !== undefined ? (input.address_street ?? null)      : cur.address_street,
+    address_number:      input.address_number      !== undefined ? (input.address_number ?? null)      : cur.address_number,
+    address_postal_code: input.address_postal_code !== undefined ? (input.address_postal_code ?? null) : cur.address_postal_code,
+    address_city:        input.address_city        !== undefined ? (input.address_city ?? null)        : cur.address_city,
+    address_country:     input.address_country     !== undefined ? (input.address_country ?? null)     : cur.address_country,
   });
 
   return findById(id);

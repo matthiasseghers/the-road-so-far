@@ -108,7 +108,14 @@ export { tomtomRouting, tomtomMaps };
 interface TomTomSearchResult {
   type: string;
   poi?:     { name: string };
-  address:  { freeformAddress: string };
+  address:  {
+    freeformAddress: string;
+    streetName?: string;
+    streetNumber?: string;
+    postalCode?: string;
+    municipality?: string;
+    country?: string;
+  };
   position: { lat: number; lon: number };
 }
 
@@ -118,12 +125,18 @@ interface TomTomSearchResponse {
 
 function parseTomTomResult(r: TomTomSearchResult): AutocompleteSuggestion {
   const parts = r.address.freeformAddress.split(', ');
+  const a = r.address;
   return {
     // Reason: POI name gives a cleaner primary label than the raw address.
     name:    r.poi?.name ?? parts.slice(0, 2).join(', '),
     context: parts.slice(0, 2).join(', '),
     lat:     r.position.lat,
     lng:     r.position.lon,
+    ...(a.streetName   ? { addressStreet: a.streetName }         : {}),
+    ...(a.streetNumber ? { addressNumber: a.streetNumber }       : {}),
+    ...(a.postalCode   ? { addressPostalCode: a.postalCode }     : {}),
+    ...(a.municipality ? { addressCity: a.municipality }         : {}),
+    ...(a.country      ? { addressCountry: a.country }           : {}),
   };
 }
 

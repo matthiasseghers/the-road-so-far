@@ -8,17 +8,32 @@ interface NominatimResult {
   display_name: string;
   lat: string;
   lon: string;
+  address?: {
+    road?: string;
+    house_number?: string;
+    postcode?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    country?: string;
+  };
 }
 
 function parseSuggestion(r: NominatimResult): AutocompleteSuggestion {
   const parts = r.display_name.split(', ');
   const lat = parseFloat(r.lat);
   const lng = parseFloat(r.lon);
+  const a = r.address;
   return {
     name:    parts.slice(0, 2).join(', '),
     context: parts.slice(2, 4).join(', '),
     lat:     Number.isNaN(lat) ? 0 : lat,
     lng:     Number.isNaN(lng) ? 0 : lng,
+    ...(a?.road          ? { addressStreet: a.road }                                      : {}),
+    ...(a?.house_number  ? { addressNumber: a.house_number }                              : {}),
+    ...(a?.postcode      ? { addressPostalCode: a.postcode }                              : {}),
+    ...((a?.city ?? a?.town ?? a?.village) ? { addressCity: a.city ?? a.town ?? a.village } : {}),
+    ...(a?.country       ? { addressCountry: a.country }                                  : {}),
   };
 }
 
@@ -45,7 +60,7 @@ const nominatimGeocoding: GeocodingProvider = {
   },
 
   async autocomplete(query: string): Promise<AutocompleteSuggestion[]> {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=0`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`;
     try {
       const res = await fetch(url, { headers: { 'User-Agent': 'TheRoadSoFar/1.0' } });
       if (!res.ok) return [];

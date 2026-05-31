@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import LocationField from '@/components/common/LocationField';
+import type { StructuredAddress } from '@/components/common/LocationField';
 import ActivityTypeToggle from './ActivityTypeToggle';
 import { useGeocode } from '@/hooks/useGeocode';
 import { Spinner } from '@/components/ui/spinner';
@@ -237,6 +238,7 @@ function ReservationSubForm({
   apiError,
   locationStatus,
   onLocationCoordinates,
+  onLocationStructuredAddress,
 }: {
   resType: ReservationType;
   form: ReservationFormState;
@@ -247,6 +249,7 @@ function ReservationSubForm({
   apiError: string | null;
   locationStatus: ReturnType<typeof useGeocode>['status'];
   onLocationCoordinates?: (lat: number, lng: number) => void;
+  onLocationStructuredAddress?: (a: StructuredAddress) => void;
 }): JSX.Element {
   const fields = RESERVATION_TYPE_FIELDS[resType] ?? [];
   const isTransit = TRANSIT_TYPES.includes(resType);
@@ -475,6 +478,7 @@ function ReservationSubForm({
           value={form.location}
           onChange={val => onShared('location', val)}
           onCoordinates={onLocationCoordinates}
+          onStructuredAddress={onLocationStructuredAddress}
           status={locationStatus}
         />
       </div>
@@ -607,6 +611,8 @@ export default function ReservationFormModal({
   // the Nominatim round-trip and use them directly.
   const actCoordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
   const resCoordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
+  const actAddressRef = useRef<StructuredAddress | undefined>(undefined);
+  const resAddressRef = useRef<StructuredAddress | undefined>(undefined);
 
   // ── Submission guard (reservation path only) ────────────────────────────
   // Reason: the activity path uses actFormState.isSubmitting from RHF.
@@ -626,6 +632,8 @@ export default function ReservationFormModal({
       resGeocode.reset();
       actCoordsRef.current = undefined;
       resCoordsRef.current = undefined;
+      actAddressRef.current = undefined;
+      resAddressRef.current = undefined;
       return;
     }
 
@@ -707,7 +715,7 @@ export default function ReservationFormModal({
   }
 
   function handleResSharedChange(field: keyof ReservationFormState, value: string): void {
-    if (field === 'location') resCoordsRef.current = undefined;
+    if (field === 'location') { resCoordsRef.current = undefined; resAddressRef.current = undefined; }
     setResForm(prev => ({ ...prev, [field]: value }));
   }
 
@@ -726,6 +734,11 @@ export default function ReservationFormModal({
       notes:         (data.notes ?? '').trim() || null,
       location:      locationTrimmed || null,
       ...(locationTrimmed ? {} : { lat: null, lng: null }),
+      address_street:      actAddressRef.current?.addressStreet      ?? null,
+      address_number:      actAddressRef.current?.addressNumber      ?? null,
+      address_postal_code: actAddressRef.current?.addressPostalCode  ?? null,
+      address_city:        actAddressRef.current?.addressCity        ?? null,
+      address_country:     actAddressRef.current?.addressCountry     ?? null,
     };
     try {
       let saved: Activity | void;
@@ -765,6 +778,11 @@ export default function ReservationFormModal({
       location:         resForm.location.trim() || null,
       // Reason: clear stale coordinates when location is cleared.
       ...(resForm.location.trim() ? {} : { lat: null, lng: null }),
+      address_street:      resAddressRef.current?.addressStreet      ?? null,
+      address_number:      resAddressRef.current?.addressNumber      ?? null,
+      address_postal_code: resAddressRef.current?.addressPostalCode  ?? null,
+      address_city:        resAddressRef.current?.addressCity        ?? null,
+      address_country:     resAddressRef.current?.addressCountry     ?? null,
     };
     const parsed = CreateReservationSchema.safeParse(input);
     if (!parsed.success) {
@@ -904,8 +922,9 @@ export default function ReservationFormModal({
                 render={({ field }) => (
                   <LocationField
                     value={field.value ?? ''}
-                    onChange={val => { actCoordsRef.current = undefined; field.onChange(val); }}
+                    onChange={val => { actCoordsRef.current = undefined; actAddressRef.current = undefined; field.onChange(val); }}
                     onCoordinates={(lat, lng) => { actCoordsRef.current = { lat, lng }; }}
+                    onStructuredAddress={a => { actAddressRef.current = a; }}
                     status={actGeocode.status}
                   />
                 )}
@@ -942,6 +961,7 @@ export default function ReservationFormModal({
                 apiError={apiError}
                 locationStatus={resGeocode.status}
               onLocationCoordinates={(lat, lng) => { resCoordsRef.current = { lat, lng }; }}
+              onLocationStructuredAddress={a => { resAddressRef.current = a; }}
             />
             </div>
           )}

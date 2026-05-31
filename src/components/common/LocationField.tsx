@@ -9,11 +9,21 @@ import type { AutocompleteSuggestion } from '@/services/providers/types';
 
 type GeocodeStatus = 'idle' | 'loading' | 'ok' | 'not_found' | 'error';
 
+export interface StructuredAddress {
+  addressStreet?:     string;
+  addressNumber?:     string;
+  addressPostalCode?: string;
+  addressCity?:       string;
+  addressCountry?:    string;
+}
+
 export interface LocationFieldProps {
   value: string;
   onChange: (val: string) => void;
   /** Called immediately when the user picks a suggestion — coordinates are pre-known. */
   onCoordinates?: (lat: number, lng: number) => void;
+  /** Called when a suggestion is picked with any structured address data from the provider. */
+  onStructuredAddress?: (address: StructuredAddress) => void;
   status?: GeocodeStatus;
 }
 
@@ -39,6 +49,7 @@ export default function LocationField({
   value,
   onChange,
   onCoordinates,
+  onStructuredAddress,
   status = 'idle',
 }: LocationFieldProps): JSX.Element {
   const inputId          = useId();
@@ -78,6 +89,13 @@ export default function LocationField({
     skipNextFetchRef.current = true;
     onChange(s.name);
     onCoordinates?.(s.lat, s.lng);
+    onStructuredAddress?.({
+      ...(s.addressStreet     ? { addressStreet: s.addressStreet }         : {}),
+      ...(s.addressNumber     ? { addressNumber: s.addressNumber }         : {}),
+      ...(s.addressPostalCode ? { addressPostalCode: s.addressPostalCode } : {}),
+      ...(s.addressCity       ? { addressCity: s.addressCity }             : {}),
+      ...(s.addressCountry    ? { addressCountry: s.addressCountry }       : {}),
+    });
     setSuggestions([]);
     setOpen(false);
   }

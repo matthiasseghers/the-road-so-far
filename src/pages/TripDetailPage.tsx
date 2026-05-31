@@ -33,7 +33,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatDate } from '@/utils/dates';
-import { formatDateRange, nightCount, formatActivityTime, formatDuration, formatDistance } from '@/utils/format';
+import { formatDateRange, nightCount, formatActivityTime, formatDuration, formatDistance, formatStructuredAddress } from '@/utils/format';
 import { sortActivities } from '@/utils/activity';
 import { isCheckinDay } from '@/utils/lodging';
 import { RESERVATION_SORT_OFFSET } from '@/utils/sort';
@@ -731,7 +731,7 @@ function LodgingCard({
         </div>
       </div>
       {(reservation.location ?? d.location) && (
-        <div className="tdp__lc-loc"><MapPin size={10} /><span>{reservation.location ?? d.location}</span></div>
+        <div className="tdp__lc-loc"><MapPin size={10} /><span>{formatStructuredAddress(reservation.data, reservation.location) ?? d.location}</span></div>
       )}
       <div className="tdp__lc-dates">
         <div className="tdp__lc-date-col">
@@ -1487,7 +1487,7 @@ function ItineraryActivityCard({ activity, number, onEdit, onDelete, onDragStart
         <div className="tdp__act-meta">
           {timeLabel && <span className="tdp__act-time">{timeLabel}</span>}
           {activity.location && (
-            <span className="tdp__act-loc"><MapPin size={11} /><span>{activity.location}</span></span>
+            <span className="tdp__act-loc"><MapPin size={11} /><span>{formatStructuredAddress(activity.data, activity.location)}</span></span>
           )}
           <span className={`tdp__type-badge tdp__type-badge--${activity.activity_type}`}>
             {activity.activity_type.charAt(0).toUpperCase() + activity.activity_type.slice(1)}
@@ -1576,7 +1576,7 @@ function ItineraryReservationCard({ reservation, number, onEdit, onDelete, onDra
             {RES_TYPE_LABELS[reservation.type] ?? reservation.type}
           </span>
           {reservation.location && (
-            <span className="tdp__act-loc"><MapPin size={11} /><span>{reservation.location}</span></span>
+            <span className="tdp__act-loc"><MapPin size={11} /><span>{formatStructuredAddress(reservation.data, reservation.location)}</span></span>
           )}
           {subTitle && <span className="tdp__act-note">{subTitle}</span>}
           <span className={`tdp__type-badge tdp__type-badge--res-status-${reservation.status}`}>

@@ -1,6 +1,39 @@
 import { format as dateFnsFormat, parseISO, isValid } from 'date-fns';
 import type { ReservationType } from '@/types/db';
 
+// ── Structured address formatting ─────────────────────────────────────────────
+
+/**
+ * Formats structured address fields into a human-readable string.
+ * Format: "street number, postalCode city, country".
+ * Falls back to `fallback` if no structured fields are present.
+ */
+export function formatStructuredAddress(
+  fields: {
+    address_street?: string | null;
+    address_number?: string | null;
+    address_postal_code?: string | null;
+    address_city?: string | null;
+    address_country?: string | null;
+  },
+  fallback?: string | null,
+): string | null {
+  const parts: string[] = [];
+
+  // street + number
+  const streetPart = [fields.address_street, fields.address_number].filter(Boolean).join(' ');
+  if (streetPart) parts.push(streetPart);
+
+  // postalCode + city
+  const cityPart = [fields.address_postal_code, fields.address_city].filter(Boolean).join(' ');
+  if (cityPart) parts.push(cityPart);
+
+  // country
+  if (fields.address_country) parts.push(fields.address_country);
+
+  return parts.length > 0 ? parts.join(', ') : (fallback ?? null);
+}
+
 // ── Date formatting ───────────────────────────────────────────────────────────
 
 /**

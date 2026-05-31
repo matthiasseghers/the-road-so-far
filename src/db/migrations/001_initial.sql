@@ -86,6 +86,11 @@ CREATE TABLE IF NOT EXISTS activities (
   location            TEXT,   -- free-text place for geocoding, nullable
   lat                 REAL,   -- geocoded latitude, nullable
   lng                 REAL,   -- geocoded longitude, nullable
+  address_street      TEXT,   -- structured address: street name
+  address_number      TEXT,   -- structured address: house number
+  address_postal_code TEXT,   -- structured address: postal / zip code
+  address_city        TEXT,   -- structured address: city / town
+  address_country     TEXT,   -- structured address: country
 
   created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -170,6 +175,11 @@ CREATE TABLE IF NOT EXISTS reservations (
   location         TEXT,   -- free-text place for geocoding, nullable
   lat              REAL,   -- geocoded latitude, nullable
   lng              REAL,   -- geocoded longitude, nullable
+  address_street      TEXT,
+  address_number      TEXT,
+  address_postal_code TEXT,
+  address_city        TEXT,
+  address_country     TEXT,
   -- Reason: type-specific fields stored as JSON. Validated by Zod schemas before
   -- reaching the DB. May be normalised into dedicated columns in a future version
   -- if query performance on details fields becomes necessary.

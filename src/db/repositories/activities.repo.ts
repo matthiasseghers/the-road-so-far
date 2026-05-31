@@ -57,21 +57,26 @@ export function createActivity(input: CreateActivityInput): ActivityRow {
 
   const result = db
     .prepare(
-      `INSERT INTO activities (day_id, trip_id, title, activity_type_id, start_time, end_time, sort_order, notes, location, lat, lng)
-       VALUES (@day_id, @trip_id, @title, @activity_type_id, @start_time, @end_time, @sort_order, @notes, @location, @lat, @lng)`,
+      `INSERT INTO activities (day_id, trip_id, title, activity_type_id, start_time, end_time, sort_order, notes, location, lat, lng, address_street, address_number, address_postal_code, address_city, address_country)
+       VALUES (@day_id, @trip_id, @title, @activity_type_id, @start_time, @end_time, @sort_order, @notes, @location, @lat, @lng, @address_street, @address_number, @address_postal_code, @address_city, @address_country)`,
     )
     .run({
-      day_id:           input.day_id ?? null,
-      trip_id:          input.trip_id,
-      title:            input.title,
-      activity_type_id: input.activity_type_id,
-      start_time:       input.start_time ?? null,
-      end_time:         input.end_time ?? null,
-      sort_order:       sortOrder,
-      notes:            input.notes ?? null,
-      location:         input.location ?? null,
-      lat:              input.lat ?? null,
-      lng:              input.lng ?? null,
+      day_id:              input.day_id ?? null,
+      trip_id:             input.trip_id,
+      title:               input.title,
+      activity_type_id:    input.activity_type_id,
+      start_time:          input.start_time ?? null,
+      end_time:            input.end_time ?? null,
+      sort_order:          sortOrder,
+      notes:               input.notes ?? null,
+      location:            input.location ?? null,
+      lat:                 input.lat ?? null,
+      lng:                 input.lng ?? null,
+      address_street:      input.address_street ?? null,
+      address_number:      input.address_number ?? null,
+      address_postal_code: input.address_postal_code ?? null,
+      address_city:        input.address_city ?? null,
+      address_country:     input.address_country ?? null,
     });
 
   return findActivityById(result.lastInsertRowid as number) ?? (() => { throw new Error('Insert succeeded but row not found'); })();
@@ -90,19 +95,27 @@ export function updateActivity(id: number, input: PatchActivityInput): ActivityR
        title = @title, activity_type_id = @activity_type_id,
        start_time = @start_time, end_time = @end_time,
        sort_order = @sort_order, notes = @notes,
-       location = @location, lat = @lat, lng = @lng
+       location = @location, lat = @lat, lng = @lng,
+       address_street = @address_street, address_number = @address_number,
+       address_postal_code = @address_postal_code, address_city = @address_city,
+       address_country = @address_country
      WHERE id = @id`,
   ).run({
     id,
-    title:            input.title            ?? cur.title,
-    activity_type_id: input.activity_type_id ?? cur.activity_type_id,
-    start_time:       input.start_time       !== undefined ? input.start_time : cur.start_time,
-    end_time:         input.end_time         !== undefined ? input.end_time   : cur.end_time,
-    sort_order:       input.sort_order       ?? cur.sort_order,
-    notes:            input.notes            !== undefined ? input.notes      : cur.notes,
-    location:         input.location         !== undefined ? input.location   : cur.location,
-    lat:              input.lat              !== undefined ? input.lat        : cur.lat,
-    lng:              input.lng              !== undefined ? input.lng        : cur.lng,
+    title:               input.title            ?? cur.title,
+    activity_type_id:    input.activity_type_id ?? cur.activity_type_id,
+    start_time:          input.start_time       !== undefined ? input.start_time : cur.start_time,
+    end_time:            input.end_time         !== undefined ? input.end_time   : cur.end_time,
+    sort_order:          input.sort_order       ?? cur.sort_order,
+    notes:               input.notes            !== undefined ? input.notes      : cur.notes,
+    location:            input.location         !== undefined ? input.location   : cur.location,
+    lat:                 input.lat              !== undefined ? input.lat        : cur.lat,
+    lng:                 input.lng              !== undefined ? input.lng        : cur.lng,
+    address_street:      input.address_street      !== undefined ? (input.address_street ?? null)      : cur.address_street,
+    address_number:      input.address_number      !== undefined ? (input.address_number ?? null)      : cur.address_number,
+    address_postal_code: input.address_postal_code !== undefined ? (input.address_postal_code ?? null) : cur.address_postal_code,
+    address_city:        input.address_city        !== undefined ? (input.address_city ?? null)        : cur.address_city,
+    address_country:     input.address_country     !== undefined ? (input.address_country ?? null)     : cur.address_country,
   });
 
   return findActivityById(id);

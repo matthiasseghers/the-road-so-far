@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import LocationField from '@/components/common/LocationField';
+import type { StructuredAddress } from '@/components/common/LocationField';
 import ActivityTypeToggle from './ActivityTypeToggle';
 import { useGeocode } from '@/hooks/useGeocode';
 import type { Activity } from '@/types/domain';
@@ -77,6 +78,7 @@ export default function ActivityFormModal({
   // Reason: store coordinates from autocomplete selection so the geocode call
   // can skip the Nominatim round-trip and use them directly.
   const coordsRef = useRef<{ lat: number; lng: number } | undefined>(undefined);
+  const addressRef = useRef<StructuredAddress | undefined>(undefined);
   const geoHook = useGeocode('activities');
 
   const {
@@ -94,6 +96,7 @@ export default function ActivityFormModal({
     if (open) {
       reset(buildDefaultValues(activity));
       coordsRef.current = undefined;
+      addressRef.current = undefined;
       geoHook.reset();
     }
   // Reason: geoHook.reset is stable; only open/activity trigger a re-seed.
@@ -116,6 +119,11 @@ export default function ActivityFormModal({
       location:      locationTrimmed || null,
       // Reason: clear stale coordinates when location is cleared.
       ...(locationTrimmed ? {} : { lat: null, lng: null }),
+      address_street:      addressRef.current?.addressStreet      ?? null,
+      address_number:      addressRef.current?.addressNumber      ?? null,
+      address_postal_code: addressRef.current?.addressPostalCode  ?? null,
+      address_city:        addressRef.current?.addressCity        ?? null,
+      address_country:     addressRef.current?.addressCountry     ?? null,
     };
 
     let savedRow: ActivityRow;
@@ -228,8 +236,9 @@ export default function ActivityFormModal({
             render={({ field }) => (
               <LocationField
                 value={field.value ?? ''}
-                onChange={val => { coordsRef.current = undefined; field.onChange(val); }}
+                onChange={val => { coordsRef.current = undefined; addressRef.current = undefined; field.onChange(val); }}
                 onCoordinates={(lat, lng) => { coordsRef.current = { lat, lng }; }}
+                onStructuredAddress={a => { addressRef.current = a; }}
                 status={geoHook.status}
               />
             )}
