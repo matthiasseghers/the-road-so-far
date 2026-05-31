@@ -1,20 +1,9 @@
-import { Pencil, Trash2, Utensils, Camera, ShoppingBag, TreePine, Landmark, FileText, Tag } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Activity } from '@/types/domain';
 import { formatActivityTime } from '@/utils/format';
+import { resolveIcon } from '@/lib/activityTypeIcons';
 import './ActivityItem.css';
-
-// Icon map for activity types — Lucide components for crisp SVG rendering
-const ACTIVITY_TYPE_ICONS: Record<string, LucideIcon> = {
-  food:        Utensils,
-  attraction:  Camera,
-  shopping:    ShoppingBag,
-  outdoors:    TreePine,
-  cultural:    Landmark,
-  note:        FileText,
-  other:       Tag,
-};
 
 interface ActivityItemProps {
   activity: Activity;
@@ -23,7 +12,7 @@ interface ActivityItemProps {
 }
 
 export default function ActivityItem({ activity, onEdit, onDelete }: ActivityItemProps): JSX.Element {
-  const Icon = ACTIVITY_TYPE_ICONS[activity.activity_type] ?? Tag;
+  const Icon = resolveIcon(activity.activity_type_icon);
   const timeLabel = formatActivityTime(activity.start_time, activity.end_time) || null;
 
   return (

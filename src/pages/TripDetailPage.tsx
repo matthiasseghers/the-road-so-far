@@ -418,7 +418,7 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
       {/* ── Header card ──────────────────────────────── */}
       <TripHeader
         trip={trip}
-        reservationsCount={reservations.length}
+        reservations={reservations}
         onEdit={() => setTripEditOpen(true)}
         onDelete={() => setDeleteConfirmOpen(true)}
       />
@@ -623,12 +623,12 @@ export default function TripDetailPage({ tripId, onBack, onDelete }: TripDetailP
 
 function TripHeader({
   trip,
-  reservationsCount,
+  reservations,
   onEdit,
   onDelete,
 }: {
   trip: TripWithDays;
-  reservationsCount: number;
+  reservations: Reservation[];
   onEdit: () => void;
   onDelete: () => void;
 }): JSX.Element {
@@ -637,7 +637,7 @@ function TripHeader({
   }, [trip]);
 
   const hasDates = !!(trip.start_date && trip.end_date);
-  const completePct = Math.round(trip.computeProgress());
+  const completePct = Math.round(trip.computeProgress(reservations));
   const hasPhoto = trip.cover_type === 'photo' && trip.cover_image_path;
 
   return (
@@ -680,7 +680,7 @@ function TripHeader({
           <div className="stat-lbl">Days planned</div>
         </div>
         <div className="stat">
-          <div className="stat-val sage">{reservationsCount}</div>
+          <div className="stat-val sage">{reservations.length}</div>
           <div className="stat-lbl">Bookings</div>
         </div>
         <div className="stat">

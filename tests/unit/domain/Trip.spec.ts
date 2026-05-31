@@ -150,8 +150,7 @@ describe('Trip domain class', () => {
 
   describe('computeProgress()', () => {
     it('returns 100 for completed trips', () => {
-      const trip = makeTrip({ status: 'completed' });
-      expect(new Trip({ ...makeRow({ status: 'completed' }), day_count: 5, activity_count: 1 }).computeProgress()).toBe(100);
+      expect(new Trip({ ...makeRow({ status: 'completed' }), day_count: 5, filled_day_count: 1 }).computeProgress()).toBe(100);
     });
 
     it('returns 100 for archived trips', () => {
@@ -159,24 +158,69 @@ describe('Trip domain class', () => {
       expect(trip.computeProgress()).toBe(100);
     });
 
-    it('returns 0 when there are no activities (but days exist)', () => {
-      const trip = new Trip({ ...makeRow(), day_count: 5, activity_count: 0 });
+    it('returns 0 when no days are filled', () => {
+      const trip = new Trip({ ...makeRow(), day_count: 5, filled_day_count: 0 });
       expect(trip.computeProgress()).toBe(0);
     });
 
-    it('returns 0 when no days', () => {
-      const trip = new Trip({ ...makeRow(), day_count: 0, activity_count: 5 });
+    it('returns 0 when no days exist', () => {
+      const trip = new Trip({ ...makeRow(), day_count: 0, filled_day_count: 0 });
       expect(trip.computeProgress()).toBe(0);
     });
 
-    it('calculates percentage correctly', () => {
-      const trip = new Trip({ ...makeRow(), day_count: 4, activity_count: 2 });
+    it('calculates percentage from filled days', () => {
+      const trip = new Trip({ ...makeRow(), day_count: 4, filled_day_count: 2 });
       expect(trip.computeProgress()).toBe(50);
     });
 
-    it('caps at 100 even with many activities', () => {
-      const trip = new Trip({ ...makeRow(), day_count: 2, activity_count: 10 });
+    it('returns 100 when all days are filled', () => {
+      const trip = new Trip({ ...makeRow(), day_count: 3, filled_day_count: 3 });
       expect(trip.computeProgress()).toBe(100);
+    });
+
+    it('falls back to nested days array when counts are missing', () => {
+      const trip = new Trip(makeRow());
+      const tripWithDays = Object.assign(trip, {
+        days: [
+          { id: 1, activities: [{ id: 1 }] },
+          { id: 2, activities: [] },
+          { id: 3, activities: [] },
+        ],
+      });
+      // 1 filled day / 3 total = 33%
+      expect(tripWithDays.computeProgress()).toBe(33);
+    });
+
+    it('counts a day as filled if it has a reservation but no activities', () => {
+      const trip = new Trip(makeRow());
+      const tripWithDays = Object.assign(trip, {
+        days: [
+          { id: 1, activities: [] },
+          { id: 2, activities: [] },
+          { id: 3, activities: [{ id: 1 }] },
+        ],
+      });
+      const reservations = [{ day_id: 1 }];
+      // day 1 has reservation, day 3 has activity → 2 filled / 3 total = 67%
+      expect(tripWithDays.computeProgress(reservations)).toBe(67);
+    });
+
+    it('does not double-count days with both activities and reservations', () => {
+      const trip = new Trip(makeRow());
+      const tripWithDays = Object.assign(trip, {
+        days: [
+          { id: 1, activities: [{ id: 1 }] },
+          { id: 2, activities: [] },
+        ],
+      });
+      const reservations = [{ day_id: 1 }];
+      // day 1 filled (both), day 2 empty → 1/2 = 50%
+      expect(tripWithDays.computeProgress(reservations)).toBe(50);
+    });
+
+    it('returns 0 when counts are missing and no days array exists', () => {
+      const trip = new Trip(makeRow());
+      expect(trip.computeProgress()).toBe(0);
     });
   });
 

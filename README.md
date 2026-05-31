@@ -9,15 +9,44 @@
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![Zod](https://img.shields.io/badge/Zod-4-3E67B1?logo=zod&logoColor=white)
-![Vitest](https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-4-6E9F18?logo=vitest&logoColor=white)
 ![Leaflet](https://img.shields.io/badge/Leaflet-199900?logo=leaflet&logoColor=white)
 
 # The Road So Far
 
 A personal, offline-first travel planner that keeps everything on your
-machine — no accounts, no cloud sync, no telemetry. Plan multi-day trips
-with a full itinerary, track reservations, visualise routes on a map, and
-export to PDF or your calendar app.
+machine — no accounts, no cloud sync, no telemetry.
+
+Plan multi-day trips with a full itinerary, track reservations, visualise
+routes on an interactive map, and export to PDF or your calendar app.
+Works entirely offline; external APIs are optional enhancements.
+
+<!-- TODO: add a screenshot or short demo GIF here -->
+<!-- ![Screenshot](docs/screenshot.png) -->
+
+## Quick start
+
+### Docker (recommended)
+
+The fastest way to run the app. No Node.js installation required.
+
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:3000`. Trip data persists in a named Docker volume.
+
+### Local development
+
+**Prerequisites:** Node.js 20+, npm 10+.
+
+```bash
+npm install
+npm run dev
+```
+
+Opens at `http://localhost:5173` (Vite dev server). The Express API runs
+on port 3001 and is proxied automatically.
 
 ## Features
 
@@ -31,48 +60,32 @@ export to PDF or your calendar app.
 - **Calendar export** — ICS files compatible with Google Calendar, Apple Calendar, Outlook
 - **Activity templates** — save and reuse common activity types
 - **Dark and light themes**
-- **Fully offline** — works without any network connection; external APIs are optional enhancements
 
-## Deployment modes
+## API keys (optional)
 
-| Mode | Command | Description |
+The app is fully usable without any API keys. Geocoding uses
+[Nominatim](https://nominatim.org/) by default — free, no key required.
+
+For enhanced features, add keys in **Settings → Services** after first
+launch. Keys are stored in the local SQLite database and proxied
+server-side — they never reach the browser.
+
+| Provider | What it unlocks |
+|---|---|
+| **TomTom** | Higher-quality geocoding, turn-by-turn routing, static map images |
+| **Pexels** | Cover photo search |
+| **Unsplash** | Cover photo search (also requires an app name) |
+| **Pixabay** | Cover photo search |
+
+## Configuration
+
+| Variable | Default | Description |
 |---|---|---|
-| Development | `npm run dev` | Vite dev server (5173) + Express API (3001) via concurrently |
-| Docker | `docker compose up` | Single container serving frontend + API on port 3000; SQLite volume-mounted for persistence |
+| `PORT` | `3001` (dev) / `3000` (Docker) | HTTP server port |
+| `DB_PATH` | `./travel.db` (dev) / `/app/data/travel.db` (Docker) | SQLite database path |
 
-## Getting started
-
-**Prerequisites:** Node.js 20+, npm 10+.
-
-```bash
-npm install
-npm run dev
-```
-
-The app opens at `http://localhost:5173`.
-
-### Docker
-
-```bash
-docker compose up -d
-```
-
-Available at `http://localhost:3000`. Trip data persists in a named Docker volume.
-
-### Third-party API keys (optional)
-
-TomTom geocoding, routing, and static maps are optional extras. Add your
-API key in **Settings** after first launch. Keys are stored in the local
-SQLite database and proxied server-side — they never reach the browser.
-
-Cover image search supports Pexels, Unsplash, and Pixabay — configure any
-or all in Settings.
-
-The app is fully usable without any API keys.
-
-## Tech stack
-
-shadcn/ui · TanStack Query v5 · React Hook Form · @react-pdf/renderer · RFC 5545 ICS export · GitHub Actions CI
+All other settings (theme, units, currency, API keys) are configured in
+the app's Settings page and stored in the database.
 
 ## Running tests
 
@@ -84,26 +97,30 @@ npm run test:coverage     # coverage report
 
 ## Security
 
-This app is designed for **local, single-user use only**.
+This app is designed for **local, single-user use only**. Do not expose
+the API to the public internet.
 
 - The Express API has **no authentication**. In dev it binds to localhost;
-  in Docker only port 3000 (frontend) is published.
-- **`/export/all`** returns all trip data in a single request — intentional
-  for a local tool. Do not expose the API publicly.
+  in Docker only port 3000 is published.
 - **API keys** (TomTom, Pexels, Unsplash, Pixabay) are stored in SQLite,
   transmitted only to those services server-side, and redacted from
   frontend-facing responses.
 
 ### Hardening
 
-- **Helmet** — secure HTTP headers
-- **CORS** — restricted to Vite dev server origin
-- **Rate limiting** — 300 req/min
+- **Helmet** — secure HTTP headers with per-request CSP nonces
+- **CORS** — restricted to the Vite dev server origin
+- **Rate limiting** — 300 req/min on `/api`
 - **Zod validation** — all mutation bodies parsed with `safeParse`
 - **Parameterised SQL** — no string interpolation in queries
 - **SSRF prevention** — cover image downloads use a hostname allowlist and `redirect: 'error'`
 - **Path traversal prevention** — cover filenames validated with regex + `path.basename()`
 - **Body size limit** — 1 MB on `express.json()`
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow,
+code style, and PR guidelines.
 
 ## License
 

@@ -3,7 +3,6 @@
 // ─── Enums (string unions) ────────────────────────────────────────────────────
 
 export type TripStatus = 'draft' | 'planning' | 'confirmed' | 'ready' | 'completed' | 'archived';
-export type ActivityType = 'attraction' | 'food' | 'shopping' | 'outdoors' | 'cultural' | 'note' | 'other';
 export type ReservationType = 'lodging' | 'flight' | 'train' | 'bus' | 'ferry' | 'rental_car' | 'restaurant' | 'other';
 export type ReservationStatus = 'pending' | 'confirmed' | 'cancelled';
 // Reason: free-form — no CHECK constraint in DB (migration 003)
@@ -31,7 +30,7 @@ export interface TripRow {
   updated_at: string;
   // Reason: populated only by findAllTrips via COUNT subqueries — undefined on single-row fetches
   day_count?: number;
-  activity_count?: number;
+  filled_day_count?: number;
 }
 
 export interface DayRow {
@@ -49,7 +48,10 @@ export interface ActivityRow {
   day_id: number | null;
   trip_id: number;
   title: string;
-  activity_type: ActivityType;
+  // Populated via JOIN on activity_types — not direct columns on the activities table.
+  activity_type: string;
+  activity_type_icon: string | null;
+  activity_type_id: number;
   start_time: string | null; // HH:MM
   end_time: string | null;   // HH:MM
   sort_order: number;
@@ -59,6 +61,14 @@ export interface ActivityRow {
   lng: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ActivityTypeRow {
+  id: number;
+  name: string;
+  icon_name: string | null;
+  sort_order: number;
+  created_at: string;
 }
 
 export interface ReservationRow {

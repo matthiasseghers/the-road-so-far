@@ -20,7 +20,7 @@ const { findChecklistItemsByTripId, createChecklistItem } = await import('@/db/r
 function seedData(): { tripId: number; dayId: number } {
   const trip = createTrip({ title: 'Test Trip', start_date: '2025-06-01', end_date: '2025-06-03' });
   const day  = upsertDay({ trip_id: trip.id, date: '2025-06-01' });
-  createActivity({ trip_id: trip.id, day_id: day.id, title: 'Museum', activity_type: 'attraction' });
+  createActivity({ trip_id: trip.id, day_id: day.id, title: 'Museum', activity_type_id: 1 });
   createReservation({
     trip_id: trip.id,
     type: 'flight',

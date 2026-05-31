@@ -9,6 +9,8 @@ function makeRow(overrides: Partial<ActivityRow> = {}): ActivityRow {
     trip_id: 1,
     title: 'Visit the Eiffel Tower',
     activity_type: 'attraction',
+    activity_type_icon: 'camera',
+    activity_type_id: 1,
     sort_order: 0,
     start_time: null,
     end_time: null,

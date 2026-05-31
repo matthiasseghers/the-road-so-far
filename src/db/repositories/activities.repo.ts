@@ -6,13 +6,20 @@ import type { CreateActivityInput, PatchActivityInput } from '@/schemas/activity
 export type { CreateActivityInput };
 export type { PatchActivityInput as UpdateActivityInput };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Reason: every SELECT on activities JOINs activity_types to provide the
+// human-readable `activity_type` name alongside the FK id. Using a shared
+// fragment keeps the queries DRY and consistent.
+const SELECT_ACTIVITY = `SELECT a.*, at.name AS activity_type, at.icon_name AS activity_type_icon FROM activities a JOIN activity_types at ON a.activity_type_id = at.id`;
+
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
 export function findActivitiesByDayId(dayId: number): ActivityRow[] {
   return getDb()
     .prepare(
-      `SELECT * FROM activities WHERE day_id = ?
-       ORDER BY CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time ASC, sort_order ASC`,
+      `${SELECT_ACTIVITY} WHERE a.day_id = ?
+       ORDER BY CASE WHEN a.start_time IS NULL THEN 1 ELSE 0 END, a.start_time ASC, a.sort_order ASC`,
     )
     .all(dayId) as ActivityRow[];
 }
@@ -20,15 +27,15 @@ export function findActivitiesByDayId(dayId: number): ActivityRow[] {
 export function findActivitiesByTripId(tripId: number): ActivityRow[] {
   return getDb()
     .prepare(
-      `SELECT * FROM activities WHERE trip_id = ?
-       ORDER BY CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time ASC, sort_order ASC`,
+      `${SELECT_ACTIVITY} WHERE a.trip_id = ?
+       ORDER BY CASE WHEN a.start_time IS NULL THEN 1 ELSE 0 END, a.start_time ASC, a.sort_order ASC`,
     )
     .all(tripId) as ActivityRow[];
 }
 
 export function findActivityById(id: number): ActivityRow | null {
   const row = getDb()
-    .prepare('SELECT * FROM activities WHERE id = ?')
+    .prepare(`${SELECT_ACTIVITY} WHERE a.id = ?`)
     .get(id) as ActivityRow | undefined;
   return row ?? null;
 }
@@ -50,21 +57,21 @@ export function createActivity(input: CreateActivityInput): ActivityRow {
 
   const result = db
     .prepare(
-      `INSERT INTO activities (day_id, trip_id, title, activity_type, start_time, end_time, sort_order, notes, location, lat, lng)
-       VALUES (@day_id, @trip_id, @title, @activity_type, @start_time, @end_time, @sort_order, @notes, @location, @lat, @lng)`,
+      `INSERT INTO activities (day_id, trip_id, title, activity_type_id, start_time, end_time, sort_order, notes, location, lat, lng)
+       VALUES (@day_id, @trip_id, @title, @activity_type_id, @start_time, @end_time, @sort_order, @notes, @location, @lat, @lng)`,
     )
     .run({
-      day_id:        input.day_id ?? null,
-      trip_id:       input.trip_id,
-      title:         input.title,
-      activity_type: input.activity_type ?? 'note',
-      start_time:    input.start_time ?? null,
-      end_time:      input.end_time ?? null,
-      sort_order:    sortOrder,
-      notes:         input.notes ?? null,
-      location:      input.location ?? null,
-      lat:           input.lat ?? null,
-      lng:           input.lng ?? null,
+      day_id:           input.day_id ?? null,
+      trip_id:          input.trip_id,
+      title:            input.title,
+      activity_type_id: input.activity_type_id,
+      start_time:       input.start_time ?? null,
+      end_time:         input.end_time ?? null,
+      sort_order:       sortOrder,
+      notes:            input.notes ?? null,
+      location:         input.location ?? null,
+      lat:              input.lat ?? null,
+      lng:              input.lng ?? null,
     });
 
   return findActivityById(result.lastInsertRowid as number) ?? (() => { throw new Error('Insert succeeded but row not found'); })();
@@ -74,28 +81,28 @@ export function createActivity(input: CreateActivityInput): ActivityRow {
 export function updateActivity(id: number, input: PatchActivityInput): ActivityRow | null {
   const db = getDb();
   const cur = db
-    .prepare('SELECT * FROM activities WHERE id = ?')
+    .prepare(`${SELECT_ACTIVITY} WHERE a.id = ?`)
     .get(id) as ActivityRow | undefined;
   if (!cur) return null;
 
   db.prepare(
     `UPDATE activities SET
-       title = @title, activity_type = @activity_type,
+       title = @title, activity_type_id = @activity_type_id,
        start_time = @start_time, end_time = @end_time,
        sort_order = @sort_order, notes = @notes,
        location = @location, lat = @lat, lng = @lng
      WHERE id = @id`,
   ).run({
     id,
-    title:         input.title         ?? cur.title,
-    activity_type: input.activity_type ?? cur.activity_type,
-    start_time:    input.start_time    !== undefined ? input.start_time : cur.start_time,
-    end_time:      input.end_time      !== undefined ? input.end_time   : cur.end_time,
-    sort_order:    input.sort_order    ?? cur.sort_order,
-    notes:         input.notes         !== undefined ? input.notes      : cur.notes,
-    location:      input.location      !== undefined ? input.location   : cur.location,
-    lat:           input.lat           !== undefined ? input.lat        : cur.lat,
-    lng:           input.lng           !== undefined ? input.lng        : cur.lng,
+    title:            input.title            ?? cur.title,
+    activity_type_id: input.activity_type_id ?? cur.activity_type_id,
+    start_time:       input.start_time       !== undefined ? input.start_time : cur.start_time,
+    end_time:         input.end_time         !== undefined ? input.end_time   : cur.end_time,
+    sort_order:       input.sort_order       ?? cur.sort_order,
+    notes:            input.notes            !== undefined ? input.notes      : cur.notes,
+    location:         input.location         !== undefined ? input.location   : cur.location,
+    lat:              input.lat              !== undefined ? input.lat        : cur.lat,
+    lng:              input.lng              !== undefined ? input.lng        : cur.lng,
   });
 
   return findActivityById(id);

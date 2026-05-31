@@ -8,7 +8,7 @@ import { parseISO, differenceInCalendarDays, isValid } from 'date-fns';
 export type TripData = Omit<TripRow, 'tags'> & {
   tags: string | string[];
   day_count?: number;
-  activity_count?: number;
+  filled_day_count?: number;
 };
 
 export class Trip {
@@ -33,7 +33,7 @@ export class Trip {
   get distance_total_m(): number | null { return this.data.distance_total_m; }
   get distance_synced_at(): string | null { return this.data.distance_synced_at; }
   get day_count(): number | undefined { return this.data.day_count; }
-  get activity_count(): number | undefined { return this.data.activity_count; }
+  get filled_day_count(): number | undefined { return this.data.filled_day_count; }
 
   // Reason: tags comes as JSON string from SQLite but as string[] from the API
   // (JSON.parse on the server before sending). Handle both transparently.
@@ -75,13 +75,26 @@ export class Trip {
     );
   }
 
-  computeProgress(): number {
+  computeProgress(reservations?: { day_id: number | null }[]): number {
     if (this.data.status === 'completed' || this.data.status === 'archived') return 100;
-    const days = this.data.day_count ?? 0;
-    const activities = this.data.activity_count ?? 0;
-    if (days === 0) return 0;
-    // Reason: 1 activity per day ≈ fully planned; clamp so dense trips don't exceed 100%.
-    return Math.min(100, Math.round((activities / days) * 100));
+
+    // Reason: filled_day_count / day_count are only present in the list query
+    // (findAllTrips). On the detail page the Trip is built from findTripWithDays
+    // which has nested days + activities; reservations are passed in separately.
+    let total = this.data.day_count;
+    let filled = this.data.filled_day_count;
+
+    if (total == null || filled == null) {
+      const daysArr = (this as unknown as { days?: { id: number; activities: unknown[] }[] }).days;
+      if (daysArr) {
+        const resSet = new Set((reservations ?? []).map(r => r.day_id).filter(Boolean));
+        total = daysArr.length;
+        filled = daysArr.filter(d => d.activities.length > 0 || resSet.has(d.id)).length;
+      }
+    }
+
+    if (!total) return 0;
+    return Math.round(((filled ?? 0) / total) * 100);
   }
 
   durationDays(): number {

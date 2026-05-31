@@ -38,6 +38,30 @@ CREATE TABLE IF NOT EXISTS days (
 
 CREATE INDEX IF NOT EXISTS idx_days_trip_id ON days(trip_id);
 
+-- ─── ACTIVITY TYPES ─────────────────────────────────────────────────────────
+-- User-manageable activity types. Replaces the previous CHECK-constrained enum
+-- so users can create/rename/delete types at runtime.
+
+CREATE TABLE IF NOT EXISTS activity_types (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL UNIQUE,
+  icon_name  TEXT,   -- optional Lucide icon identifier
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Reason: activity_types seed is placed here (before the SEED DATA marker)
+-- because the FK constraint on activities.activity_type_id requires at least
+-- the default types to exist before any activity can be inserted.
+INSERT OR IGNORE INTO activity_types (id, name, icon_name, sort_order) VALUES
+  (1, 'attraction', 'camera',       0),
+  (2, 'food',       'utensils',     1),
+  (3, 'shopping',   'shopping-bag', 2),
+  (4, 'outdoors',   'tree-pine',    3),
+  (5, 'cultural',   'landmark',     4),
+  (6, 'note',       'file-text',    5),
+  (7, 'other',      'tag',          6);
+
 -- ─── ACTIVITIES ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS activities (
@@ -47,8 +71,7 @@ CREATE TABLE IF NOT EXISTS activities (
   -- interest) that are not tied to a specific day. trip_id CASCADE deletes them.
   trip_id             INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
   title               TEXT    NOT NULL,
-  activity_type       TEXT    NOT NULL DEFAULT 'note'
-                              CHECK(activity_type IN ('attraction','food','shopping','outdoors','cultural','note','other')),
+  activity_type_id    INTEGER NOT NULL REFERENCES activity_types(id),
 
   -- Time window (both optional; end_time requires start_time in app logic)
   start_time          TEXT,   -- HH:MM
@@ -68,8 +91,9 @@ CREATE TABLE IF NOT EXISTS activities (
   updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_activities_day_id  ON activities(day_id);
-CREATE INDEX IF NOT EXISTS idx_activities_trip_id ON activities(trip_id);
+CREATE INDEX IF NOT EXISTS idx_activities_day_id   ON activities(day_id);
+CREATE INDEX IF NOT EXISTS idx_activities_trip_id  ON activities(trip_id);
+CREATE INDEX IF NOT EXISTS idx_activities_type_id  ON activities(activity_type_id);
 
 
 -- ─── CHECKLIST TEMPLATES ─────────────────────────────────────────────────────

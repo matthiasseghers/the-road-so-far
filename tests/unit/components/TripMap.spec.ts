@@ -25,6 +25,8 @@ function makeActivity(overrides: Partial<ActivityRow> = {}): ActivityRow {
     trip_id: 1,
     title: 'Test Activity',
     activity_type: 'attraction',
+    activity_type_icon: 'camera',
+    activity_type_id: 1,
     start_time: null,
     end_time: null,
     sort_order: 0,

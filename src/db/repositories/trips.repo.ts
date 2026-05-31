@@ -20,7 +20,7 @@ export type UpdateTripInput = Omit<PatchTripInput, 'start_date' | 'end_date'> & 
 type ParsedTripRow = Omit<TripRow, 'tags'> & {
   tags: string[];
   day_count?: number;
-  activity_count?: number;
+  filled_day_count?: number;
 };
 
 interface RawDayWithActivities extends DayRow { activities: ActivityRow[] }
@@ -30,7 +30,7 @@ export interface RawTripWithDays extends ParsedTripRow {
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
-function parseTrip(row: TripRow & { day_count?: number; activity_count?: number }): ParsedTripRow {
+function parseTrip(row: TripRow & { day_count?: number; filled_day_count?: number }): ParsedTripRow {
   return { ...row, tags: JSON.parse(row.tags) as string[] };
 }
 
@@ -43,14 +43,17 @@ export function findAllTrips(): ParsedTripRow[] {
     .prepare(`
       SELECT t.*,
         COUNT(DISTINCT d.id) AS day_count,
-        COUNT(a.id)          AS activity_count
+        COUNT(DISTINCT CASE
+          WHEN a.id IS NOT NULL OR r.id IS NOT NULL THEN d.id
+        END) AS filled_day_count
       FROM trips t
-      LEFT JOIN days d        ON d.trip_id = t.id
-      LEFT JOIN activities a  ON a.day_id  = d.id
+      LEFT JOIN days d           ON d.trip_id = t.id
+      LEFT JOIN activities a     ON a.day_id  = d.id
+      LEFT JOIN reservations r   ON r.day_id  = d.id
       GROUP BY t.id
       ORDER BY t.start_date ASC NULLS LAST, t.created_at ASC
     `)
-    .all() as Array<TripRow & { day_count: number; activity_count: number }>;
+    .all() as Array<TripRow & { day_count: number; filled_day_count: number }>;
   return rows.map(parseTrip);
 }
 
@@ -75,7 +78,11 @@ export function findTripWithDays(id: number): RawTripWithDays | null {
   // in JS — avoids N+1 queries (one per day) that were here before.
   const allActRows = db
     .prepare(
-      'SELECT * FROM activities WHERE trip_id = ? ORDER BY start_time ASC NULLS LAST, sort_order ASC',
+      `SELECT a.*, at.name AS activity_type, at.icon_name AS activity_type_icon
+       FROM activities a
+       JOIN activity_types at ON a.activity_type_id = at.id
+       WHERE a.trip_id = ?
+       ORDER BY a.start_time ASC NULLS LAST, a.sort_order ASC`,
     )
     .all(id) as ActivityRow[];
 

@@ -39,6 +39,8 @@ function makeActivity(overrides: Partial<ActivityRow> = {}): Activity {
     trip_id:       1,
     title:         'Morning walk',
     activity_type: 'outdoors',
+    activity_type_icon: 'tree-pine',
+    activity_type_id: 4,
     start_time:    '09:00',
     end_time:      '10:30',
     sort_order:    0,

@@ -30,7 +30,7 @@ function insertDay(db: Database.Database, tripId: number, date: string, subtitle
 
 function insertActivity(db: Database.Database, tripId: number, dayId: number, title = 'Act'): void {
   db.prepare(
-    `INSERT INTO activities (trip_id, day_id, title, activity_type) VALUES (?, ?, ?, 'other')`,
+    `INSERT INTO activities (trip_id, day_id, title, activity_type_id) VALUES (?, ?, ?, 7)`,
   ).run(tripId, dayId, title);
 }
 

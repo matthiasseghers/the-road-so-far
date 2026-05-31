@@ -9,7 +9,7 @@ function day(id: number, date: string, activities: ActivityRow[] = []): DayRow &
 
 function activity(id: number, day_id: number, lat: number | null, lng: number | null, title = 'Act'): ActivityRow {
   return {
-    id, day_id, trip_id: 1, title, activity_type: 'attraction',
+    id, day_id, trip_id: 1, title, activity_type: 'attraction', activity_type_icon: 'camera', activity_type_id: 1,
     start_time: '09:00', end_time: '11:00',
     sort_order: 0, notes: null,
     location: lat !== null ? 'Somewhere' : null,

@@ -63,18 +63,17 @@ describe('trips repository', () => {
       const trips = findAllTrips();
       expect(trips).toHaveLength(2);
       expect(trips[0]?.day_count).toBe(0);
-      expect(trips[0]?.activity_count).toBe(0);
+      expect(trips[0]?.filled_day_count).toBe(0);
     });
 
-    it('returns accurate day_count and activity_count after sync', () => {
-      // Reason: validates the LEFT JOIN + GROUP BY introduced in Batch 3 —
-      // correlated subqueries were replaced and must still produce correct counts.
+    it('returns accurate day_count and filled_day_count after sync', () => {
+      // Reason: validates the LEFT JOIN + GROUP BY — must produce correct counts.
       const trip = createTrip({ title: 'Counted', start_date: '2025-08-01', end_date: '2025-08-03' });
       syncDaysForTrip(trip.id, '2025-08-01', '2025-08-03'); // 3 days
       const [found] = findAllTrips().filter(t => t.id === trip.id);
       expect(found?.day_count).toBe(3);
-      // No activities inserted yet
-      expect(found?.activity_count).toBe(0);
+      // No activities or reservations inserted yet
+      expect(found?.filled_day_count).toBe(0);
     });
 
     it('orders by start_date ascending', () => {
@@ -166,8 +165,8 @@ describe('trips repository', () => {
       const day = result.days[0]!;
       // Insert an activity directly via DB so we don't need the activities repo
       db.prepare(
-        `INSERT INTO activities (trip_id, day_id, title, activity_type, sort_order) VALUES (?, ?, ?, ?, ?)`,
-      ).run(trip.id, day.id, 'Museum', 'cultural', 0);
+        `INSERT INTO activities (trip_id, day_id, title, activity_type_id, sort_order) VALUES (?, ?, ?, ?, ?)`,
+      ).run(trip.id, day.id, 'Museum', 5, 0);
 
       const refreshed = findTripWithDays(trip.id)!;
       expect(refreshed.days[0]?.activities).toHaveLength(1);

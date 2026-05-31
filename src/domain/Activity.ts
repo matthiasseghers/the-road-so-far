@@ -9,6 +9,8 @@ export class Activity {
   get trip_id(): number { return this.data.trip_id; }
   get title(): string { return this.data.title; }
   get activity_type(): ActivityRow['activity_type'] { return this.data.activity_type; }
+  get activity_type_icon(): string | null { return this.data.activity_type_icon; }
+  get activity_type_id(): number { return this.data.activity_type_id; }
   get start_time(): string | null { return this.data.start_time; }
   get end_time(): string | null { return this.data.end_time; }
   get sort_order(): number { return this.data.sort_order; }

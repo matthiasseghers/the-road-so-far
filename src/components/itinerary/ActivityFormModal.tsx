@@ -7,12 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogB
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import LocationField from '@/components/common/LocationField';
+import ActivityTypeToggle from './ActivityTypeToggle';
 import { useGeocode } from '@/hooks/useGeocode';
 import type { Activity } from '@/types/domain';
-import type { ActivityType, ActivityRow } from '@/types/db';
+import type { ActivityRow } from '@/types/db';
 import type { CreateActivityInput, UpdateActivityInput } from '@/db/repositories/activities.repo';
 import { ActivityBaseSchema } from '@/schemas/activity.schema';
 import './ActivityFormModal.css';
@@ -25,12 +25,12 @@ import './ActivityFormModal.css';
 
 const ActivityFormSchema = ActivityBaseSchema
   .pick({
-    title:         true,
-    activity_type: true,
-    start_time:    true,
-    end_time:      true,
-    notes:         true,
-    location:      true,
+    title:            true,
+    activity_type_id: true,
+    start_time:       true,
+    end_time:         true,
+    notes:            true,
+    location:         true,
   })
   .refine(
     d => !(d.end_time && !d.start_time),
@@ -52,24 +52,14 @@ interface ActivityFormModalProps {
   onGeocodeDone?: () => void;
 }
 
-const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
-  { value: 'attraction', label: '🎯 Attraction' },
-  { value: 'food',       label: '🍽️ Food' },
-  { value: 'shopping',   label: '🛍️ Shopping' },
-  { value: 'outdoors',   label: '🌿 Outdoors' },
-  { value: 'cultural',   label: '🏛️ Cultural' },
-  { value: 'note',       label: '📝 Note' },
-  { value: 'other',      label: '📌 Other' },
-];
-
 function buildDefaultValues(activity?: Activity | null): ActivityFormValues {
   return {
-    title:         activity?.title              ?? '',
-    activity_type: activity?.activity_type      ?? 'attraction',
-    start_time:    activity?.start_time         ?? null,
-    end_time:      activity?.end_time           ?? null,
-    notes:         activity?.notes              ?? null,
-    location:      activity?.data.location      ?? null,
+    title:            activity?.title              ?? '',
+    activity_type_id: activity?.activity_type_id   ?? 1,
+    start_time:       activity?.start_time         ?? null,
+    end_time:         activity?.end_time           ?? null,
+    notes:            activity?.notes              ?? null,
+    location:         activity?.data.location      ?? null,
   };
 }
 
@@ -118,10 +108,10 @@ export default function ActivityFormModal({
   async function onValid(data: ActivityFormValues): Promise<void> {
     const locationTrimmed = data.location?.trim() ?? '';
     const base = {
-      title:         data.title.trim(),
-      activity_type: data.activity_type,
-      start_time:    data.start_time || null,
-      end_time:      data.end_time   || null,
+      title:            data.title.trim(),
+      activity_type_id: data.activity_type_id,
+      start_time:       data.start_time || null,
+      end_time:         data.end_time   || null,
       notes:         data.notes?.trim() || null,
       location:      locationTrimmed || null,
       // Reason: clear stale coordinates when location is cleared.
@@ -185,23 +175,14 @@ export default function ActivityFormModal({
             {errors.title && <span className="form-field-error">{errors.title.message}</span>}
           </div>
 
-          {/* Activity type — Controller required: shadcn Select */}
+          {/* Activity type — ToggleGroup chips with manage-types button */}
           <div className="activity-form__field">
-            <Label htmlFor="af-type">Type</Label>
+            <Label>Type</Label>
             <Controller
-              name="activity_type"
+              name="activity_type_id"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="af-type" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ACTIVITY_TYPES.map(t => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ActivityTypeToggle value={field.value} onChange={field.onChange} />
               )}
             />
           </div>

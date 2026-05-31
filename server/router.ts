@@ -15,6 +15,7 @@ import * as legModesRepo from '../src/db/repositories/leg-modes.repo.js';
 import * as mapRepo from '../src/db/repositories/map.repo.js';
 import { findLegMode } from '../src/utils/routing.js';
 import * as calendarRepo from '../src/db/repositories/calendar.repo.js';
+import * as activityTypesRepo from '../src/db/repositories/activity-types.repo.js';
 import { syncDaysForTrip } from '../src/services/days.service.js';
 import { geocodePlace, autocomplete } from '../src/services/geocoding.service.js';
 import { fetchRouteLeg } from '../src/services/routing.service.js';
@@ -96,6 +97,17 @@ const TemplatePatchSchema   = z.object({
   name:       z.string().trim().min(1).optional(),
   icon_name:  z.string().trim().min(1).nullable().optional(),
   sort_order: z.number().int().nonnegative().optional(),
+});
+const ActivityTypeCreateSchema = z.object({
+  name:      z.string().trim().min(1).max(100),
+  icon_name: z.string().trim().min(1).max(100).nullable().optional(),
+});
+const ActivityTypePatchSchema  = z.object({
+  name:      z.string().trim().min(1).max(100).optional(),
+  icon_name: z.string().trim().min(1).max(100).nullable().optional(),
+});
+const ActivityTypeReorderSchema = z.object({
+  orderedIds: z.array(z.number().int().positive()).min(1),
 });
 
 // Reason: ephemeral token generated at server startup. The static string
@@ -592,6 +604,55 @@ router.put('/template-items/reorder', (req: Request, res: Response) => {
   res.status(204).send();
 });
 
+// ── Activity types ────────────────────────────────────────────────────────────
+
+router.get('/activity-types', (_req: Request, res: Response) => {
+  res.json(activityTypesRepo.findAllActivityTypes());
+});
+
+router.post('/activity-types', (req: Request, res: Response) => {
+  const parsed = ActivityTypeCreateSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const activityType = activityTypesRepo.createActivityType(parsed.data);
+  res.status(201).json(activityType);
+});
+
+router.put('/activity-types/reorder', (req: Request, res: Response) => {
+  const parsed = ActivityTypeReorderSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const types = activityTypesRepo.reorderActivityTypes(parsed.data.orderedIds);
+  res.json(types);
+});
+
+router.get('/activity-types/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const activityType = activityTypesRepo.findActivityTypeById(id);
+  if (!activityType) { res.status(404).json({ error: 'Activity type not found' }); return; }
+  res.json(activityType);
+});
+
+router.patch('/activity-types/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  const parsed = ActivityTypePatchSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ errors: parsed.error.flatten().fieldErrors }); return; }
+  const activityType = activityTypesRepo.updateActivityType(id, parsed.data);
+  if (!activityType) { res.status(404).json({ error: 'Activity type not found' }); return; }
+  res.json(activityType);
+});
+
+router.delete('/activity-types/:id', (req: Request, res: Response) => {
+  const id = parseIdParam(req.params['id']);
+  if (!id) { res.status(400).json({ error: 'Invalid id' }); return; }
+  try {
+    activityTypesRepo.deleteActivityType(id);
+    res.status(204).send();
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : 'Failed to delete activity type' });
+  }
+});
+
 // ── Geocoding autocomplete proxy ─────────────────────────────────────────────
 
 // Reason: proxying through Express keeps API keys server-side — the browser
@@ -769,7 +830,6 @@ router.post('/import/trippack', (req: Request, res: Response) => {
   // Reason: validate CHECK-constrained enum columns so invalid values in the import payload
   // fall back to safe defaults rather than throwing a SqliteError inside the transaction.
   const toTripStatus   = (v: unknown): string => typeof v === 'string' && ['draft','planning','confirmed','ready','completed','archived'].includes(v) ? v : 'draft';
-  const toActivityType = (v: unknown): string => typeof v === 'string' && ['attraction','food','shopping','outdoors','cultural','note','other'].includes(v) ? v : 'note';
   const toResType      = (v: unknown): string => typeof v === 'string' && ['lodging','flight','train','bus','ferry','rental_car','restaurant','other'].includes(v) ? v : 'other';
   const toResStatus    = (v: unknown): string => typeof v === 'string' && ['pending','confirmed','cancelled'].includes(v) ? v : 'pending';
   // Reason: import payloads may carry non-numeric values (e.g. "abc" for sort_order)
@@ -777,6 +837,20 @@ router.post('/import/trippack', (req: Request, res: Response) => {
   const toInt          = (v: unknown, fallback = 0): number => { const n = Number(v); return Number.isFinite(n) ? Math.trunc(n) : fallback; };
   const toFloat        = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
   const toStr          = (v: unknown): string | null => typeof v === 'string' ? v : null;
+
+  // Resolve activity_type name → id; create missing types on-the-fly during import.
+  const activityTypeCache = new Map<string, number>();
+  for (const row of activityTypesRepo.findAllActivityTypes()) {
+    activityTypeCache.set(row.name, row.id);
+  }
+  const resolveActivityTypeId = (v: unknown): number => {
+    const name = typeof v === 'string' ? v : 'note';
+    if (activityTypeCache.has(name)) return activityTypeCache.get(name)!;
+    // Create unknown type on-the-fly so imports with custom types still succeed
+    const created = activityTypesRepo.createActivityType({ name });
+    activityTypeCache.set(created.name, created.id);
+    return created.id;
+  };
 
   const runImport = db.transaction(() => {
     for (const t of trips) {
@@ -828,11 +902,11 @@ router.post('/import/trippack', (req: Request, res: Response) => {
       if (newTripId == null) continue;
       db.prepare(
         `INSERT INTO activities
-           (day_id, trip_id, title, activity_type, start_time, end_time, sort_order, notes, location, lat, lng)
+           (day_id, trip_id, title, activity_type_id, start_time, end_time, sort_order, notes, location, lat, lng)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         newDayId, newTripId,
-        a['title'] ?? '', toActivityType(a['activity_type']),
+        a['title'] ?? '', resolveActivityTypeId(a['activity_type']),
         toStr(a['start_time']), toStr(a['end_time']), toInt(a['sort_order']),
         toStr(a['notes']), toStr(a['location']), toFloat(a['lat']), toFloat(a['lng']),
       );

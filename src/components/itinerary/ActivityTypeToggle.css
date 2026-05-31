@@ -1,0 +1,14 @@
+.at-toggle__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.at-toggle__group {
+  flex-wrap: wrap;
+}
+
+.at-toggle__loading {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

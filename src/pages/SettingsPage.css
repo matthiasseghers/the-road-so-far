@@ -381,3 +381,59 @@
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
+
+/* ── Activity types panel ────────────────────────────────────────────────── */
+.at-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.at-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  transition: background var(--transition-fast);
+}
+
+.at-row:hover {
+  background: var(--bg-raised);
+}
+
+.at-row__name {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-primary);
+}
+
+.at-row__input {
+  flex: 1;
+}
+
+.at-row__actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.at-row__order {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.at-add-row {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-bottom: 4px;
+}
+
+.at-add-row__input {
+  flex: 1;
+}

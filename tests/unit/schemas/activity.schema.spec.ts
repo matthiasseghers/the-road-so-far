@@ -5,6 +5,7 @@ const validActivity = {
   day_id: 1,
   trip_id: 1,
   title: 'Visit Louvre',
+  activity_type_id: 1,
 };
 
 describe('CreateActivitySchema', () => {
@@ -13,8 +14,25 @@ describe('CreateActivitySchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.title).toBe('Visit Louvre');
-      expect(result.data.activity_type).toBe('attraction');  // default
+      expect(result.data.activity_type_id).toBe(1);
     }
+  });
+
+  it('accepts activity_type_id as a positive integer', () => {
+    const result = CreateActivitySchema.safeParse({ ...validActivity, activity_type_id: 3 });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.activity_type_id).toBe(3);
+  });
+
+  it('fails when activity_type_id is missing', () => {
+    const { activity_type_id: _, ...noType } = validActivity;
+    const result = CreateActivitySchema.safeParse(noType);
+    expect(result.success).toBe(false);
+  });
+
+  it('fails when activity_type_id is zero or negative', () => {
+    expect(CreateActivitySchema.safeParse({ ...validActivity, activity_type_id: 0 }).success).toBe(false);
+    expect(CreateActivitySchema.safeParse({ ...validActivity, activity_type_id: -1 }).success).toBe(false);
   });
 
   it('fails when title is missing', () => {
@@ -43,17 +61,8 @@ describe('CreateActivitySchema', () => {
   });
 
   it('accepts omitted day_id', () => {
-    const result = CreateActivitySchema.safeParse({ trip_id: 1, title: 'Test' });
+    const result = CreateActivitySchema.safeParse({ trip_id: 1, title: 'Test', activity_type_id: 1 });
     expect(result.success).toBe(true);
-  });
-
-  it('fails for invalid activity_type', () => {
-    const result = CreateActivitySchema.safeParse({ ...validActivity, activity_type: 'reservation' });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects transport activity_type (removed)', () => {
-    expect(CreateActivitySchema.safeParse({ ...validActivity, activity_type: 'transport' }).success).toBe(false);
   });
 
   it('accepts valid start_time format', () => {
@@ -95,10 +104,10 @@ describe('PatchActivitySchema', () => {
     if (result.success) expect(result.data.sort_order).toBeUndefined();
   });
 
-  it('leaves activity_type undefined when not provided so repo falls back to DB value', () => {
+  it('leaves activity_type_id undefined when not provided so repo falls back to DB value', () => {
     const result = PatchActivitySchema.safeParse({ title: 'Test' });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.activity_type).toBeUndefined();
+    if (result.success) expect(result.data.activity_type_id).toBeUndefined();
   });
 
   it('preserves explicit sort_order when provided', () => {

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
-import { BedDouble, Plane, Train, Bus, Ship, Car, Utensils, Tag, Camera, ShoppingBag, TreePine, Landmark, FileText } from 'lucide-react';
+import { BedDouble, Plane, Train, Bus, Ship, Car, Utensils, Tag } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -13,12 +13,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import LocationField from '@/components/common/LocationField';
+import ActivityTypeToggle from './ActivityTypeToggle';
 import { useGeocode } from '@/hooks/useGeocode';
 import { Spinner } from '@/components/ui/spinner';
 import { ApiError } from '@/db/api-client';
 import type { Reservation } from '@/domain/Reservation';
 import type { Activity } from '@/domain/Activity';
-import type { ReservationType, ActivityType } from '@/types/db';
+import type { ReservationType } from '@/types/db';
 import type { CreateReservationInput } from '@/hooks/useReservations';
 import type { CreateActivityInput } from '@/db/repositories/activities.repo';
 import { CreateReservationSchema } from '@/schemas/reservation.schema';
@@ -32,12 +33,12 @@ import './ReservationFormModal.css';
 
 const ActivityFormSchema = ActivityBaseSchema
   .pick({
-    title:         true,
-    activity_type: true,
-    start_time:    true,
-    end_time:      true,
-    notes:         true,
-    location:      true,
+    title:            true,
+    activity_type_id: true,
+    start_time:       true,
+    end_time:         true,
+    notes:            true,
+    location:         true,
   })
   .refine(
     d => !(d.end_time && !d.start_time),
@@ -79,23 +80,13 @@ const STEP2B_CHIPS: Step2bChipDef[] = [
 // ── Activity form helpers ─────────────────────────────────────────────────────
 
 const BLANK_ACTIVITY: ActivityFormValues = {
-  title:         '',
-  activity_type: 'note',
-  start_time:    null,
-  end_time:      null,
-  notes:         null,
-  location:      null,
+  title:            '',
+  activity_type_id: 1,
+  start_time:       null,
+  end_time:         null,
+  notes:            null,
+  location:         null,
 };
-
-const ACTIVITY_TYPE_OPTIONS: { value: ActivityType; label: string; icon: LucideIcon }[] = [
-  { value: 'attraction', label: 'Attraction',  icon: Camera },
-  { value: 'food',       label: 'Food',        icon: Utensils },
-  { value: 'shopping',   label: 'Shopping',    icon: ShoppingBag },
-  { value: 'outdoors',   label: 'Outdoors',    icon: TreePine },
-  { value: 'cultural',   label: 'Cultural',    icon: Landmark },
-  { value: 'note',       label: 'Note',        icon: FileText },
-  { value: 'other',      label: 'Other',       icon: Tag },
-];
 
 // ── Reservation form state ────────────────────────────────────────────────────
 
@@ -641,12 +632,12 @@ export default function ReservationFormModal({
     if (editingActivity) {
       setCategory('activity');
       actReset({
-        title:         editingActivity.title,
-        activity_type: editingActivity.activity_type,
-        start_time:    editingActivity.start_time    ?? null,
-        end_time:      editingActivity.end_time      ?? null,
-        notes:         editingActivity.notes         ?? null,
-        location:      editingActivity.data.location ?? null,
+        title:            editingActivity.title,
+        activity_type_id: editingActivity.activity_type_id,
+        start_time:       editingActivity.start_time    ?? null,
+        end_time:         editingActivity.end_time      ?? null,
+        notes:            editingActivity.notes         ?? null,
+        location:         editingActivity.data.location ?? null,
       });
       return;
     }
@@ -726,11 +717,11 @@ export default function ReservationFormModal({
     setApiError(null);
     const locationTrimmed = (data.location ?? '').trim();
     const fullInput = {
-      day_id:        dayId ?? null,
-      trip_id:       tripId,
-      title:         data.title.trim(),
-      activity_type: data.activity_type,
-      start_time:    data.start_time || null,
+      day_id:           dayId ?? null,
+      trip_id:          tripId,
+      title:            data.title.trim(),
+      activity_type_id: data.activity_type_id,
+      start_time:       data.start_time || null,
       end_time:      data.end_time   || null,
       notes:         (data.notes ?? '').trim() || null,
       location:      locationTrimmed || null,
@@ -883,21 +874,12 @@ export default function ReservationFormModal({
                 {actFormState.errors.title && <span className="form-field-error">{actFormState.errors.title.message}</span>}
               </div>
               <div className="rfm__field">
-                <Label htmlFor="rfm-act-type">Type</Label>
+                <Label>Type</Label>
                 <Controller
-                  name="activity_type"
+                  name="activity_type_id"
                   control={actControl}
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger id="rfm-act-type" className="w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {ACTIVITY_TYPE_OPTIONS.map(o => (
-                          <SelectItem key={o.value} value={o.value}>
-                            <span className="flex items-center gap-1.5"><o.icon size={13} />{o.label}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <ActivityTypeToggle value={field.value} onChange={field.onChange} />
                   )}
                 />
               </div>
