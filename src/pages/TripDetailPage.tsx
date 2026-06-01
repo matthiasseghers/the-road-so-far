@@ -1168,14 +1168,17 @@ function ItineraryDayCard({
   const [isDragging, setIsDragging] = useState(false);
   const [dropIndicator, setDropIndicator] = useState<{ id: number; itemType: 'activity' | 'reservation'; position: 'above' | 'below' } | null>(null);
 
-  // Combined list sorted by sort_order for unified rendering.
-  // After reorderDayItems the server assigns globally-unique sort_orders (0,1,2…) across both
-  // tables, so sort_order alone is sufficient. For items that have never been explicitly reordered
-  // (both tables default from 0), use a secondary stable key: activities first, then reservations.
+  // Combined list for unified rendering.
+  // Reservation cards are intentionally listed before activities in the itinerary,
+  // while preserving each group's sort_order.
   const serverItems: DragItem[] = useMemo(() => {
-    const acts: (DragItem & { sort_order: number; typeRank: number })[] = activities.map(a => ({ id: a.id, itemType: 'activity' as const, sort_order: a.sort_order, typeRank: 0 }));
-    const ress: (DragItem & { sort_order: number; typeRank: number })[] = dayReservations.map(r => ({ id: r.id, itemType: 'reservation' as const, sort_order: r.sort_order, typeRank: 1 }));
-    return [...acts, ...ress].sort((a, b) => a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.typeRank - b.typeRank);
+    const ress: (DragItem & { sort_order: number })[] = [...dayReservations]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(r => ({ id: r.id, itemType: 'reservation' as const, sort_order: r.sort_order }));
+    const acts: (DragItem & { sort_order: number })[] = [...activities]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(a => ({ id: a.id, itemType: 'activity' as const, sort_order: a.sort_order }));
+    return [...ress, ...acts];
   }, [activities, dayReservations]);
 
   // Optimistic local order — applied immediately on drop, cleared when server data arrives

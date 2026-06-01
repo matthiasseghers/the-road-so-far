@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type FormEvent } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { z } from 'zod';
@@ -74,6 +74,7 @@ export default function ActivityFormModal({
   onGeocodeDone,
 }: ActivityFormModalProps): JSX.Element {
   const isEditing = activity != null;
+  const formId = 'activity-form-modal';
 
   // Reason: store coordinates from autocomplete selection so the geocode call
   // can skip the Nominatim round-trip and use them directly.
@@ -91,6 +92,10 @@ export default function ActivityFormModal({
     resolver: zodResolver(ActivityFormSchema),
     defaultValues: buildDefaultValues(activity),
   });
+
+  const handleFormSubmit = (e: FormEvent<HTMLFormElement>): void => {
+    void handleSubmit(onValid)(e);
+  };
 
   useEffect(() => {
     if (open) {
@@ -151,8 +156,9 @@ export default function ActivityFormModal({
       <Button variant="outline" onClick={onClose}>Cancel</Button>
       <Button
         variant="default"
+        type="submit"
+        form={formId}
         disabled={isSubmitting}
-        onClick={() => { void handleSubmit(onValid)(); }}
       >
         {isSubmitting
           ? <><Spinner className="mr-1.5 size-3.5" />{isEditing ? 'Saving…' : 'Adding…'}</>
@@ -168,7 +174,7 @@ export default function ActivityFormModal({
           <DialogTitle>{isEditing ? 'Edit activity' : 'New activity'}</DialogTitle>
         </DialogHeader>
         <DialogBody>
-        <form className="activity-form pb-1" onSubmit={(e) => { void handleSubmit(onValid)(e); }}>
+        <form id={formId} className="activity-form pb-1" onSubmit={handleFormSubmit}>
           {/* Title */}
           <div className="activity-form__field activity-form__field--required">
             <Label htmlFor="af-title">Title</Label>
