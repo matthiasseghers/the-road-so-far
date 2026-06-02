@@ -36,14 +36,14 @@ app.use(
   }),
 );
 
-// Reason: CORS whitelist for the Vite dev server origin.
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173',   // Vite dev
-];
+// Reason: CORS whitelist for local development - allows any localhost port.
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) cb(null, true);
-    else cb(new Error(`CORS: origin ${origin} not allowed`));
+    if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      cb(null, true);
+    } else {
+      cb(new Error(`CORS: origin ${origin} not allowed`));
+    }
   },
   credentials: true,
 }));
