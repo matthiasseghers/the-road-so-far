@@ -1,17 +1,6 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![CI](https://github.com/matthiasseghers/the-road-so-far/actions/workflows/ci.yml/badge.svg)](https://github.com/matthiasseghers/the-road-so-far/actions/workflows/ci.yml)
 
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
-![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
-![Zod](https://img.shields.io/badge/Zod-4-3E67B1?logo=zod&logoColor=white)
-![Vitest](https://img.shields.io/badge/Vitest-4-6E9F18?logo=vitest&logoColor=white)
-![Leaflet](https://img.shields.io/badge/Leaflet-199900?logo=leaflet&logoColor=white)
-
 # The Road So Far
 
 A personal, offline-first travel planner that keeps everything on your
@@ -20,9 +9,6 @@ machine — no accounts, no cloud sync, no telemetry.
 Plan multi-day trips with a full itinerary, track reservations, visualise
 routes on an interactive map, and export to PDF or your calendar app.
 Works entirely offline; external APIs are optional enhancements.
-
-<!-- TODO: add a screenshot or short demo GIF here -->
-<!-- ![Screenshot](docs/screenshot.png) -->
 
 ## Quick start
 
@@ -121,6 +107,15 @@ the API to the public internet.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow,
 code style, and PR guidelines.
+
+## Built with
+
+- **Frontend:** React 18, TypeScript 6, Vite 8, Tailwind CSS 4, Leaflet
+- **Backend:** Express 5, SQLite 3, Better-SQLite3
+- **Validation:** Zod 4, React Hook Form
+- **PDF Generation:** @react-pdf/renderer
+- **Testing:** Vitest 4, Testing Library
+- **Deployment:** Docker, Docker Compose
 
 ## License
 
