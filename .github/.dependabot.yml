@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for all routine minor + patch bumps
+      non-major:
+        update-types:
+          - "minor"
+          - "patch"
+      # Security patches only — safest to group (backwards-compatible by SemVer)
+      security-patches:
+        applies-to: security-updates
+        update-types:
+          - "patch"
+      # Security minors come in individually — may have breaking changes
