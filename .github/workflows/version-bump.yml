@@ -1,0 +1,86 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: 'patch'
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version integrity
+        run: |
+          CURRENT_VER=$(node -p "require('./package.json').version")
+          LATEST_TAG=$(git tag --sort=-version:refname | grep '^v' | head -1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "ℹ️ No existing tags found, skipping integrity check"
+            exit 0
+          fi
+
+          LATEST_VER="${LATEST_TAG#v}"
+
+          echo "package.json: $CURRENT_VER"
+          echo "latest tag:   $LATEST_TAG"
+
+          if [ "$(printf '%s\n' "$CURRENT_VER" "$LATEST_VER" | sort -V | head -n1)" = "$CURRENT_VER" ] && [ "$CURRENT_VER" != "$LATEST_VER" ]; then
+            echo "❌ package.json version ($CURRENT_VER) is behind latest tag ($LATEST_TAG)"
+            echo "   The version was likely manually edited. Fix package.json before bumping."
+            exit 1
+          fi
+
+          echo "✅ package.json ($CURRENT_VER) is in sync with latest tag ($LATEST_TAG)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - run: npm ci
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: version
+        run: |
+          NEW_VERSION=$(npm version ${{ github.event.inputs.version }} --no-git-tag-version)
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped package.json to $NEW_VERSION"
+
+      - name: Commit and tag
+        run: |
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
+          git tag ${{ steps.version.outputs.new_version }}
+          git push origin main
+          git push origin ${{ steps.version.outputs.new_version }}
+
+      - name: Summary
+        run: |
+          echo "### ✅ Version bumped successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**New version:** \`${{ steps.version.outputs.new_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The **Release** workflow will now run automatically." >> $GITHUB_STEP_SUMMARY
