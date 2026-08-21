@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Shared Document root consumed by both PdfExportModal (download) and
 // PdfPreviewPage (live PDFViewer). Accepts any layout implementing PdfLayout.
 

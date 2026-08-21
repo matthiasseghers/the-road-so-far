@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { Settings2, ListChecks, Database, Plug, Tag } from 'lucide-react';
 import GeneralPanel from '@/components/settings/GeneralPanel';
 import ServicesPanel from '@/components/settings/ServicesPanel';

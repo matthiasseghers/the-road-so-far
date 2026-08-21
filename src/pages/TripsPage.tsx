@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import type { JSX } from 'react';
 import { Plane, CalendarDays, Archive } from 'lucide-react';
 import TripGrid from '@/components/trips/TripGrid';
 import TripFilterBar from '@/components/trips/TripFilterBar';

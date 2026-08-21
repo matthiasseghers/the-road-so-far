@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
+import type { JSX } from 'react';
 import { X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';

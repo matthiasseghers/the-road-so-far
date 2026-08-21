@@ -3,6 +3,7 @@
 // Phase 4: screen state replaced with a back-stack for trip detail navigation.
 
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AppSidebar } from '@/components/layout/AppSidebar';

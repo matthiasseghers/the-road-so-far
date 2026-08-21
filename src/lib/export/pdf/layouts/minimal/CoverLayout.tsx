@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — Cover page.
 // White page, trip title centred in large type, date range below, thin grey rule,
 // stats as inline text, accommodation and day list in a clean typographic grid.

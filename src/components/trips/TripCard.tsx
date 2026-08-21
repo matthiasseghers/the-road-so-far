@@ -1,4 +1,5 @@
 import React from 'react';
+import type { JSX } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';

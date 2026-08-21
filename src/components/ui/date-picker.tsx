@@ -1,4 +1,5 @@
 import * as React from 'react';
+import type { JSX } from 'react';
 import { format, parseISO, isValid } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import type { Matcher } from 'react-day-picker';

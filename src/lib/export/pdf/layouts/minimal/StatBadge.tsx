@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — StatBadge.
 // Inline text label rather than a badge component.
 import { Text, StyleSheet } from '@react-pdf/renderer';

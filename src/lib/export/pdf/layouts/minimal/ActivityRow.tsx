@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — ActivityRow.
 // Single line: time (grey, fixed-width column) then title. No icons.
 import { View, Text, StyleSheet } from '@react-pdf/renderer';

@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — FooterBar.
 // Page number only, right-aligned, small grey text.
 import { View, Text, StyleSheet } from '@react-pdf/renderer';

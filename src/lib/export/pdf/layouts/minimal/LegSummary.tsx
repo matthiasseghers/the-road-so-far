@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — LegSummary.
 // Single italic grey line — no chip/badge styling.
 import { Text, StyleSheet } from '@react-pdf/renderer';

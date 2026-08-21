@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { Plus, ChevronDown, CalendarPlus } from 'lucide-react';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Button } from '@/components/ui/button';

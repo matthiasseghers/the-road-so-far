@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Internal primitives shared by CoverLayout and DayLayout in the Default layout.
 // Not part of the public PdfLayout contract. Import only from within this layout.
 

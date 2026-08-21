@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — DayHeader.
 // Date and day number as plain text, separated from content by a thin grey rule.
 import { View, Text, StyleSheet } from '@react-pdf/renderer';

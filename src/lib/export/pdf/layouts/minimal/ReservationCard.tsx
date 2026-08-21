@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — ReservationCard.
 // Indented block with grey left rule; type in small caps above title. No border card.
 import { View, Text, StyleSheet } from '@react-pdf/renderer';

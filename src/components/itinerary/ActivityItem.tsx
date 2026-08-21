@@ -1,4 +1,5 @@
 import React from 'react';
+import type { JSX } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Activity } from '@/types/domain';

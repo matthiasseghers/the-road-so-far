@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — internal PageWrapper.
 import { Page } from '@react-pdf/renderer';
 import { M } from './colours';

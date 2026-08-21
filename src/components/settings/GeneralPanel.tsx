@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { usePreferences } from '@/hooks/usePreferences';

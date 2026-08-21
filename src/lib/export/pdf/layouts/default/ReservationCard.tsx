@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { ReservationCardProps } from '../index';
 import { StatusPill } from './_shared';

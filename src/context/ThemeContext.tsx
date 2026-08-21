@@ -3,6 +3,7 @@
 // theme without prop drilling through SettingsPage.
 
 import { useState, useEffect } from 'react';
+import type { JSX } from 'react';
 import type { Theme } from '@/types/domain';
 import { ThemeContext } from './ThemeContext.def';
 

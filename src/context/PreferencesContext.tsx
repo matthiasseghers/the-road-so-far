@@ -2,6 +2,7 @@
 // The actual hook logic lives in @/hooks/usePreferences.ts.
 
 import type { ReactNode } from 'react';
+import type { JSX } from 'react';
 
 // Transparent pass-through. Exists so main.tsx has an explicit insertion point
 // that a future React createContext migration can swap without touching consumers.

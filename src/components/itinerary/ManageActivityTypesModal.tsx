@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
+import type { JSX } from 'react';
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   Dialog,

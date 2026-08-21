@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
+import type { JSX } from 'react';
 import { Plus, Pencil, Trash2, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

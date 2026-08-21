@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import type { JSX } from 'react';
 import { MapPin as MapPinIcon, Route, Loader2, AlertTriangle } from 'lucide-react';
 import {
   Empty,

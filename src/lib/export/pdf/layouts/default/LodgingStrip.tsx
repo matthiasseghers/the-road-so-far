@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { View, Text, StyleSheet } from '@react-pdf/renderer';
 import type { LodgingStripProps } from '../index';
 import { C } from './colours';

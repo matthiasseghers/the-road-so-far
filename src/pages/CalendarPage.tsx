@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import GlobalCalendar from '@/components/calendar/GlobalCalendar';
 import { Button } from '@/components/ui/button';

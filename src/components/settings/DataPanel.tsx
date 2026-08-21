@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import type { JSX } from 'react';
 import { Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import JSZip from 'jszip';

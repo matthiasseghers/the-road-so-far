@@ -1,4 +1,5 @@
 import { useState, Fragment, type KeyboardEvent, type MouseEvent } from 'react';
+import type { JSX } from 'react';
 import { ChevronDown, ChevronRight, GripVertical, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';

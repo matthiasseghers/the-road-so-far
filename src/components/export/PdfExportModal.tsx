@@ -2,6 +2,7 @@
 // Shows an "Include map" toggle that is disabled when no TomTom API key is set.
 
 import { useState, useEffect } from 'react';
+import type { JSX } from 'react';
 import { FileDown, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {

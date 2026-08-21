@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Default layout — Cover page.
 // Visual output is identical to the former Classic + THEME_WARM output.
 // Colours come from colours.ts; no theme prop.

@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — Day page.
 // Single-column layout: DayHeader, lodging strips, activities (time + title),
 // reservations (grey-rule cards), notes, travel legs as plain text.

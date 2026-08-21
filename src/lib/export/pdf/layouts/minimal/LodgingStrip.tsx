@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // Minimal layout — LodgingStrip.
 // Single grey text line "Staying at [property]" — no coloured strip.
 import { Text, StyleSheet } from '@react-pdf/renderer';

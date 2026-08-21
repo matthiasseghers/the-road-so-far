@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { useTrips } from '@/hooks/useTrips';
 import { Skeleton } from '@/components/ui/skeleton';
 import { buildMonthGrid, WEEKDAY_HEADERS } from '@/utils/calendar';

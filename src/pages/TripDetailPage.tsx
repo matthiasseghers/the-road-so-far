@@ -2,6 +2,7 @@
 // Own topbar, compact hero, five-tab bar, itinerary with reservations.
 
 import React, { useState, useCallback, useMemo, useEffect, useRef, Suspense, lazy } from 'react';
+import type { JSX } from 'react';
 import { toast } from 'sonner';
 import {
   Pencil,

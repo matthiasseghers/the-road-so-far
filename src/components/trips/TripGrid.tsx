@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { Luggage, Plus } from 'lucide-react';
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyContent } from '@/components/ui/empty';
 import { Button } from '@/components/ui/button';

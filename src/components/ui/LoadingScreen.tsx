@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 

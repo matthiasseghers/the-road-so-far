@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { Navigation } from 'lucide-react';
 import type { Trip } from '@/types/domain';
 import { formatDate } from '@/utils/dates';

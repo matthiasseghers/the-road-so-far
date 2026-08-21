@@ -1,4 +1,5 @@
 import { useId, useEffect, useRef, useState } from 'react';
+import type { JSX } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';

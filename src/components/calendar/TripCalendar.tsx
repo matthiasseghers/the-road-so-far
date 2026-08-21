@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import { useCalendarDays } from '@/hooks/useCalendarDays';
 import { buildMonthGrid, getMonthsForRange, WEEKDAY_HEADERS, MONTH_NAMES } from '@/utils/calendar';
 import type { CalendarDayRow } from '@/types/db';

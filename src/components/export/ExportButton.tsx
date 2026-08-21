@@ -1,4 +1,5 @@
 import { useState, Suspense, lazy } from 'react';
+import type { JSX } from 'react';
 import { FileDown, Calendar, Package } from 'lucide-react';
 import JSZip from 'jszip';
 import { toast } from 'sonner';

@@ -2,6 +2,7 @@
 // Uses three toggles: trip coverage, activities, and reservations.
 
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import {

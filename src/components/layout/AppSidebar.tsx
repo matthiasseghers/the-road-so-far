@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 // AppSidebar — shadcn Sidebar wrapper.
 // collapsible="icon": desktop collapses to icon rail, mobile becomes Sheet drawer.
 
