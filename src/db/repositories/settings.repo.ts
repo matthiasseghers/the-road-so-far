@@ -15,8 +15,7 @@ import type {
 /** Returns the parsed JSON value for a key, or null if not found. */
 export function getSetting<T>(key: string): T | null {
   const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as
-    | Pick<SettingRow, 'value'>
-    | undefined;
+    Pick<SettingRow, 'value'> | undefined;
   if (!row) return null;
   return JSON.parse(row.value) as T;
 }

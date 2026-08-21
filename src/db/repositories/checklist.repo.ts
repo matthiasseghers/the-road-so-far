@@ -18,8 +18,7 @@ export function findChecklistItemsByTripId(tripId: number): ChecklistItemRow[] {
 
 export function findChecklistItemById(id: number): ChecklistItemRow | null {
   const row = getDb().prepare('SELECT * FROM checklist_items WHERE id = ?').get(id) as
-    | ChecklistItemRow
-    | undefined;
+    ChecklistItemRow | undefined;
   return row ?? null;
 }
 
@@ -75,8 +74,7 @@ export function updateChecklistItem(
 ): ChecklistItemRow | null {
   const db = getDb();
   const cur = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id) as
-    | ChecklistItemRow
-    | undefined;
+    ChecklistItemRow | undefined;
   if (!cur) return null;
 
   db.prepare(
@@ -158,8 +156,7 @@ export function findAllTemplatesWithItems(): TemplateWithItems[] {
 
 export function findTemplateById(id: number): ChecklistTemplateRow | null {
   const row = getDb().prepare('SELECT * FROM checklist_templates WHERE id = ?').get(id) as
-    | ChecklistTemplateRow
-    | undefined;
+    ChecklistTemplateRow | undefined;
   return row ?? null;
 }
 
@@ -171,8 +168,7 @@ export function findTemplateItems(templateId: number): TemplateItemRow[] {
 
 export function findTemplateItemById(id: number): TemplateItemRow | null {
   const row = getDb().prepare('SELECT * FROM template_items WHERE id = ?').get(id) as
-    | TemplateItemRow
-    | undefined;
+    TemplateItemRow | undefined;
   return row ?? null;
 }
 
@@ -217,8 +213,7 @@ export function updateTemplate(
 ): ChecklistTemplateRow | null {
   const db = getDb();
   const cur = db.prepare('SELECT * FROM checklist_templates WHERE id = ?').get(id) as
-    | ChecklistTemplateRow
-    | undefined;
+    ChecklistTemplateRow | undefined;
   if (!cur) return null;
 
   db.prepare(
@@ -240,8 +235,7 @@ export function updateTemplate(
 export function deleteTemplate(id: number): void {
   const db = getDb();
   const cur = db.prepare('SELECT * FROM checklist_templates WHERE id = ?').get(id) as
-    | ChecklistTemplateRow
-    | undefined;
+    ChecklistTemplateRow | undefined;
   if (!cur) return;
   if (cur.is_base === 1) throw new Error('Cannot delete a base template');
   db.prepare('DELETE FROM checklist_templates WHERE id = ?').run(id);
@@ -332,8 +326,7 @@ export function updateTemplateItem(
 ): TemplateItemRow | null {
   const db = getDb();
   const cur = db.prepare('SELECT * FROM template_items WHERE id = ?').get(id) as
-    | TemplateItemRow
-    | undefined;
+    TemplateItemRow | undefined;
   if (!cur) return null;
 
   db.prepare('UPDATE template_items SET label = @label, category = @category WHERE id = @id').run({

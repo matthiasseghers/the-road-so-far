@@ -4,14 +4,7 @@
 
 export type TripStatus = 'draft' | 'planning' | 'confirmed' | 'ready' | 'completed' | 'archived';
 export type ReservationType =
-  | 'lodging'
-  | 'flight'
-  | 'train'
-  | 'bus'
-  | 'ferry'
-  | 'rental_car'
-  | 'restaurant'
-  | 'other';
+  'lodging' | 'flight' | 'train' | 'bus' | 'ferry' | 'rental_car' | 'restaurant' | 'other';
 export type ReservationStatus = 'pending' | 'confirmed' | 'cancelled';
 // Reason: free-form — no CHECK constraint in DB (migration 003)
 export type ChecklistCategory = string | null;

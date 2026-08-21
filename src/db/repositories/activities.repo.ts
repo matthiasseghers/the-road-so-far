@@ -35,8 +35,7 @@ export function findActivitiesByTripId(tripId: number): ActivityRow[] {
 
 export function findActivityById(id: number): ActivityRow | null {
   const row = getDb().prepare(`${SELECT_ACTIVITY} WHERE a.id = ?`).get(id) as
-    | ActivityRow
-    | undefined;
+    ActivityRow | undefined;
   return row ?? null;
 }
 

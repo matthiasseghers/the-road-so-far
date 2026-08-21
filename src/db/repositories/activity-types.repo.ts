@@ -11,15 +11,13 @@ export function findAllActivityTypes(): ActivityTypeRow[] {
 
 export function findActivityTypeById(id: number): ActivityTypeRow | null {
   const row = getDb().prepare('SELECT * FROM activity_types WHERE id = ?').get(id) as
-    | ActivityTypeRow
-    | undefined;
+    ActivityTypeRow | undefined;
   return row ?? null;
 }
 
 export function findActivityTypeByName(name: string): ActivityTypeRow | null {
   const row = getDb().prepare('SELECT * FROM activity_types WHERE name = ?').get(name) as
-    | ActivityTypeRow
-    | undefined;
+    ActivityTypeRow | undefined;
   return row ?? null;
 }
 
@@ -62,8 +60,7 @@ export function updateActivityType(
 ): ActivityTypeRow | null {
   const db = getDb();
   const cur = db.prepare('SELECT * FROM activity_types WHERE id = ?').get(id) as
-    | ActivityTypeRow
-    | undefined;
+    ActivityTypeRow | undefined;
   if (!cur) return null;
 
   db.prepare(`UPDATE activity_types SET name = @name, icon_name = @icon_name WHERE id = @id`).run({

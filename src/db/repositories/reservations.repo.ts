@@ -12,8 +12,7 @@ export type { CreateReservationInput, UpdateReservationInput };
  * Routes pattern-match on `ok` — no overlap logic ever leaks into route handlers.
  */
 export type ReservationResult =
-  | { ok: true; item: ReservationRow }
-  | { ok: false; conflict: string };
+  { ok: true; item: ReservationRow } | { ok: false; conflict: string };
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
@@ -31,8 +30,7 @@ export function findAllByDayId(dayId: number): ReservationRow[] {
 
 export function findById(id: number): ReservationRow | null {
   const row = getDb().prepare('SELECT * FROM reservations WHERE id = ?').get(id) as
-    | ReservationRow
-    | undefined;
+    ReservationRow | undefined;
   return row ?? null;
 }
 
@@ -207,8 +205,7 @@ export function updateReservation(
 ): ReservationRow | null {
   const db = getDb();
   const cur = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) as
-    | ReservationRow
-    | undefined;
+    ReservationRow | undefined;
   if (!cur) return null;
 
   // Reason: re-derive title when details are being updated.
