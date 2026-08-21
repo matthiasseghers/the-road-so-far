@@ -1,0 +1,270 @@
+// Reason: pure functions isolated from React/Leaflet so tests can import without DOM.
+import type { ActivityRow, ReservationRow, DayRow } from '@/types/db';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type PinType = 'lodging' | 'flight' | 'transit' | 'car' | 'restaurant' | 'activity';
+
+export interface MapPin {
+  id: string; // e.g. "activity-12" or "reservation-7"
+  type: PinType;
+  name: string; // human-readable title
+  meta: string; // time range or relevant detail
+  lat: number;
+  lng: number;
+  color: string; // matching --res-* token value
+  dayNumber: number;
+  dayTitle: string;
+  dayDate: string;
+}
+
+export interface MapDay {
+  dayNumber: number;
+  title: string;
+  date: string;
+  pinCount: number;
+  hasLodging: boolean;
+}
+
+// ── Color resolution ─────────────────────────────────────────────────────────
+// Reason: Leaflet sets colors via element.style which cannot resolve CSS vars.
+// Reading computed values at call time ensures colors update after theme switch.
+
+const TOKEN_MAP: Record<PinType, string> = {
+  lodging: '--res-lodging',
+  flight: '--res-flight',
+  transit: '--res-transit',
+  car: '--res-car',
+  restaurant: '--res-restaurant',
+  activity: '--act-default',
+};
+
+export function resolveTypeColors(): Record<PinType, string> {
+  const style = getComputedStyle(document.documentElement);
+  return Object.fromEntries(
+    Object.entries(TOKEN_MAP).map(([type, token]) => [type, style.getPropertyValue(token).trim()]),
+  ) as Record<PinType, string>;
+}
+
+// Kept for non-DOM contexts (tests, SSR). These are the light-mode fallback values.
+export const TYPE_COLORS: Record<PinType, string> = {
+  lodging: '#9B91D4',
+  flight: '#6A9CC5',
+  transit: '#5AA8B8',
+  car: '#8AAD7A',
+  restaurant: '#D4825A',
+  activity: '#A09890',
+};
+
+export const TYPE_LABELS: Record<PinType, string> = {
+  lodging: 'Lodging',
+  flight: 'Flight',
+  transit: 'Transit',
+  car: 'Car',
+  restaurant: 'Restaurant',
+  activity: 'Activity',
+};
+
+// ── SVG icon strings for each pin type ───────────────────────────────────────
+// Reason: DivIcon takes HTML strings; inline SVG avoids react-dom/server dependency.
+// Exported so createPinIcon (in leafletMapUtils) can import without duplication.
+export const PIN_ICONS: Record<PinType, string> = {
+  activity: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>`,
+  lodging: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8"/><path d="M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M2 18h20"/></svg>`,
+  flight: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21 4 19 2c-2-2-4-2-5.5-.5L10 5 1.8 6.2a1 1 0 0 0-.7 1.4l.9 1.9L5 10v5l2 2h5l1 3.1a1 1 0 0 0 1.4.7l1.9-.9"/></svg>`,
+  transit: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="13" rx="2"/><line x1="4" y1="11" x2="20" y2="11"/><line x1="8" y1="3" x2="8" y2="11"/><line x1="16" y1="3" x2="16" y2="11"/><path d="M7 20l2-4m8 4-2-4"/></svg>`,
+  car: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10l2 5H5l2-5z"/><rect x="2" y="12" width="20" height="5" rx="1"/><circle cx="7" cy="18" r="1.5"/><circle cx="17" cy="18" r="1.5"/></svg>`,
+  restaurant: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="2" x2="8" y2="22"/><path d="M5 2v5a3 3 0 0 0 6 0V2"/><line x1="17" y1="2" x2="17" y2="22"/></svg>`,
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+export function reservationPinType(type: string): PinType {
+  switch (type) {
+    case 'train':
+    case 'bus':
+    case 'ferry':
+      return 'transit';
+    case 'rental_car':
+      return 'car';
+    case 'flight':
+      return 'flight';
+    case 'lodging':
+      return 'lodging';
+    case 'restaurant':
+      return 'restaurant';
+    default:
+      return 'activity'; // 'other' → grouped under activity colour
+  }
+}
+
+function reservationMeta(res: ReservationRow): string {
+  try {
+    const d = JSON.parse(res.details) as Record<string, string>;
+    switch (res.type) {
+      case 'flight':
+        return `${d['depart_time'] ?? ''} ${d['depart_airport'] ?? ''} → ${d['arrive_airport'] ?? ''}`.trim();
+      case 'lodging':
+        return `${d['check_in_time'] ?? 'Check-in'} · ${d['property_name'] ?? ''}`.trim();
+      case 'restaurant':
+        return `${d['time'] ?? ''} · party of ${d['party_size'] ?? '?'}`.trim();
+      case 'train':
+      case 'bus':
+      case 'ferry':
+        return `${d['from_time'] ?? ''} ${d['from_stop'] ?? '?'} → ${d['to_stop'] ?? '?'}`.trim();
+      case 'rental_car':
+        return `${d['company'] ?? ''} · pick up ${d['pickup_time'] ?? ''}`.trim();
+      default:
+        return '';
+    }
+  } catch {
+    return '';
+  }
+}
+
+// ── Main builder ──────────────────────────────────────────────────────────────
+
+interface DayWithRowActivities extends DayRow {
+  activities: ActivityRow[];
+}
+
+export function buildMapData(
+  days: DayWithRowActivities[],
+  reservations: ReservationRow[],
+): { pins: MapPin[]; mapDays: MapDay[]; lodgingRoute: { lat: number; lng: number }[] } {
+  const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+
+  const pins: MapPin[] = [];
+
+  sorted.forEach((day, idx) => {
+    const dayNumber = idx + 1;
+    const dayTitle = day.title ?? `Day ${dayNumber}`;
+    const dayDate = day.date;
+
+    // Activities on this day
+    for (const act of day.activities) {
+      if (act.lat === null || act.lng === null) continue;
+      pins.push({
+        id: `activity-${act.id}`,
+        type: 'activity',
+        name: act.title,
+        meta: act.start_time
+          ? act.end_time
+            ? `${act.start_time} – ${act.end_time}`
+            : act.start_time
+          : '',
+        lat: act.lat,
+        lng: act.lng,
+        color: TYPE_COLORS.activity,
+        dayNumber,
+        dayTitle,
+        dayDate,
+      });
+    }
+
+    // Reservations on this day
+    const dayRes = reservations.filter(r => r.day_id === day.id);
+    for (const res of dayRes) {
+      if (res.lat === null || res.lng === null) continue;
+      const pinType = reservationPinType(res.type);
+      pins.push({
+        id: `reservation-${res.id}`,
+        type: pinType,
+        name: res.title,
+        meta: reservationMeta(res),
+        lat: res.lat,
+        lng: res.lng,
+        color: TYPE_COLORS[pinType],
+        dayNumber,
+        dayTitle,
+        dayDate,
+      });
+    }
+  });
+
+  // Reason: lodging (and other trip-level reservations) have day_id = null so they
+  // are never reached in the day loop above. Associate each with the day whose date
+  // matches or immediately follows the reservation's reference date (check_in_date etc.)
+  const tripLevelRes = reservations.filter(r => r.day_id === null);
+  for (const res of tripLevelRes) {
+    if (res.lat === null || res.lng === null) continue;
+    const pinType = reservationPinType(res.type);
+
+    let assocDayNumber = 0;
+    let assocDayTitle = res.title;
+    let assocDayDate = '';
+    try {
+      const d = JSON.parse(res.details) as Record<string, string>;
+      const refDate = d['check_in_date'] ?? d['pickup_date'] ?? d['depart_date'] ?? '';
+      if (refDate) {
+        const idx = sorted.findIndex(day => day.date >= refDate);
+        const useIdx = idx >= 0 ? idx : sorted.length - 1;
+        if (useIdx >= 0 && sorted[useIdx]) {
+          assocDayNumber = useIdx + 1;
+          assocDayTitle = sorted[useIdx].title ?? `Day ${useIdx + 1}`;
+          assocDayDate = sorted[useIdx].date;
+        }
+      }
+    } catch {
+      /* keep defaults */
+    }
+
+    pins.push({
+      id: `reservation-${res.id}`,
+      type: pinType,
+      name: res.title,
+      meta: reservationMeta(res),
+      lat: res.lat,
+      lng: res.lng,
+      color: TYPE_COLORS[pinType],
+      dayNumber: assocDayNumber,
+      dayTitle: assocDayTitle,
+      dayDate: assocDayDate,
+    });
+  }
+
+  // Lodging reservations with coords, sorted by check-in date
+  const lodgingWithCoords = reservations
+    .filter(r => r.type === 'lodging' && r.lat !== null && r.lng !== null)
+    .sort((a, b) => {
+      try {
+        const ad = (JSON.parse(a.details) as Record<string, string>)['check_in_date'] ?? '';
+        const bd = (JSON.parse(b.details) as Record<string, string>)['check_in_date'] ?? '';
+        return ad.localeCompare(bd);
+      } catch {
+        return 0;
+      }
+    });
+  const lodgingRoute = lodgingWithCoords.map(r => ({ lat: r.lat as number, lng: r.lng as number }));
+
+  // MapDay list
+  const mapDays: MapDay[] = sorted.map((day, idx) => {
+    const dayNumber = idx + 1;
+    const dayPins = pins.filter(p => p.dayNumber === dayNumber);
+    const dayRes = reservations.filter(r => r.day_id === day.id);
+    const hasLodging = dayRes.some(r => r.type === 'lodging');
+    return {
+      dayNumber,
+      title: day.title ?? `Day ${dayNumber}`,
+      date: day.date,
+      pinCount: dayPins.length,
+      hasLodging,
+    };
+  });
+
+  return { pins, mapDays, lodgingRoute };
+}
+
+/** Count of days that have zero geocoded pins (activities + reservations). */
+export function countDaysMissingLocations(
+  days: DayWithRowActivities[],
+  reservations: ReservationRow[],
+): number {
+  return days.filter(day => {
+    const hasActPin = day.activities.some(a => a.lat !== null && a.lng !== null);
+    const hasResPin = reservations
+      .filter(r => r.day_id === day.id)
+      .some(r => r.lat !== null && r.lng !== null);
+    return !hasActPin && !hasResPin;
+  }).length;
+}
