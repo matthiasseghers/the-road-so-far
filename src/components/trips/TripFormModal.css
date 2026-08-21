@@ -1,0 +1,186 @@
+.trip-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.trip-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+}
+
+.trip-form__label {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-secondary);
+}
+
+.trip-form__input {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.trip-form__select {
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  width: 100%;
+  cursor: pointer;
+}
+
+.trip-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.trip-form__title-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.trip-form__emoji-input {
+  width: 52px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: var(--text-lg);
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: text;
+}
+
+.trip-form__gradients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.trip-form__gradient-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.trip-form__gradient-swatch:hover {
+  transform: scale(1.1);
+}
+
+.trip-form__gradient-swatch--active {
+  border-color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+/* ── Validation ──────────────────────────────────────────────── */
+
+.trip-form__warning {
+  font-size: var(--text-xs);
+  /* Reason: amber distinguishes a non-blocking notice from the red error — CSS tokens
+     don't define a warning colour so a literal is used here. */
+  color: #b08540;
+  margin-top: calc(var(--space-1) * -1);
+}
+
+/* ── Photo picker ────────────────────────────────────────────── */
+
+.trip-form__photo-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.trip-form__photo-hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.trip-form__photo-search {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.trip-form__photo-error {
+  font-size: var(--text-xs);
+  color: var(--status-error, #e55);
+}
+
+/* Reason: 3 columns gives each thumb ~28% of the modal width (~140px) — enough
+   to see the photo without crowding. overflow-y on the grid itself keeps the
+   dialog height stable. No transform on thumbs prevents overlap. */
+.trip-form__photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.trip-form__photo-thumb {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  background: var(--bg-raised);
+  display: block;
+  width: 100%;
+  height: 90px;
+  transition: border-color var(--transition-fast);
+}
+
+.trip-form__photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.trip-form__photo-thumb--selected {
+  border-color: var(--accent);
+}
+
+.trip-form__photo-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.trip-form__photo-page {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.trip-form__photo-attr {
+  font-size: 10px;
+  color: var(--text-muted, var(--text-secondary));
+}
+
+.trip-form__current-photo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.trip-form__current-photo-img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
